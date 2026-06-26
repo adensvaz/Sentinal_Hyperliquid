@@ -3,6 +3,15 @@
 > Market-neutral long/short crypto futures strategy, modeled on Gamma's **Sentiment Edge** vault.  
 > Runs on **KoinBay futures**. Goal: become a **copy-trading lead** (signal provider).
 
+## 🔴 Live Dashboard
+
+**▶ [http://136.113.89.123:8787](http://136.113.89.123:8787)** — live paper-trading dashboard (running 24/7 on Google Cloud)
+
+- **Dashboard tab** — real-time PnL, equity curve, open positions, smart-money overlay
+- **"How it works" tab** — animated walkthrough of the strategy, architecture, and backtest results
+
+> Read-only display of a paper (simulated) account — no live funds, no API keys exposed.
+
 ---
 
 ## Architecture
