@@ -330,6 +330,16 @@ HTML = r"""<!doctype html>
   .card::before{content:"";position:absolute;left:0;right:0;top:0;height:2px;background:linear-gradient(90deg,var(--accent),var(--accent2));opacity:.0;transition:opacity .15s}
   .card:hover::before{opacity:.7}
   .card .k{font-size:10.5px;text-transform:uppercase;letter-spacing:.9px;color:var(--mut);margin-bottom:9px}
+  .info{display:inline-grid;place-items:center;width:14px;height:14px;border-radius:50%;border:1px solid var(--line);
+    color:var(--dim);font-size:9px;font-weight:700;font-style:italic;cursor:help;vertical-align:middle;position:relative;text-transform:none}
+  .info:hover{color:#fff;border-color:var(--accent);box-shadow:0 0 0 2px rgba(107,140,255,.18)}
+  .info::after{content:attr(data-tip);position:absolute;left:50%;top:130%;transform:translateX(-50%) translateY(6px);
+    width:260px;background:#0c121b;border:1px solid var(--line);border-radius:10px;padding:10px 12px;
+    font-size:11.5px;font-weight:500;font-style:normal;letter-spacing:0;line-height:1.5;color:var(--mut);text-transform:none;
+    text-align:left;box-shadow:0 16px 40px rgba(0,0,0,.6);opacity:0;pointer-events:none;transition:.18s;z-index:30}
+  .info:hover::after{opacity:1;transform:translateX(-50%) translateY(0)}
+  .lev{display:inline-block;font-size:9.5px;font-weight:700;color:var(--dim);background:#0c121b;border:1px solid var(--line);
+    border-radius:4px;padding:1px 4px;margin-left:5px;vertical-align:middle;font-variant-numeric:tabular-nums}
   .card .v{font-size:25px;font-weight:760;letter-spacing:-.3px}
   .card .s{font-size:12px;color:var(--mut);margin-top:6px}
   .bar{height:7px;border-radius:5px;background:#0a0f17;overflow:hidden;margin-top:11px;display:flex;border:1px solid #161d29}
@@ -557,7 +567,7 @@ HTML = r"""<!doctype html>
     </div>
 
     <div class="pane on" id="pane-positions">
-      <table><colgroup><col style="width:80px"><col style="width:70px"><col style="width:86px"><col style="width:100px"><col style="width:98px"><col style="width:100px"><col style="width:92px"><col style="width:96px"><col style="width:140px"><col style="width:78px"><col style="width:32px"></colgroup>
+      <table><colgroup><col style="width:78px"><col style="width:96px"><col style="width:78px"><col style="width:96px"><col style="width:96px"><col style="width:98px"><col style="width:90px"><col style="width:94px"><col style="width:138px"><col style="width:76px"><col style="width:30px"></colgroup>
       <thead><tr><th>Asset</th><th>Side</th><th class="r">Size</th><th class="r">Value</th>
       <th class="r">Entry</th><th class="r">Mark</th><th class="r">uPnL</th><th class="r">Funding</th><th class="r">Opened</th><th class="r">Score</th><th></th></tr></thead>
       <tbody id="pos"></tbody></table>
@@ -690,7 +700,9 @@ const ago=s=>{if(!s)return '';const d=Math.max(0,Date.now()/1000-s);return dur(d
 let DATA=null, chart=null, metric='pnl', range='ALL';
 const RANGES={'24H':864e5,'7D':6048e5,'30D':2592e6,'ALL':Infinity};
 
-function card(k,v,cls,s,bar){return `<div class="card"><div class="k">${k}</div><div class="v num ${cls||''}">${v}</div>${bar||''}${s?`<div class="s">${s}</div>`:''}</div>`}
+function card(k,v,cls,s,bar,tip){
+  const info=tip?` <span class="info" data-tip="${tip}">i</span>`:'';
+  return `<div class="card"><div class="k">${k}${info}</div><div class="v num ${cls||''}">${v}</div>${bar||''}${s?`<div class="s">${s}</div>`:''}</div>`}
 
 function render(d){
   if(d.error){$('run').textContent='error: '+d.error;return;}
@@ -707,13 +719,17 @@ function render(d){
   const bias=Math.abs(imb)<0.06?'Neutral ·':(imb>0?'Bullish ↑':'Bearish ↓');  // so neutral band sits above the 5% net rail
   const bc=Math.abs(imb)<0.06?'mut':(imb>0?'grn':'red');
   $('cards').innerHTML=[
-    card('All-time PnL',sgn(d.pnl),pc,`<span class="${pc}">${d.pnl_pct>=0?'+':''}${d.pnl_pct.toFixed(2)}%</span> · equity ${money(d.equity)}`),
+    card('All-time PnL',sgn(d.pnl),pc,`<span class="${pc}">${d.pnl_pct>=0?'+':''}${d.pnl_pct.toFixed(2)}%</span> · equity ${money(d.equity)}`,'',
+      'Total profit/loss since the account started — realized trades + open positions + funding. The % is vs your starting capital.'),
     card('Leverage',lev.toFixed(2)+'×','',`${money(d.gross)} notional · ${money(d.equity)} equity`,
-      `<div class="bar"><span style="width:${levPct}%;background:linear-gradient(90deg,var(--accent),var(--accent2))"></span></div>`),
+      `<div class="bar"><span style="width:${levPct}%;background:linear-gradient(90deg,var(--accent),var(--accent2))"></span></div>`,
+      'Book gross leverage = total position value ÷ equity. It drifts every tick because your positions market value changes as prices move — the bot targets ~2x and trims it in risky conditions. The bot is NOT actively changing it; the wobble is just mark-to-market. (Each trade is opened at 3x on the exchange — see the LEV next to each position.)'),
     card('Direction bias',`<span class="${bc}">${bias}</span>`,'',
       `${lp.toFixed(0)}% long · ${sp.toFixed(0)}% short`+(d.book_beta!=null?` · BTC-β ${(d.book_beta>=0?'+':'')}${d.book_beta.toFixed(2)}`:''),
-      `<div class="bar"><span style="width:${lp}%;background:linear-gradient(90deg,rgba(39,215,150,.6),var(--grn))"></span><span style="width:${sp}%;background:linear-gradient(90deg,var(--red),rgba(255,93,108,.6))"></span></div>`),
-    card('Drawdown',d.drawdown_pct.toFixed(2)+'%',d.drawdown_pct>0?'red':'',`peak ${money(d.peak)} · fees ${money(d.fees)} · funding ${sgn(d.funding||0)}`),
+      `<div class="bar"><span style="width:${lp}%;background:linear-gradient(90deg,rgba(39,215,150,.6),var(--grn))"></span><span style="width:${sp}%;background:linear-gradient(90deg,var(--red),rgba(255,93,108,.6))"></span></div>`,
+      'Long $ vs short $ split. A market-neutral book sits near 50/50 (Neutral). BTC-β is the books net Bitcoin exposure — near 0 means it is largely immune to the overall market direction.'),
+    card('Drawdown',d.drawdown_pct.toFixed(2)+'%',d.drawdown_pct>0?'red':'',`peak ${money(d.peak)} · fees ${money(d.fees)} · funding ${sgn(d.funding||0)}`,'',
+      'How far equity has fallen from its highest point. A kill-switch flattens everything and pauses if this exceeds 15%.'),
   ].join('');
 
   const b=d.book||[];
@@ -730,7 +746,7 @@ function render(d){
         +`${fp>=0?'+$':'−$'}${amtS}</span><span class="fmut">/8h</span>`;
     }
     return `<tr><td class="asset">${short(p.symbol)}</td>
-      <td><span class="chip ${p.side}">${p.side}</span></td>
+      <td><span class="chip ${p.side}">${p.side}</span><span class="lev" title="leverage applied to this trade">${p.leverage||1}×</span></td>
       <td class="r num mut">${(+p.contracts).toLocaleString()}</td>
       <td class="r num">${money(p.notional)}</td>
       <td class="r num mut" style="font-size:11.5px">${sig6(p.entry)}</td>
