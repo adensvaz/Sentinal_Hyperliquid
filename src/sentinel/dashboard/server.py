@@ -49,16 +49,17 @@ def _get_marks(cfg, symbols, ttl: float = 12.0) -> dict:
     from ..exchange.futures import KoinbayFutures
     if _fx_client is None:
         _fx_client = KoinbayFutures(KoinbayClient(cfg.exchange.futures_host, timeout_s=8))
+    from ..util.concurrency import pmap
+
+    def _one(s):
+        idx = _fx_client.index(s)
+        p = float(idx.get("tagPrice") or 0)
+        return (s, p, float(idx.get("currentFundRate") or 0)) if p > 0 else None
+
     px, fr = {}, {}
-    for s in symbols:
-        try:
-            idx = _fx_client.index(s)
-            p = float(idx.get("tagPrice") or 0)
-            if p > 0:
-                px[s] = p
-                fr[s] = float(idx.get("currentFundRate") or 0)
-        except Exception:
-            pass
+    for r in pmap(_one, symbols, workers=12):
+        if r:
+            px[r[0]], fr[r[0]] = r[1], r[2]
     with _marks_lock:
         _marks["px"].update(px)
         _marks["fr"].update(fr)
