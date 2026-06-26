@@ -332,14 +332,25 @@ HTML = r"""<!doctype html>
   .cols{display:grid;grid-template-columns:1.3fr 1fr;gap:18px}
   @media(max-width:920px){.cols{grid-template-columns:1fr}}
   table{width:100%;border-collapse:collapse;font-size:13px}
-  th,td{text-align:left;padding:9px 10px;white-space:nowrap}
-  thead th{color:var(--dim);font-weight:600;font-size:10px;text-transform:uppercase;letter-spacing:.6px;border-bottom:1px solid var(--line)}
-  tbody tr{border-bottom:1px solid rgba(28,36,51,.6)} tbody tr:hover{background:rgba(107,140,255,.05)}
+  th,td{text-align:left;padding:11px 14px;white-space:nowrap;vertical-align:middle}
+  thead tr{position:sticky;top:0;z-index:2}
+  thead th{
+    color:var(--dim);font-weight:700;font-size:10px;text-transform:uppercase;
+    letter-spacing:.9px;background:rgba(8,11,17,.92);backdrop-filter:blur(10px);
+    border-bottom:1px solid var(--line);border-top:0;
+  }
+  thead th.r{text-align:right}
+  tbody tr{border-bottom:1px solid rgba(28,36,51,.45);transition:background .1s}
+  tbody tr:hover{background:rgba(107,140,255,.07);cursor:default}
   tbody tr:last-child{border-bottom:0}
-  td.r{text-align:right} .asset{font-weight:650}
-  .chip{font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:6px;letter-spacing:.3px}
-  .chip.LONG{background:var(--grn-d);color:var(--grn)} .chip.SHORT{background:var(--red-d);color:var(--red)}
-  .sc{font-size:11px;font-weight:700;padding:2px 7px;border-radius:6px;background:#0c121b;border:1px solid var(--line)}
+  td.r{text-align:right}
+  td.num{font-variant-numeric:tabular-nums;font-family:'SF Mono','Fira Code','Courier New',monospace;font-size:12.5px}
+  td.mut{color:var(--mut)}
+  td.asset{font-weight:700;font-size:13.5px;letter-spacing:.4px}
+  .chip{display:inline-block;font-size:10px;font-weight:800;padding:3px 9px;border-radius:5px;letter-spacing:.6px;text-transform:uppercase}
+  .chip.LONG{background:rgba(39,215,150,.15);color:var(--grn);border:1px solid rgba(39,215,150,.25)}
+  .chip.SHORT{background:rgba(255,93,108,.13);color:var(--red);border:1px solid rgba(255,93,108,.22)}
+  .sc{font-size:11px;font-weight:700;padding:3px 8px;border-radius:6px;background:#0c121b;border:1px solid var(--line);font-variant-numeric:tabular-nums}
 
   .wrow{display:grid;grid-template-columns:58px 1fr 64px;align-items:center;gap:10px;padding:6px 0}
   .wrow .cn{font-weight:600;font-size:12.5px}
@@ -430,7 +441,8 @@ HTML = r"""<!doctype html>
     </div>
 
     <div class="pane on" id="pane-positions">
-      <table><thead><tr><th>Asset</th><th>Side</th><th class="r">Size</th><th class="r">Value</th>
+      <table><colgroup><col style="width:90px"><col style="width:80px"><col style="width:100px"><col style="width:120px"><col style="width:110px"><col style="width:120px"><col style="width:100px"><col style="width:90px"><col style="width:36px"></colgroup>
+      <thead><tr><th>Asset</th><th>Side</th><th class="r">Size</th><th class="r">Value</th>
       <th class="r">Entry</th><th class="r">Mark</th><th class="r">uPnL</th><th class="r">Score</th><th></th></tr></thead>
       <tbody id="pos"></tbody></table>
     </div>
@@ -440,6 +452,7 @@ HTML = r"""<!doctype html>
       <table><thead><tr><th>Asset</th><th>Side</th><th class="r">Entry</th><th class="r">Exit</th>
       <th class="r">Net PnL</th><th class="r">Duration</th><th class="r">Closed</th></tr></thead>
       <tbody id="ctrd"></tbody></table>
+
       <div class="pager" id="pgTrades"></div>
     </div>
 
@@ -510,13 +523,13 @@ function render(d){
     const scc=p.score>=0?'grn':'red';
     return `<tr><td class="asset">${short(p.symbol)}</td>
       <td><span class="chip ${p.side}">${p.side}</span></td>
-      <td class="r num">${(+p.contracts).toLocaleString()}</td>
+      <td class="r num mut">${(+p.contracts).toLocaleString()}</td>
       <td class="r num">${money(p.notional)}</td>
-      <td class="r num mut">${sig6(p.entry)}</td>
-      <td class="r num">${sig6(p.mark)}</td>
-      <td class="r num ${uc}">${up!=null?sgn(up):'—'}</td>
+      <td class="r num mut" style="font-size:11.5px">${sig6(p.entry)}</td>
+      <td class="r num" style="font-size:11.5px">${sig6(p.mark)}</td>
+      <td class="r num ${uc}" style="font-weight:700">${up!=null?sgn(up):'—'}</td>
       <td class="r"><span class="sc ${p.score!=null?scc:''}">${p.score!=null?(p.score>=0?'+':'')+(+p.score).toFixed(2):'—'}</span></td>
-      <td class="r"><button class="share" title="Share trade card" onclick="openCard(${i})">↗</button></td></tr>`;
+      <td class="r"><button class="share" title="Share" onclick="openCard(${i})">↗</button></td></tr>`;
   }).join('')||'<tr><td colspan="9" class="empty">no open positions</td></tr>';
 
   const w=d.whales||{}, cons=w.consensus||[];
