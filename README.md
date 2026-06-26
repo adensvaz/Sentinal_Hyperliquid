@@ -7,91 +7,50 @@
 
 ## Architecture
 
-```
-╔══════════════════════════════════════════════════════════════════════════╗
-║                         SENTINEL EDGE ENGINE                            ║
-╠══════════════════════════════════════════════════════════════════════════╣
-║                                                                          ║
-║  ┌─────────────────────────────────────────────────────────────────┐    ║
-║  │                      SIGNAL LAYER                               │    ║
-║  │                                                                 │    ║
-║  │  KoinBay Futures Data                                           │    ║
-║  │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐          │    ║
-║  │  │  Momentum    │  │   Funding    │  │   Volume     │          │    ║
-║  │  │  (4h/1d/7d)  │  │  Crowding   │  │    Surge     │          │    ║
-║  │  │    0.4 wt    │  │   0.2 wt    │  │   0.1 wt    │          │    ║
-║  │  └──────┬───────┘  └──────┬──────┘  └──────┬───────┘          │    ║
-║  │         │                 │                 │                   │    ║
-║  │  ┌──────▼─────────────────▼─────────────────▼──────────┐       │    ║
-║  │  │           Hyperliquid Whale Overlay  0.3 wt         │       │    ║
-║  │  │   10 top wallets (win-rate gated, daily refresh)     │       │    ║
-║  │  │   Beta-demeaned at source → no hidden BTC tilt       │       │    ║
-║  │  └──────────────────────────┬──────────────────────────┘       │    ║
-║  │                             │                                   │    ║
-║  │  ┌──────────────────────────▼──────────────────────────┐       │    ║
-║  │  │       RESIDUAL MOMENTUM (beta-aware selection)       │       │    ║
-║  │  │  Strip BTC-beta from scores BEFORE ranking           │       │    ║
-║  │  │  → book born market-neutral at selection stage       │       │    ║
-║  │  │  → Sharpe 4.77 → 5.01 in backtest                   │       │    ║
-║  │  └──────────────────────────┬──────────────────────────┘       │    ║
-║  └─────────────────────────────┼───────────────────────────────────┘    ║
-║                                │                                         ║
-║  ┌─────────────────────────────▼───────────────────────────────────┐    ║
-║  │                     PORTFOLIO CONSTRUCTION                      │    ║
-║  │                                                                 │    ║
-║  │   Rank 24 coins  →  Long TOP 5  │  Short BOTTOM 5              │    ║
-║  │                                                                 │    ║
-║  │   ┌─────────────────────────────────────────────────────┐      │    ║
-║  │   │  Conviction weighting (score^1.5) + name cap 25%   │      │    ║
-║  │   └──────────────────────────┬──────────────────────────┘      │    ║
-║  │                              │                                  │    ║
-║  │   ┌──────────────────────────▼──────────────────────────┐      │    ║
-║  │   │  Beta-neutralization: shrink heavier-beta sleeve    │      │    ║
-║  │   │  BTC-β 0.135 → 0.072  ·  net rail ≤5% (hard clamp) │      │    ║
-║  │   └──────────────────────────┬──────────────────────────┘      │    ║
-║  │                              │                                  │    ║
-║  │   ┌──────────────────────────▼──────────────────────────┐      │    ║
-║  │   │  ADV Liquidity Cap  ·  Dollar-neutral clamp         │      │    ║
-║  │   └──────────────────────────┬──────────────────────────┘      │    ║
-║  └─────────────────────────────-┼───────────────────────────────────┘   ║
-║                                 │                                        ║
-║  ┌──────────────────────────────▼──────────────────────────────────┐   ║
-║  │                        RISK LAYER                               │   ║
-║  │                                                                 │   ║
-║  │  ┌─────────────────┐  ┌─────────────────┐  ┌────────────────┐  │   ║
-║  │  │ Dynamic De-risk │  │  Crash Guard    │  │ Daily Circuit  │  │   ║
-║  │  │ Vol-target+DD   │  │ Bear+bounce     │  │ Breaker  ≥3%   │  │   ║
-║  │  │ throttle        │  │ regime cut      │  │ → 50% next day │  │   ║
-║  │  └─────────────────┘  └─────────────────┘  └────────────────┘  │   ║
-║  │                                                                 │   ║
-║  │  ┌─────────────────────────────────────────────────────────┐   │   ║
-║  │  │  Kill-switch: DD>15% → flatten + 12h pause              │   │   ║
-║  │  │  Per-position stop: loss >6% equity → close that name   │   │   ║
-║  │  └─────────────────────────────────────────────────────────┘   │   ║
-║  └──────────────────────────────┬──────────────────────────────────┘   ║
-║                                 │                                        ║
-║  ┌──────────────────────────────▼──────────────────────────────────┐   ║
-║  │                     EXECUTION LAYER                             │   ║
-║  │                                                                 │   ║
-║  │  Reconcile (target vs live) → minimal delta orders             │   ║
-║  │  Maker POST_ONLY  ·  anti-churn band  ·  IOC fallback          │   ║
-║  │                                                                 │   ║
-║  │   ┌─────────────────────┐        ┌──────────────────────────┐  │   ║
-║  │   │    PAPER MODE       │        │      LIVE MODE           │  │   ║
-║  │   │  (default, safe)    │        │  mode: live + --live     │  │   ║
-║  │   │  Simulated fills    │        │  Real KoinBay futures    │  │   ║
-║  │   │  Real data/signals  │        │  Preflight auth check    │  │   ║
-║  │   └─────────────────────┘        └──────────────────────────┘  │   ║
-║  └──────────────────────────────┬──────────────────────────────────┘   ║
-║                                 │                                        ║
-║  ┌──────────────────────────────▼──────────────────────────────────┐   ║
-║  │                STATE  ·  STORE  ·  DASHBOARD                   │   ║
-║  │                                                                 │   ║
-║  │  SQLite WAL  ·  equity curve  ·  trades  ·  fills  ·  scores   │   ║
-║  │  Dashboard: http://localhost:8787  (PnL, positions, Smart Money)│   ║
-║  └─────────────────────────────────────────────────────────────────┘   ║
-║                                                                          ║
-╚══════════════════════════════════════════════════════════════════════════╝
+```mermaid
+flowchart TD
+    classDef data fill:#1e3a5f,stroke:#4a9eff,color:#e8f4ff,font-weight:bold
+    classDef signal fill:#1a3a2a,stroke:#27d796,color:#e8fff4,font-weight:bold
+    classDef portfolio fill:#2a1f3d,stroke:#a78bfa,color:#f0e8ff,font-weight:bold
+    classDef risk fill:#3d1a1a,stroke:#ff5d6c,color:#ffe8e8,font-weight:bold
+    classDef exec fill:#1f2d3d,stroke:#60a5fa,color:#e8f0ff,font-weight:bold
+    classDef state fill:#1a2a1a,stroke:#86efac,color:#e8ffe8,font-weight:bold
+    classDef good fill:#14532d,stroke:#22c55e,color:#dcfce7,font-weight:bold
+    classDef warn fill:#7c2d12,stroke:#f97316,color:#ffedd5,font-weight:bold
+
+    KB[("🏦 KoinBay Futures\nLive Market Data")]:::data
+    HL[("🔗 Hyperliquid\nLeaderboard")]:::data
+
+    KB --> MOM["📈 Momentum\n4h · 1d · 7d horizons\nweight 0.4"]:::signal
+    KB --> FUND["💸 Funding / Crowding\nfade crowded longs\nweight 0.2"]:::signal
+    KB --> VOL["📊 Volume Surge\nrecent vs trailing avg\nweight 0.1"]:::signal
+    HL --> WHALE["🐋 Whale Overlay\n10 wallets · win-rate gated\ndaily refresh · weight 0.3\nbeta-demeaned at source"]:::signal
+
+    MOM & FUND & VOL & WHALE --> RESID["⚡ Residual Momentum\nStrip BTC-beta from scores BEFORE ranking\nbook born market-neutral at selection stage\nSharpe 4.77 → 5.01 in backtest"]:::signal
+
+    RESID --> RANK["🎯 Cross-sectional Rank\n24 liquid USDT perps"]:::portfolio
+
+    RANK --> LONGB["🟢 LONG\nTop 5 names"]:::good
+    RANK --> SHORTB["🔴 SHORT\nBottom 5 names"]:::warn
+
+    LONGB & SHORTB --> SIZE["⚖️ Conviction Weighting\nscore^1.5 · max 25% per name"]:::portfolio
+    SIZE --> BETAH["🧲 BTC-Beta Neutralization\nβ 0.135 → 0.072 · net rail ≤5%"]:::portfolio
+    BETAH --> ADVC["💧 ADV Liquidity Cap\nmax 5% of daily volume\ndollar-neutral hard clamp"]:::portfolio
+
+    ADVC --> DRISK["📉 Dynamic De-risk\nvol-target + DD throttle\n25–100% gross scale"]:::risk
+    ADVC --> CRASH["💥 Crash Guard\nbear + violent bounce regime\ngross cut to 50% floor"]:::risk
+    ADVC --> DAILY["⚡ Daily Circuit Breaker\ndown ≥3% → next day at 50%\nSharpe 4.19 → 4.32"]:::risk
+    ADVC --> KILL["🚨 Kill-switch\nDD >15% → flatten all\n12h cooling pause"]:::risk
+    ADVC --> PSTOP["🛑 Per-position Stop\nloss >6% equity\nclose that name only"]:::risk
+
+    DRISK & CRASH & DAILY & KILL & PSTOP --> RECON["🔄 Reconcile\ntarget vs live → minimal delta orders\nmaker POST_ONLY · anti-churn band"]:::exec
+
+    RECON --> PAPER["📄 PAPER MODE\ndefault · zero risk\nreal signals · simulated fills\nbuilds real track record"]:::good
+    RECON --> LIVE["🔴 LIVE MODE\nmode: live + --live flag\nreal KoinBay futures orders\npreflight auth check"]:::warn
+
+    PAPER & LIVE --> DB[("💾 SQLite WAL Store\nequity curve · trades\nfills · scores · funding")]:::state
+    DB --> DASH["🖥️ Dashboard :8787\nPnL · Positions · Smart Money\nequity chart · trade history"]:::state
+    DB --> COPY["📡 Copy-trading Lead\nfollowable book ≤10×\nKoinBay signal provider"]:::good
 ```
 
 ---
