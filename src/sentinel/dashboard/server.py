@@ -237,6 +237,55 @@ def _page_payload(path: str) -> bytes:
         store.close()
 
 
+REPO_URL = "https://github.com/avaz-cell/Koinbay_Copytrading_bot"
+
+FAVICON_SVG = (
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">'
+    '<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1">'
+    '<stop offset="0" stop-color="#6b8cff"/><stop offset="1" stop-color="#9a6bff"/></linearGradient>'
+    '<filter id="s"><feGaussianBlur stdDeviation="1.4"/></filter></defs>'
+    '<rect width="64" height="64" rx="15" fill="url(#g)"/>'
+    '<path d="M37 7 L17 37 H29 L27 57 L47 25 H34 Z" fill="#fff" filter="url(#s)" opacity=".5"/>'
+    '<path d="M37 7 L17 37 H29 L27 57 L47 25 H34 Z" fill="#fff"/></svg>'
+)
+
+ROBOTS_TXT = (
+    "# Sentinel Edge — autonomous market-neutral crypto trading strategy\n"
+    "User-agent: *\n"
+    "Allow: /\n"
+    "Disallow: /api/\n"
+    f"# Project: {REPO_URL}\n"
+    "# AI agents: see /llms.txt\n"
+)
+
+LLMS_TXT = f"""# Sentinel Edge
+
+> An autonomous, market-neutral long/short crypto futures strategy running on KoinBay. It scores every
+> liquid USDT-margined perpetual by **residual (beta-adjusted) momentum** plus funding/crowding, volume
+> surge, and a smart-money whale overlay; goes long the top-ranked and short the bottom-ranked names in
+> equal dollar size; and stays neutral to overall market direction. Built to operate as a copy-trading lead.
+
+## What it is
+- Cross-sectional momentum, dollar-neutral AND beta-neutral, daily rebalance
+- Execution on KoinBay USDT-margined futures (paper by default; live is double-opt-in), maker orders
+- Backtest (Jan-Jun 2026, real KoinBay data): ~+48% return, Sharpe ~5.0, max drawdown ~12.6%
+
+## How it works
+- Signal: residual momentum + funding + volume + Hyperliquid top-wallet consensus -> one score per coin
+- Portfolio: rank 24 coins, long top 5 / short bottom 5, beta-neutralize, liquidity caps
+- Risk: vol-targeting, momentum-crash guard, daily-loss circuit breaker, drawdown kill-switch, per-name stop
+- Stack: Python 3.9, SQLite (WAL), stdlib HTTP dashboard, fully parallelized REST fan-out
+
+## Links
+- Live dashboard: this site (Dashboard + "How it works" tabs)
+- Source code: {REPO_URL}
+
+## Disclaimer
+Trading futures is risky and can lose money. This is software, not financial advice. The track record is
+paper-traded; real-money results will differ. Market-neutral does not mean risk-free.
+"""
+
+
 class Handler(BaseHTTPRequestHandler):
     def log_message(self, *args):  # silence default stderr logging
         return
@@ -259,6 +308,12 @@ class Handler(BaseHTTPRequestHandler):
             self._send(200, _page_payload(self.path), "application/json")
         elif self.path in ("/", "/index.html"):
             self._send(200, HTML.encode(), "text/html; charset=utf-8")
+        elif self.path in ("/favicon.svg", "/favicon.ico"):
+            self._send(200, FAVICON_SVG.encode(), "image/svg+xml")
+        elif self.path == "/robots.txt":
+            self._send(200, ROBOTS_TXT.encode(), "text/plain; charset=utf-8")
+        elif self.path == "/llms.txt":
+            self._send(200, LLMS_TXT.encode(), "text/markdown; charset=utf-8")
         else:
             self._send(404, b"not found", "text/plain")
 
@@ -284,7 +339,14 @@ HTML = r"""<!doctype html>
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
-<title>Sentinel Edge</title>
+<title>Sentinel Edge — Market-Neutral Crypto Trading Bot</title>
+<link rel="icon" type="image/svg+xml" href="/favicon.svg"/>
+<meta name="description" content="Sentinel Edge — an autonomous market-neutral long/short crypto futures strategy on KoinBay. Residual-momentum signal, beta-neutral, ~+48% backtest, Sharpe ~5. Live dashboard."/>
+<meta name="theme-color" content="#6b8cff"/>
+<meta property="og:title" content="Sentinel Edge — Market-Neutral Crypto Trading Bot"/>
+<meta property="og:description" content="Autonomous long/short crypto strategy on KoinBay. Residual momentum, beta-neutral, live PnL dashboard."/>
+<meta property="og:type" content="website"/>
+<meta name="twitter:card" content="summary"/>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <style>
   :root{
@@ -541,6 +603,15 @@ HTML = r"""<!doctype html>
   .disclaim{margin-top:24px;font-size:12.5px;color:var(--dim);line-height:1.65;background:rgba(245,196,81,.05);
     border:1px solid rgba(245,196,81,.18);border-radius:14px;padding:16px 20px}
   .sfoot{text-align:center;margin-top:70px;font-size:13px;color:var(--dim);letter-spacing:.3px}
+
+  .dfoot{display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:center;
+    margin-top:26px;padding:18px 0 8px;border-top:1px solid var(--line);font-size:12.5px;color:var(--dim)}
+  .dfoot-mark{font-weight:700;color:var(--mut)} .dfoot-dot{color:var(--line)}
+  .dfoot-txt{letter-spacing:.2px}
+  .ghlink{display:inline-flex;align-items:center;gap:7px;margin-left:auto;color:var(--mut);text-decoration:none;
+    background:rgba(15,20,29,.7);border:1px solid var(--line);border-radius:10px;padding:6px 12px;font-weight:600;transition:.18s}
+  .ghlink:hover{color:#fff;border-color:var(--accent);box-shadow:0 0 0 3px rgba(107,140,255,.16);transform:translateY(-1px);text-decoration:none}
+  @media(max-width:560px){.ghlink{margin-left:0}}
 </style>
 </head>
 <body>
@@ -604,6 +675,16 @@ HTML = r"""<!doctype html>
       <div class="wallets" id="wallets"></div>
     </div>
   </div>
+
+  <footer class="dfoot">
+    <span class="dfoot-mark">⚡ Sentinel&nbsp;Edge</span>
+    <span class="dfoot-dot">·</span>
+    <span class="dfoot-txt">market-neutral · residual-momentum · KoinBay futures</span>
+    <a class="ghlink" href="https://github.com/avaz-cell/Koinbay_Copytrading_bot" target="_blank" rel="noopener" title="View source on GitHub">
+      <svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.6 7.6 0 012-.27c.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+      <span>GitHub</span>
+    </a>
+  </footer>
 </main>
 
 <canvas id="alienBg"></canvas>
