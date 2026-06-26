@@ -10,6 +10,7 @@ import logging
 from ..exchange.contracts import ContractRegistry
 from ..exchange.futures import KoinbayFutures
 from ..signal.base import SymbolData
+from ..util.concurrency import pmap
 
 log = logging.getLogger("sentinel")
 
@@ -48,17 +49,15 @@ def build_universe(fx: KoinbayFutures, registry: ContractRegistry, ucfg) -> list
         deny = set(ucfg.denylist)
         candidates = [s.name for s in registry.active_usdt() if s.name not in deny]
 
-    ranked: list[tuple[str, float]] = []
-    for name in candidates:
-        try:
-            t = fx.ticker(name)
-            last = float(t.get("last") or 0)
-            vol = float(t.get("vol") or 0)
-            qv = vol * registry.get(name).multiplier * last  # quote-notional volume
-            if qv >= ucfg.min_quote_volume_usdt:
-                ranked.append((name, qv))
-        except Exception:
-            continue
+    def _quote_vol(name: str):
+        t = fx.ticker(name)
+        last = float(t.get("last") or 0)
+        vol = float(t.get("vol") or 0)
+        return (name, vol * registry.get(name).multiplier * last)  # quote-notional volume
+
+    # fan out the per-symbol ticker calls (no bulk endpoint) — bounded thread pool
+    ranked = [r for r in pmap(_quote_vol, candidates, workers=12)
+              if r and r[1] >= ucfg.min_quote_volume_usdt]
     ranked.sort(key=lambda x: x[1], reverse=True)
     universe = [n for n, _ in ranked[: ucfg.top_n]]
     log.info("universe: %d candidates -> %d selected (top by quote volume)", len(candidates), len(universe))
@@ -67,24 +66,25 @@ def build_universe(fx: KoinbayFutures, registry: ContractRegistry, ucfg) -> list
 
 def load_symbol_data(fx: KoinbayFutures, registry: ContractRegistry, symbols: list[str],
                      base_interval: str, history_bars: int):
-    """Returns (data, prices, funding) keyed by contractName."""
+    """Returns (data, prices, funding) keyed by contractName. Klines + index for each symbol are
+    fetched concurrently (no bulk endpoint) — bounded thread pool over the shared httpx pool."""
+    def _fetch(sym: str):
+        idx, closes, vols = _parse_klines(fx.klines(sym, base_interval, history_bars))
+        idxd = fx.index(sym)
+        f = float(idxd.get("currentFundRate") or 0.0)
+        nf = float(idxd.get("nextFundRate") or f)   # forward funding; falls back to current
+        last = float(idxd.get("tagPrice") or (closes[-1] if closes else 0.0))
+        if last <= 0:
+            return None
+        return sym, SymbolData(sym, idx, closes, vols, funding=f, next_funding=nf, last_price=last), last, f
+
     data: dict[str, SymbolData] = {}
     prices: dict[str, float] = {}
     funding: dict[str, float] = {}
-    for sym in symbols:
-        try:
-            idx, closes, vols = _parse_klines(fx.klines(sym, base_interval, history_bars))
-            idxd = fx.index(sym)
-            f = float(idxd.get("currentFundRate") or 0.0)
-            nf = float(idxd.get("nextFundRate") or f)   # forward funding; falls back to current
-            last = float(idxd.get("tagPrice") or (closes[-1] if closes else 0.0))
-            if last <= 0:
-                continue
-            data[sym] = SymbolData(sym, idx, closes, vols, funding=f, next_funding=nf, last_price=last)
-            prices[sym] = last
-            funding[sym] = f
-        except Exception as e:
-            log.warning("data fetch failed for %s: %s", sym, e)
+    for r in pmap(_fetch, symbols, workers=12):
+        if r:
+            sym, sd, last, f = r
+            data[sym], prices[sym], funding[sym] = sd, last, f
     return data, prices, funding
 
 

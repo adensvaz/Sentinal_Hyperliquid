@@ -30,6 +30,7 @@ from ..state.store import Store
 from ..strategy.portfolio import beta_scales, book_beta, compute_betas, demean_by_beta, dispersion
 from ..strategy.sentiment_edge import SentimentEdgeStrategy
 from ..strategy.sizing import adv_caps, net_scales
+from ..util.concurrency import pmap
 from ..util.mathx import parse_duration_to_hours, realized_vol
 from .marketdata import build_universe, load_symbol_data, mark_price, pick_base_interval
 
@@ -388,18 +389,18 @@ class Engine:
         return out
 
     def _index_data(self, symbols):
-        """One index call per symbol -> (marks, funding_rates)."""
+        """One index call per symbol -> (marks, funding_rates). Fetched concurrently."""
+        def _one(s):
+            if not (self.registry and self.registry.has(s)):
+                return None
+            idx = self.fx.index(s)
+            p = float(idx.get("tagPrice") or 0)
+            return (s, p, float(idx.get("currentFundRate") or 0)) if p > 0 else None
+
         marks, funding = {}, {}
-        for s in symbols:
-            if self.registry and self.registry.has(s):
-                try:
-                    idx = self.fx.index(s)
-                    p = float(idx.get("tagPrice") or 0)
-                    if p > 0:
-                        marks[s] = p
-                        funding[s] = float(idx.get("currentFundRate") or 0)
-                except Exception:
-                    pass
+        for r in pmap(_one, symbols, workers=12):
+            if r:
+                marks[r[0]], funding[r[0]] = r[1], r[2]
         return marks, funding
 
     def _accrue_funding(self, positions) -> None:
