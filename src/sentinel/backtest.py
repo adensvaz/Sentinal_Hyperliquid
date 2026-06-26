@@ -223,6 +223,16 @@ def simulate(hist: dict, cfg: Config, rebalance_every: int = 1,
             ns = net_scales(target, equity, cfg.risk.max_net_exposure)
             target = {c: target[c] * ns.get(c, 1.0) for c in target}
 
+        # ---- take-profit: close a held name once its gain since entry exceeds tp_pct (locks the winner) ----
+        tp = getattr(cfg.execution, "take_profit_pct", 0.0)
+        if tp > 0:
+            for c in universe:
+                cu = cur[c]
+                if cu != 0 and c in pos and pos[c].get("entry", 0) > 0:
+                    gain = (closes[c][i] / pos[c]["entry"] - 1.0) * (1 if cu > 0 else -1)
+                    if gain >= tp / 100.0:
+                        target[c] = 0.0
+
         # ---- apply anti-churn band, compute turnover + cost ----
         turnover = 0.0
         new = {}
