@@ -163,6 +163,7 @@ def gather_state(cfg: Config) -> dict:
                          "score": round(scores[sym], 3) if sym in scores else None, "leverage": lev,
                          "entry_notional": round(abs(c) * entry * mult, 2),
                          "base_size": round(abs(c) * mult, 8),
+                         "opened_ts": p.get("opened_ts") or None,
                          "funding_rate": round(fr * 100, 4) if fr is not None else None, "funding_pay": fpay})
         book.sort(key=lambda x: -x["notional"])
         if book:
@@ -556,16 +557,16 @@ HTML = r"""<!doctype html>
     </div>
 
     <div class="pane on" id="pane-positions">
-      <table><colgroup><col style="width:84px"><col style="width:74px"><col style="width:92px"><col style="width:108px"><col style="width:104px"><col style="width:108px"><col style="width:96px"><col style="width:104px"><col style="width:84px"><col style="width:34px"></colgroup>
+      <table><colgroup><col style="width:80px"><col style="width:70px"><col style="width:86px"><col style="width:100px"><col style="width:98px"><col style="width:100px"><col style="width:92px"><col style="width:96px"><col style="width:140px"><col style="width:78px"><col style="width:32px"></colgroup>
       <thead><tr><th>Asset</th><th>Side</th><th class="r">Size</th><th class="r">Value</th>
-      <th class="r">Entry</th><th class="r">Mark</th><th class="r">uPnL</th><th class="r">Funding</th><th class="r">Score</th><th></th></tr></thead>
+      <th class="r">Entry</th><th class="r">Mark</th><th class="r">uPnL</th><th class="r">Funding</th><th class="r">Opened</th><th class="r">Score</th><th></th></tr></thead>
       <tbody id="pos"></tbody></table>
     </div>
 
     <div class="pane" id="pane-trades">
       <div class="tstrip" id="tstrip"></div>
       <table><thead><tr><th>Asset</th><th>Side</th><th class="r">Entry</th><th class="r">Exit</th>
-      <th class="r">Net PnL</th><th class="r">Duration</th><th class="r">Closed</th></tr></thead>
+      <th class="r">Net PnL</th><th class="r">Opened</th><th class="r">Closed</th><th class="r">Held</th></tr></thead>
       <tbody id="ctrd"></tbody></table>
 
       <div class="pager" id="pgTrades"></div>
@@ -683,6 +684,9 @@ const sgn=n=>(n>=0?'+':'−')+'$'+Math.abs(+n||0).toLocaleString(undefined,{maxi
 const sig6=n=>n==null?'—':(+n).toLocaleString(undefined,{maximumSignificantDigits:6});
 const short=s=>(s||'').replace(/^E-|-USDT$/g,'');
 const dur=s=>{s=+s||0;const d=Math.floor(s/86400),h=Math.floor(s%86400/3600),m=Math.floor(s%3600/60);return d?`${d}d ${h}h`:(h?`${h}h ${m}m`:`${m}m`);};
+// exact local timestamp from epoch SECONDS — e.g. "Jun 26, 17:28:04"
+const dt=s=>!s?'—':new Date(s*1000).toLocaleString([],{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit',second:'2-digit'});
+const ago=s=>{if(!s)return '';const d=Math.max(0,Date.now()/1000-s);return dur(d)+' ago';};
 let DATA=null, chart=null, metric='pnl', range='ALL';
 const RANGES={'24H':864e5,'7D':6048e5,'30D':2592e6,'ALL':Infinity};
 
@@ -733,9 +737,10 @@ function render(d){
       <td class="r num" style="font-size:11.5px">${sig6(p.mark)}</td>
       <td class="r num ${uc}" style="font-weight:700">${up!=null?sgn(up):'—'}</td>
       <td class="r num" style="font-size:11.5px">${fcell}</td>
+      <td class="r num mut" style="font-size:11px" title="${p.opened_ts?'held '+ago(p.opened_ts):''}">${dt(p.opened_ts)}</td>
       <td class="r"><span class="sc ${p.score!=null?scc:''}">${p.score!=null?(p.score>=0?'+':'')+(+p.score).toFixed(2):'—'}</span></td>
       <td class="r"><button class="share" title="Share" onclick="openCard(${i})">↗</button></td></tr>`;
-  }).join('')||'<tr><td colspan="10" class="empty">no open positions</td></tr>';
+  }).join('')||'<tr><td colspan="11" class="empty">no open positions</td></tr>';
 
   const w=d.whales||{}, cons=w.consensus||[];
   $('nw').textContent=w.n_wallets||0;
@@ -819,8 +824,10 @@ function pageList(page,pages){
 function tradeRow(t){const pc=t.pnl>=0?'grn':'red';
   return `<tr><td class="asset">${short(t.symbol)}</td><td><span class="chip ${t.side}">${t.side}</span></td>
   <td class="r num mut">${sig6(t.entry)}</td><td class="r num">${sig6(t.exit)}</td>
-  <td class="r num ${pc}">${sgn(t.pnl)}</td><td class="r num mut">${dur(t.duration_s)}</td>
-  <td class="r mut">${new Date(t.ts*1000).toLocaleString([],{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})}</td></tr>`;}
+  <td class="r num ${pc}">${sgn(t.pnl)}</td>
+  <td class="r num mut" style="font-size:11px">${dt(t.opened_ts)}</td>
+  <td class="r num mut" style="font-size:11px">${dt(t.ts)}</td>
+  <td class="r num mut">${dur(t.duration_s)}</td></tr>`;}
 function fillRow(t){const c=t.side==='BUY'?'grn':'red';
   return `<tr><td class="asset">${short(t.symbol)}</td><td class="${c}">${t.side}</td><td class="mut">${t.open_close}</td>
   <td class="r num">${(+t.volume).toLocaleString()}</td><td class="r num">${t.price}</td><td class="r mut">${t.status}</td></tr>`;}
@@ -948,7 +955,8 @@ function drawCardFrame(ts){
   c.globalAlpha=hA;
   c.fillStyle='#fff';c.font='800 27px ui-sans-serif,system-ui,Arial';c.fillText('⚡ SENTINEL EDGE',58,74);
   c.fillStyle='rgba(255,255,255,.6)';c.font='600 17px ui-sans-serif,system-ui,Arial';c.textAlign='right';
-  c.fillText(new Date().toLocaleString([],{month:'short',day:'numeric',year:'numeric',hour:'2-digit',minute:'2-digit'})+' · '+(DATA.mode||'paper').toUpperCase(),W-58,72);
+  const _ts=p.opened_ts?('OPENED '+new Date(p.opened_ts*1000).toLocaleString([],{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})):new Date().toLocaleString([],{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
+  c.fillText(_ts+' · '+(DATA.mode||'paper').toUpperCase(),W-58,72);
   c.textAlign='left';c.globalAlpha=1;
 
   // ---- asset + side (slides in 0.15-0.5s) ----
@@ -1014,7 +1022,8 @@ function downloadCard(){
   c.textBaseline='alphabetic';c.textAlign='left';
   c.fillStyle='#fff';c.font='800 27px ui-sans-serif,system-ui,Arial';c.fillText('⚡ SENTINEL EDGE',58,74);
   c.fillStyle='rgba(255,255,255,.6)';c.font='600 17px ui-sans-serif,system-ui,Arial';c.textAlign='right';
-  c.fillText(new Date().toLocaleString([],{month:'short',day:'numeric',year:'numeric',hour:'2-digit',minute:'2-digit'})+' · '+(DATA.mode||'paper').toUpperCase(),W-58,72);
+  const _ts=p.opened_ts?('OPENED '+new Date(p.opened_ts*1000).toLocaleString([],{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})):new Date().toLocaleString([],{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
+  c.fillText(_ts+' · '+(DATA.mode||'paper').toUpperCase(),W-58,72);
   c.textAlign='left';
   const col=p.side==='LONG'?'#27d796':'#ff5d6c';
   c.fillStyle='#fff';c.font='800 58px ui-sans-serif,system-ui,Arial';const asset=short(p.symbol);c.fillText(asset,58,216);
