@@ -1,0 +1,22 @@
+#!/bin/bash
+# Convenience launcher: runs the strategy CLI from anywhere, using the project's venv.
+#   sentinel status | once | loop | flatten | selftest
+# Start the loop in the background:  sentinel start
+# Stop the background loop:          sentinel stop
+cd "$(dirname "$0")" || exit 1
+PY="./.venv/bin/python"
+
+case "$1" in
+  start)
+    if pgrep -f "run.py loop" >/dev/null; then echo "loop already running (pid $(pgrep -f 'run.py loop'))"; exit 0; fi
+    nohup "$PY" run.py loop > data/loop.out 2>&1 &
+    sleep 2
+    echo "loop started (pid $(pgrep -f 'run.py loop')); log: data/loop.out"
+    ;;
+  stop)
+    pkill -f "run.py loop" && echo "loop stopped" || echo "no loop was running"
+    ;;
+  *)
+    exec "$PY" run.py "$@"
+    ;;
+esac

@@ -1,0 +1,26 @@
+# secrets
+.env
+*.key
+
+# python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+
+# runtime state / outputs
+data/*.db
+data/*.csv
+data/*.log
+data/*.json
+!data/.gitkeep
+data/*.db-shm
+data/*.db-wal
+data/*.out
+
+# macOS
+.DS_Store
+**/.DS_Store
