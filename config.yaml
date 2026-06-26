@@ -1,0 +1,121 @@
+# ============================================================================
+# Sentinel Edge — configuration
+# A market-neutral long/short strategy (Sentiment Edge-style) on KoinBay futures.
+# Secrets live in .env, NOT here.
+# ============================================================================
+
+# paper  -> simulate fills against live prices (DEFAULT, no funds at risk)
+# live   -> place real orders on KoinBay futures (also requires the --live CLI flag)
+mode: paper
+
+exchange:
+  futures_host: https://futuresopenapi.koinbay.com
+  spot_host: https://openapi.koinbay.com
+  recv_window_ms: 5000
+  timeout_s: 15
+
+# null  -> read account equity from KoinBay (USDT margin coin)
+# number -> use this fixed notional as the strategy's capital base (always used in paper mode)
+capital_usdt: 10000
+
+universe:
+  top_n: 24            # rank active USDT-margined perps by 24h quote volume, keep top N
+  allowlist: []        # if non-empty, ONLY these contractNames are considered (e.g. ["E-BTC-USDT"])
+  denylist: []         # always excluded (e.g. ["E-BTC-USDT", "E-ETH-USDT"])
+  min_quote_volume_usdt: 500000   # liquidity floor; names below are dropped
+
+signal:
+  # multi-horizon momentum; horizons are derived from 1h + 1day klines (KoinBay futures has no 4h)
+  momentum_horizons: [4h, 24h, 7d]
+  weights:
+    momentum: 0.4      # risk-adjusted cross-sectional momentum
+    funding: 0.2       # crowding proxy: z(-currentFundRate). positive funding = crowded longs = bearish
+    funding_vel: 0.0   # funding velocity (next-current): wired+live, DORMANT pending forward validation
+    volume: 0.1        # 24h volume surge — BACKTEST KEEPS IT (dropping it cut Sharpe 4.19->3.79; not noise)
+    whale: 0.3         # blended smart-money positioning (now beta-demeaned at source to kill BTC tilt)
+    reversal: 0.0      # short-horizon mean-reversion — BACKTEST REJECTED IT (hurt return+DD); left off
+  funding_sign: -1     # -1 = contrarian (fade crowded funding); +1 = trend-follow
+  reversal_hours: 24   # horizon the reversal factor fades (only used if weights.reversal > 0)
+  ta_veto: 0.0         # native TA confirmation veto — BACKTEST: redundant w/ momentum (lowered Sharpe), left OFF
+
+# Track a basket of top Hyperliquid traders; their blended net positioning (per coin,
+# normalized per-wallet so mega-whales don't dominate) becomes the `whale` score component.
+whales:
+  enabled: true
+  weighting: equal       # equal | equity (weight each wallet equally, or by its account size)
+  info_url: https://api.hyperliquid.xyz/info
+  refresh_days: 1        # the loop auto re-screens the basket DAILY (also: `./sentinel refresh-whales`)
+  max_inactive_days: 5   # recency gate: drop wallets with no on-chain fill in this many days
+  addresses:           # top 10 by 30d PnL, directional, with KoinBay-tradeable coin overlap
+    - "0x7fdafde5cfb5465924316eced2d3715494c517d1"
+    - "0xa9b95f2a2e7ef219021efc5c04c32761b8553bbd"
+    - "0xecb63caa47c7c4e77f60f1ce858cf28dc2b82b00"
+    - "0x17c3c8fdbcb7d1b240ce08965e09b1fc91cba868"
+    - "0xfc667adba8d4837586078f4fdcdc29804337ca06"
+    - "0x372c7f69d0ecc14f73f89bd8a7dfb41bdf29857c"
+    - "0x32008fcb6bbd16532afc83ca8b6c920dde22c407"
+    - "0x77375a8c9d13bf79afb2a87f1b0ac1dfd5f5bf66"
+    - "0xf822fa0fd364c573fcdb7009fcf47601bc8be01a"
+    - "0x6555e1cc97d3cba6eaddebbcd7ca51d75771e0b8"
+
+portfolio:
+  longs: 5             # number of long names (top of the ranking)
+  shorts: 5            # number of short names (bottom of the ranking)
+  weighting: score     # "score" (proportional to |score|) or "equal"
+  conviction: 1.5      # weight ~ |score|^1.5 — mild lean to stronger signals (backtest: best Sharpe at tight cap)
+  target_gross_leverage: 2.0   # gross notional = this * equity. HARD-CAPPED by risk.max_gross_leverage
+  per_name_leverage: 3         # leverage set on each contract via edit_lever (>= gross for margin buffer; <= contract maxLever, <= 10)
+  max_name_weight: 0.25        # cap on any single name's share of its sleeve
+  beta_neutral_scores: true    # SIGNAL: rank by RESIDUAL (beta-adjusted) score — residual momentum;
+                               # the book is born market-neutral at SELECTION (backtest: Sharpe 4.77->5.01)
+  beta_neutralize: true        # ROBUSTNESS: also zero the book's net BTC-beta post-construction
+  beta_max_imbalance: 0.15     # max sleeve shrink when neutralizing beta (ALSO hard-bounded by risk.max_net_exposure)
+  beta_lookback: 30            # bars used to estimate each coin's BTC-beta
+  adv_cap_frac: 0.05           # CAPACITY: never let a name exceed 5% of its daily volume (copy-lead followability)
+
+execution:
+  order_type: limit            # "limit" (marketable, recommended) or "market"
+  maker: true                  # rest POST_ONLY at touch -> maker fee ~1/3 of taker (backtest: big net lift)
+  slippage_bps: 8              # marketable-limit crosses the spread by this many bps (taker path only)
+  time_in_force: IOC           # IOC / FOK / POST_ONLY (limit orders)
+  min_trade_notional: 25       # skip rebalance deltas smaller than this (fee/churn guard)
+  min_rebalance_frac: 0.10     # also skip same-side adjustments < 10% of the current position (anti-churn)
+  margin_mode: isolated        # isolated or cross
+  position_mode: net           # net (one direction per contract) or two_way
+
+risk:
+  max_gross_leverage: 10       # hard ceiling (KoinBay copy-trading caps leverage at 10x)
+  max_net_exposure: 0.05       # |net notional| / equity must stay below this
+  max_drawdown_pct: 15         # kill-switch: flatten + pause if equity falls this % from its peak
+  funding_abs_max: 0.003       # drop names whose |currentFundRate| exceeds this (per-interval)
+  monitor_seconds: 60          # SAFETY RAIL: check kill-switch + position losses every 60s (between rebalances)
+  max_position_loss_pct: 6     # close a single position if its loss exceeds this % of equity
+  pause_hours: 12              # after a drawdown kill-switch, stay flat (no new trades) this long
+  stop_loss_pct: 0             # LIVE only: rest a protective stop this % away from entry (0 = off)
+  # DYNAMIC DE-RISKING — smooths drawdowns & negative months by cutting gross in bad regimes
+  dynamic_risk: true
+  vol_target_daily: 0.015      # de-risk when recent daily book-return volatility exceeds 1.5%
+  vol_lookback: 21             # days of returns used for the volatility estimate
+  dd_throttle_start: 0.04      # begin cutting gross at 4% drawdown
+  dd_throttle_full: 0.12       # gross fully throttled (to min_risk_scale) at 12% drawdown
+  min_risk_scale: 0.25         # never cut gross below 25% of base
+  # MOMENTUM-CRASH GUARD — cut gross in the bear-then-violent-bounce regime (losers rip, neutral book run over)
+  crash_guard: true
+  crash_dd_hours: 720          # bear context window (~30d)
+  crash_bounce_hours: 48       # snapback window (~2d)
+  crash_dd_trigger: 0.15       # market must be >=15% below its recent high
+  crash_bounce_trigger: 0.05   # AND snapping back >=5% over the short window
+  crash_scale_floor: 0.5       # cut gross to at most 50% in a full crash regime
+  # DAILY-LOSS CIRCUIT-BREAKER — a big down-day shrinks the next day's gross (backtest: Sharpe 4.19->4.32)
+  daily_loss_limit_pct: 3.0    # if a day loses >=3%, cut next day's gross
+  daily_loss_scale: 0.5        # ... to 50%
+  # dispersion gate left OFF by default (A/B: flat Sharpe, deepened worst month) — toggle if drawdown-min priority
+  dispersion_gate: false
+
+schedule:
+  rebalance_minutes: 1440      # DAILY — backtest showed 4h bled ~39% to fees vs ~14% daily (higher net + Sharpe)
+
+state:
+  db_path: data/sentinel.db
+  equity_csv: data/equity.csv
+  log_path: data/sentinel.log
