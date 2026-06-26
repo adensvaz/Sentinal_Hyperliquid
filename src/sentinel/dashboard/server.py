@@ -30,14 +30,14 @@ def _loop_running() -> bool:
         return False
 
 
-_marks = {"ts": 0.0, "px": {}}
+_marks = {"ts": 0.0, "px": {}, "fr": {}}
 _marks_lock = threading.Lock()
 _fx_client = None
 
 
 def _get_marks(cfg, symbols, ttl: float = 12.0) -> dict:
-    """Current tagPrice per symbol from public /fapi/v1/index, cached server-side (TTL) so many
-    5s browser polls share one fetch and we don't hammer the exchange."""
+    """Current tagPrice + funding rate per symbol from public /fapi/v1/index, cached server-side (TTL)
+    so many 5s browser polls share one fetch and we don't hammer the exchange."""
     global _fx_client
     if not symbols:
         return {}
@@ -49,18 +49,27 @@ def _get_marks(cfg, symbols, ttl: float = 12.0) -> dict:
     from ..exchange.futures import KoinbayFutures
     if _fx_client is None:
         _fx_client = KoinbayFutures(KoinbayClient(cfg.exchange.futures_host, timeout_s=8))
-    px = {}
+    px, fr = {}, {}
     for s in symbols:
         try:
-            p = float(_fx_client.index(s).get("tagPrice") or 0)
+            idx = _fx_client.index(s)
+            p = float(idx.get("tagPrice") or 0)
             if p > 0:
                 px[s] = p
+                fr[s] = float(idx.get("currentFundRate") or 0)
         except Exception:
             pass
     with _marks_lock:
         _marks["px"].update(px)
+        _marks["fr"].update(fr)
         _marks["ts"] = now
         return dict(_marks["px"])
+
+
+def _funding_rates() -> dict:
+    """Latest cached per-symbol funding rates (populated by _get_marks)."""
+    with _marks_lock:
+        return dict(_marks["fr"])
 
 
 _whales_cache = {"ts": 0.0, "data": None}
@@ -130,6 +139,7 @@ def gather_state(cfg: Config) -> dict:
         marks = _get_marks(cfg, list(positions))
         book = []
         gross = net = live_unreal = 0.0
+        frates = _funding_rates()
         for sym, p in positions.items():
             c = int(p["contracts"])
             if c == 0:
@@ -142,12 +152,17 @@ def gather_state(cfg: Config) -> dict:
             gross += notional
             net += notional if c > 0 else -notional
             live_unreal += upnl
+            # per-position funding for THIS interval: long pays positive funding, short earns it
+            fr = frates.get(sym)
+            signed_notional = notional if c > 0 else -notional
+            fpay = round(-fr * signed_notional, 4) if fr is not None else None  # +earn / -pay this interval
             book.append({"symbol": sym, "side": "LONG" if c > 0 else "SHORT", "contracts": c,
                          "entry": round(entry, 6), "mark": round(mark, 6),
                          "notional": round(notional, 2), "upnl": round(upnl, 2),
                          "score": round(scores[sym], 3) if sym in scores else None, "leverage": lev,
                          "entry_notional": round(abs(c) * entry * mult, 2),
-                         "base_size": round(abs(c) * mult, 8)})
+                         "base_size": round(abs(c) * mult, 8),
+                         "funding_rate": round(fr * 100, 4) if fr is not None else None, "funding_pay": fpay})
         book.sort(key=lambda x: -x["notional"])
         if book:
             eq = starting + realized + funding + live_unreal
@@ -346,6 +361,7 @@ HTML = r"""<!doctype html>
   td.r{text-align:right}
   td.num{font-variant-numeric:tabular-nums;font-family:'SF Mono','Fira Code','Courier New',monospace;font-size:12.5px}
   td.mut{color:var(--mut)}
+  .fmut{color:var(--dim);font-size:9.5px;margin-left:1px}
   td.asset{font-weight:700;font-size:13.5px;letter-spacing:.4px}
   .chip{display:inline-block;font-size:10px;font-weight:800;padding:3px 9px;border-radius:5px;letter-spacing:.6px;text-transform:uppercase}
   .chip.LONG{background:rgba(39,215,150,.15);color:var(--grn);border:1px solid rgba(39,215,150,.25)}
@@ -539,9 +555,9 @@ HTML = r"""<!doctype html>
     </div>
 
     <div class="pane on" id="pane-positions">
-      <table><colgroup><col style="width:90px"><col style="width:80px"><col style="width:100px"><col style="width:120px"><col style="width:110px"><col style="width:120px"><col style="width:100px"><col style="width:90px"><col style="width:36px"></colgroup>
+      <table><colgroup><col style="width:84px"><col style="width:74px"><col style="width:92px"><col style="width:108px"><col style="width:104px"><col style="width:108px"><col style="width:96px"><col style="width:104px"><col style="width:84px"><col style="width:34px"></colgroup>
       <thead><tr><th>Asset</th><th>Side</th><th class="r">Size</th><th class="r">Value</th>
-      <th class="r">Entry</th><th class="r">Mark</th><th class="r">uPnL</th><th class="r">Score</th><th></th></tr></thead>
+      <th class="r">Entry</th><th class="r">Mark</th><th class="r">uPnL</th><th class="r">Funding</th><th class="r">Score</th><th></th></tr></thead>
       <tbody id="pos"></tbody></table>
     </div>
 
@@ -700,6 +716,14 @@ function render(d){
   $('pos').innerHTML=b.map((p,i)=>{
     const up=p.upnl, uc=up==null?'mut':(up>=0?'grn':'red');
     const scc=p.score>=0?'grn':'red';
+    // funding: + = this position EARNS funding this interval, − = it PAYS
+    let fcell='<span class="mut">—</span>';
+    if(p.funding_pay!=null){
+      const fp=p.funding_pay, fc=fp>=0?'grn':'red', amt=Math.abs(fp);
+      const amtS=amt<0.01?amt.toFixed(4):amt.toFixed(2);
+      fcell=`<span class="${fc}" title="${fp>=0?'earns':'pays'} ${(p.funding_rate>=0?'+':'')}${p.funding_rate}% per 8h">`
+        +`${fp>=0?'+$':'−$'}${amtS}</span><span class="fmut">/8h</span>`;
+    }
     return `<tr><td class="asset">${short(p.symbol)}</td>
       <td><span class="chip ${p.side}">${p.side}</span></td>
       <td class="r num mut">${(+p.contracts).toLocaleString()}</td>
@@ -707,9 +731,10 @@ function render(d){
       <td class="r num mut" style="font-size:11.5px">${sig6(p.entry)}</td>
       <td class="r num" style="font-size:11.5px">${sig6(p.mark)}</td>
       <td class="r num ${uc}" style="font-weight:700">${up!=null?sgn(up):'—'}</td>
+      <td class="r num" style="font-size:11.5px">${fcell}</td>
       <td class="r"><span class="sc ${p.score!=null?scc:''}">${p.score!=null?(p.score>=0?'+':'')+(+p.score).toFixed(2):'—'}</span></td>
       <td class="r"><button class="share" title="Share" onclick="openCard(${i})">↗</button></td></tr>`;
-  }).join('')||'<tr><td colspan="9" class="empty">no open positions</td></tr>';
+  }).join('')||'<tr><td colspan="10" class="empty">no open positions</td></tr>';
 
   const w=d.whales||{}, cons=w.consensus||[];
   $('nw').textContent=w.n_wallets||0;
