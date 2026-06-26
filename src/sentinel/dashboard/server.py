@@ -325,19 +325,30 @@ HTML = r"""<!doctype html>
   main{padding:22px 26px;max-width:1280px;margin:0 auto}
   .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(232px,1fr));gap:14px;margin-bottom:18px}
   .card{position:relative;background:linear-gradient(180deg,var(--surface2),var(--surface));border:1px solid var(--line);
-    border-radius:var(--r);padding:16px 18px;overflow:hidden;transition:transform .15s ease,border-color .15s ease}
-  .card:hover{transform:translateY(-2px);border-color:#2a3445}
-  .card::before{content:"";position:absolute;left:0;right:0;top:0;height:2px;background:linear-gradient(90deg,var(--accent),var(--accent2));opacity:.0;transition:opacity .15s}
+    border-radius:var(--r);padding:16px 18px;transition:transform .15s ease,border-color .15s ease,z-index 0s}
+  .card:hover{transform:translateY(-2px);border-color:#2a3445;z-index:40}
+  .card::before{content:"";position:absolute;left:0;right:0;top:0;height:2px;border-radius:var(--r) var(--r) 0 0;
+    background:linear-gradient(90deg,var(--accent),var(--accent2));opacity:.0;transition:opacity .15s}
   .card:hover::before{opacity:.7}
   .card .k{font-size:10.5px;text-transform:uppercase;letter-spacing:.9px;color:var(--mut);margin-bottom:9px}
   .info{display:inline-grid;place-items:center;width:14px;height:14px;border-radius:50%;border:1px solid var(--line);
-    color:var(--dim);font-size:9px;font-weight:700;font-style:italic;cursor:help;vertical-align:middle;position:relative;text-transform:none}
-  .info:hover{color:#fff;border-color:var(--accent);box-shadow:0 0 0 2px rgba(107,140,255,.18)}
-  .info::after{content:attr(data-tip);position:absolute;left:50%;top:130%;transform:translateX(-50%) translateY(6px);
-    width:260px;background:#0c121b;border:1px solid var(--line);border-radius:10px;padding:10px 12px;
-    font-size:11.5px;font-weight:500;font-style:normal;letter-spacing:0;line-height:1.5;color:var(--mut);text-transform:none;
-    text-align:left;box-shadow:0 16px 40px rgba(0,0,0,.6);opacity:0;pointer-events:none;transition:.18s;z-index:30}
-  .info:hover::after{opacity:1;transform:translateX(-50%) translateY(0)}
+    color:var(--dim);font-size:9px;font-weight:700;font-style:italic;cursor:help;vertical-align:middle;position:relative;text-transform:none;
+    transition:color .15s,border-color .15s,box-shadow .15s,transform .15s}
+  .info:hover{color:#fff;border-color:var(--accent);box-shadow:0 0 0 3px rgba(107,140,255,.2);transform:scale(1.15)}
+  /* caret */
+  .info::before{content:"";position:absolute;left:50%;top:calc(100% + 5px);width:10px;height:10px;
+    background:#121a28;border-left:1px solid rgba(107,140,255,.55);border-top:1px solid rgba(107,140,255,.55);
+    transform:translateX(-50%) rotate(45deg) scale(.4);transform-origin:center;opacity:0;pointer-events:none;
+    transition:opacity .14s ease,transform .3s cubic-bezier(.34,1.7,.5,1);z-index:41}
+  .info::after{content:attr(data-tip);position:absolute;left:50%;top:calc(100% + 10px);
+    transform:translateX(-50%) translateY(8px) scale(.9);transform-origin:top center;
+    width:262px;background:linear-gradient(180deg,#121a28,#0a0e15);border:1px solid rgba(107,140,255,.4);border-radius:12px;
+    padding:11px 13px;font-size:11.5px;font-weight:500;font-style:normal;letter-spacing:0;line-height:1.55;color:#c4cdde;
+    text-transform:none;text-align:left;backdrop-filter:blur(14px);
+    box-shadow:0 20px 50px rgba(0,0,0,.7),0 0 30px rgba(107,140,255,.16),inset 0 1px 0 rgba(255,255,255,.05);
+    opacity:0;pointer-events:none;transition:opacity .16s ease,transform .34s cubic-bezier(.34,1.56,.5,1);z-index:40}
+  .info:hover::after{opacity:1;transform:translateX(-50%) translateY(0) scale(1)}
+  .info:hover::before{opacity:1;transform:translateX(-50%) rotate(45deg) scale(1)}
   .lev{display:inline-block;font-size:9.5px;font-weight:700;color:var(--dim);background:#0c121b;border:1px solid var(--line);
     border-radius:4px;padding:1px 4px;margin-left:5px;vertical-align:middle;font-variant-numeric:tabular-nums}
   .card .v{font-size:25px;font-weight:760;letter-spacing:-.3px}
