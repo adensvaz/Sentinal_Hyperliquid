@@ -368,10 +368,13 @@ HTML = r"""<!doctype html>
   .share{background:#0c121b;border:1px solid var(--line);color:var(--mut);border-radius:7px;
     padding:3px 9px;cursor:pointer;font-size:13px;line-height:1;transition:.12s}
   .share:hover{color:#fff;border-color:var(--accent);box-shadow:0 0 0 2px rgba(107,140,255,.15)}
-  .modal{position:fixed;inset:0;background:rgba(4,6,10,.78);backdrop-filter:blur(7px);
-    display:none;align-items:center;justify-content:center;z-index:50;padding:22px}
+  @keyframes modalIn{from{transform:scale(.84) translateY(28px);opacity:0}to{transform:scale(1) translateY(0);opacity:1}}
+  @keyframes overlayIn{from{opacity:0}to{opacity:1}}
+  .modal{position:fixed;inset:0;background:rgba(4,6,10,.84);backdrop-filter:blur(14px);
+    display:none;align-items:center;justify-content:center;z-index:50;padding:22px;animation:overlayIn .25s ease}
   .modal-box{background:var(--surface);border:1px solid var(--line);border-radius:18px;max-width:780px;
-    width:100%;overflow:hidden;box-shadow:0 30px 80px rgba(0,0,0,.6)}
+    width:100%;overflow:hidden;box-shadow:0 40px 100px rgba(0,0,0,.7);
+    animation:modalIn .45s cubic-bezier(.34,1.46,.64,1)}
   .modal-head{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;
     border-bottom:1px solid var(--line);font-size:14px;font-weight:600}
   .modal-head .x{background:transparent;border:0;color:var(--mut);font-size:17px;cursor:pointer}
@@ -649,65 +652,187 @@ document.querySelectorAll('#tabs .tab').forEach(t=>t.onclick=()=>{
   document.querySelectorAll('.pane').forEach(p=>p.classList.toggle('on',p.id==='pane-'+id));
   if(id==='trades') pagerTrades.ensure(); else if(id==='fills') pagerFills.ensure();});
 
-// ---- shareable trade card (canvas, procedural cosmic backgrounds) ----
-let cardIdx=0, cardVar=0;
-function stars(c,W,H,n){for(let i=0;i<n;i++){c.globalAlpha=Math.random()*.8+.2;c.fillStyle='#fff';
-  c.beginPath();c.arc(Math.random()*W,Math.random()*H,Math.random()*1.5,0,7);c.fill();}c.globalAlpha=1;}
+// ---- shareable trade card — cinematic animated canvas ----
+let cardIdx=0,cardVar=0,cardRaf=null,cardT0=null,cardStars=[];
+
+function genStars(W,H,n){
+  cardStars=[];
+  for(let i=0;i<n;i++) cardStars.push({x:Math.random()*W,y:Math.random()*H,r:Math.random()*1.4+.2,
+    speed:Math.random()*.18+.04,phase:Math.random()*Math.PI*2,drift:Math.random()*.3-.15});
+}
+function drawStars(c,W,H,t){
+  c.save();
+  cardStars.forEach(s=>{
+    const twinkle=.35+.65*(.5+.5*Math.sin(t*1.8+s.phase));
+    c.globalAlpha=twinkle; c.fillStyle='#fff';
+    c.beginPath(); c.arc((s.x+s.drift*t*10)%W,(s.y+s.speed*t*10)%H,s.r,0,7); c.fill();
+  });
+  c.globalAlpha=1; c.restore();
+}
+
 const VARS=[
- {n:'Nebula',sw:'radial-gradient(circle at 68% 32%,#7b3fb0,#0b0b16)',d:(c,W,H)=>{let g=c.createRadialGradient(W*.68,H*.34,30,W*.68,H*.34,W*.85);
-   g.addColorStop(0,'#8a4ec4');g.addColorStop(.42,'#2a1640');g.addColorStop(1,'#07060d');c.fillStyle=g;c.fillRect(0,0,W,H);stars(c,W,H,240);}},
- {n:'Aurora',sw:'linear-gradient(135deg,#0a4a36,#04101a)',d:(c,W,H)=>{let g=c.createLinearGradient(0,0,W,H);
-   g.addColorStop(0,'#062b22');g.addColorStop(.5,'#0a4a36');g.addColorStop(1,'#04101a');c.fillStyle=g;c.fillRect(0,0,W,H);
-   for(let k=0;k<3;k++){let gg=c.createLinearGradient(0,0,W,H);gg.addColorStop(0,'rgba(39,215,150,0)');
-     gg.addColorStop(.5,'rgba(39,215,150,.22)');gg.addColorStop(1,'rgba(39,215,150,0)');c.fillStyle=gg;c.fillRect(0,H*.12*k,W,H*.45);}stars(c,W,H,150);}},
- {n:'Deep space',sw:'radial-gradient(circle at 42% 50%,#15355f,#04050b)',d:(c,W,H)=>{let g=c.createRadialGradient(W*.42,H*.5,20,W*.42,H*.5,W);
-   g.addColorStop(0,'#15355f');g.addColorStop(.5,'#0a1530');g.addColorStop(1,'#04050b');c.fillStyle=g;c.fillRect(0,0,W,H);stars(c,W,H,320);}},
- {n:'Ember',sw:'radial-gradient(circle at 70% 60%,#b3461f,#080404)',d:(c,W,H)=>{let g=c.createRadialGradient(W*.7,H*.6,20,W*.7,H*.6,W*.95);
-   g.addColorStop(0,'#c8551f');g.addColorStop(.4,'#3a1208');g.addColorStop(1,'#080404');c.fillStyle=g;c.fillRect(0,0,W,H);stars(c,W,H,110);}},
- {n:'Mono',sw:'linear-gradient(135deg,#161d29,#070a0f)',d:(c,W,H)=>{let g=c.createLinearGradient(0,0,W,H);
-   g.addColorStop(0,'#161d29');g.addColorStop(1,'#070a0f');c.fillStyle=g;c.fillRect(0,0,W,H);
-   c.strokeStyle='rgba(255,255,255,.045)';for(let x=0;x<W;x+=44){c.beginPath();c.moveTo(x,0);c.lineTo(x,H);c.stroke();}
-   for(let y=0;y<H;y+=44){c.beginPath();c.moveTo(0,y);c.lineTo(W,y);c.stroke();}}},
+ {n:'Nebula',sw:'radial-gradient(circle at 68% 32%,#7b3fb0,#0b0b16)',d:(c,W,H,t)=>{
+   const sh=Math.sin(t*.3)*.04; let g=c.createRadialGradient(W*(.68+sh),H*.34,30,W*(.68+sh),H*.34,W*.85);
+   g.addColorStop(0,'#8a4ec4');g.addColorStop(.42,'#2a1640');g.addColorStop(1,'#07060d');
+   c.fillStyle=g;c.fillRect(0,0,W,H); drawStars(c,W,H,t);}},
+ {n:'Aurora',sw:'linear-gradient(135deg,#0a4a36,#04101a)',d:(c,W,H,t)=>{
+   let g=c.createLinearGradient(0,0,W,H);
+   g.addColorStop(0,'#062b22');g.addColorStop(.5,'#0a4a36');g.addColorStop(1,'#04101a');
+   c.fillStyle=g;c.fillRect(0,0,W,H);
+   for(let k=0;k<4;k++){const wave=Math.sin(t*.5+k*1.3)*.08;
+     let gg=c.createLinearGradient(0,0,W,H);gg.addColorStop(0,'rgba(39,215,150,0)');
+     gg.addColorStop(.5,`rgba(39,215,150,${.12+.10*wave})`);gg.addColorStop(1,'rgba(39,215,150,0)');
+     c.fillStyle=gg;c.fillRect(0,H*(.08+.14*k),W,H*.45);}
+   drawStars(c,W,H,t);}},
+ {n:'Deep space',sw:'radial-gradient(circle at 42% 50%,#15355f,#04050b)',d:(c,W,H,t)=>{
+   let g=c.createRadialGradient(W*.42,H*.5,20,W*.42,H*.5,W);
+   g.addColorStop(0,'#15355f');g.addColorStop(.5,'#0a1530');g.addColorStop(1,'#04050b');
+   c.fillStyle=g;c.fillRect(0,0,W,H); drawStars(c,W,H,t);}},
+ {n:'Ember',sw:'radial-gradient(circle at 70% 60%,#b3461f,#080404)',d:(c,W,H,t)=>{
+   const pulse=.05*Math.sin(t*.7); let g=c.createRadialGradient(W*.7,H*.6,20,W*.7,H*.6,W*(.95+pulse));
+   g.addColorStop(0,'#c8551f');g.addColorStop(.4,'#3a1208');g.addColorStop(1,'#080404');
+   c.fillStyle=g;c.fillRect(0,0,W,H); drawStars(c,W,H,t);}},
+ {n:'Mono',sw:'linear-gradient(135deg,#161d29,#070a0f)',d:(c,W,H,t)=>{
+   let g=c.createLinearGradient(0,0,W,H);g.addColorStop(0,'#161d29');g.addColorStop(1,'#070a0f');
+   c.fillStyle=g;c.fillRect(0,0,W,H);
+   c.strokeStyle='rgba(255,255,255,.045)';
+   for(let x=0;x<W;x+=44){c.beginPath();c.moveTo(x,0);c.lineTo(x,H);c.stroke();}
+   for(let y=0;y<H;y+=44){c.beginPath();c.moveTo(0,y);c.lineTo(W,y);c.stroke();}
+   drawStars(c,W,H,t);}},
 ];
+
 function roiPct(p){if(p.entry_notional&&p.leverage){const m=p.entry_notional/p.leverage;if(m>0)return p.upnl/m*100;}return 0;}
 function sizeStr(p){const u=p.base_size!=null?p.base_size:Math.abs(p.contracts);
   return u.toLocaleString(undefined,{maximumFractionDigits:4})+' '+short(p.symbol);}
-function drawCard(){
-  const p=DATA.book[cardIdx]; if(!p)return;
-  const cv=$('cardCanvas'),W=1200,H=675,c=cv.getContext('2d'); cv.width=W; cv.height=H;
-  VARS[cardVar].d(c,W,H);
-  let ov=c.createLinearGradient(0,0,W,0); ov.addColorStop(0,'rgba(0,0,0,.6)'); ov.addColorStop(.55,'rgba(0,0,0,.15)'); ov.addColorStop(1,'rgba(0,0,0,.4)');
-  c.fillStyle=ov; c.fillRect(0,0,W,H);
-  c.fillStyle='rgba(0,0,0,.34)'; c.fillRect(0,H-176,W,176);
-  c.textBaseline='alphabetic'; c.textAlign='left';
-  c.fillStyle='#fff'; c.font='800 27px ui-sans-serif,system-ui,Arial'; c.fillText('⚡ SENTINEL EDGE',58,74);
-  c.fillStyle='rgba(255,255,255,.62)'; c.font='600 17px ui-sans-serif,system-ui,Arial'; c.textAlign='right';
-  c.fillText(new Date().toLocaleString([], {month:'short',day:'numeric',year:'numeric',hour:'2-digit',minute:'2-digit'})+' · '+(DATA.mode||'paper').toUpperCase(),W-58,72);
+
+function easeOut(t){return 1-Math.pow(1-t,3);}
+function easeSpring(t){return t<.5?4*t*t*t:1-Math.pow(-2*t+2,3)/2;}
+
+function drawCardFrame(ts){
+  if(!cardT0) cardT0=ts;
+  const elapsed=(ts-cardT0)/1000;           // seconds since open
+  const p=DATA.book[cardIdx]; if(!p){cardRaf=requestAnimationFrame(drawCardFrame);return;}
+  const cv=$('cardCanvas'),W=1200,H=675,c=cv.getContext('2d');
+  if(cv.width!==W){cv.width=W;cv.height=H;}
+
+  // ---- background (animated) ----
+  VARS[cardVar].d(c,W,H,elapsed);
+
+  // ---- cinematic scan-line reveal (first 0.7s) ----
+  const scanProgress=Math.min(1,elapsed/.65);
+  if(scanProgress<1){
+    const sx=W*easeOut(scanProgress);
+    // dim unseen area
+    c.fillStyle=`rgba(0,0,0,${.6*(1-scanProgress)})`;c.fillRect(sx,0,W-sx,H);
+    // glowing scan beam
+    const sg=c.createLinearGradient(sx-90,0,sx+6,0);
+    sg.addColorStop(0,'rgba(255,255,255,0)');sg.addColorStop(.7,'rgba(255,255,255,.06)');
+    sg.addColorStop(1,'rgba(255,255,255,.45)');
+    c.fillStyle=sg;c.fillRect(0,0,W,H);
+    c.strokeStyle='rgba(200,220,255,.7)';c.lineWidth=1.5;
+    c.beginPath();c.moveTo(sx,0);c.lineTo(sx,H);c.stroke();
+  }
+
+  // ---- dark overlay ----
+  let ov=c.createLinearGradient(0,0,W,0);
+  ov.addColorStop(0,'rgba(0,0,0,.62)');ov.addColorStop(.55,'rgba(0,0,0,.14)');ov.addColorStop(1,'rgba(0,0,0,.42)');
+  c.fillStyle=ov;c.fillRect(0,0,W,H);
+  c.fillStyle='rgba(0,0,0,.36)';c.fillRect(0,H-176,W,176);
+
+  c.textBaseline='alphabetic';c.textAlign='left';
+
+  // ---- header (fades in 0-0.25s) ----
+  const hA=Math.min(1,elapsed/.25);
+  c.globalAlpha=hA;
+  c.fillStyle='#fff';c.font='800 27px ui-sans-serif,system-ui,Arial';c.fillText('⚡ SENTINEL EDGE',58,74);
+  c.fillStyle='rgba(255,255,255,.6)';c.font='600 17px ui-sans-serif,system-ui,Arial';c.textAlign='right';
+  c.fillText(new Date().toLocaleString([],{month:'short',day:'numeric',year:'numeric',hour:'2-digit',minute:'2-digit'})+' · '+(DATA.mode||'paper').toUpperCase(),W-58,72);
+  c.textAlign='left';c.globalAlpha=1;
+
+  // ---- asset + side (slides in 0.15-0.5s) ----
+  const assA=Math.min(1,Math.max(0,(elapsed-.15)/.35));
+  const assOff=(1-easeOut(assA))*40;
+  c.globalAlpha=assA;
+  const col=p.side==='LONG'?'#27d796':'#ff5d6c';
+  c.fillStyle='#fff';c.font='800 58px ui-sans-serif,system-ui,Arial';
+  const asset=short(p.symbol);c.fillText(asset,58,216-assOff);
+  const aw=c.measureText(asset).width;
+  c.fillStyle=col;c.font='800 30px ui-sans-serif,system-ui,Arial';
+  c.fillText(`${p.side} ${p.leverage||1}X`,58+aw+24,216-assOff);
+  c.globalAlpha=1;
+
+  // ---- PnL counter + glow (0.3-0.9s counts up; then pulses) ----
+  const pnl=p.upnl||0,roi=roiPct(p),pc=pnl>=0?'#27d796':'#ff5d6c';
+  const pnlA=Math.min(1,Math.max(0,(elapsed-.25)/.65));
+  const pnlVal=pnl*easeSpring(pnlA);  // count up with spring
+  const pnlS=(pnlVal>=0?'+$':'−$')+Math.abs(pnlVal).toLocaleString(undefined,{maximumFractionDigits:2,minimumFractionDigits:2});
+  // glow intensity: ramp in then idle pulse
+  const glowBase=pnlA*.9,glowPulse=elapsed>1?Math.sin(elapsed*2.2)*.15:0;
+  c.shadowColor=pc;c.shadowBlur=(28+glowPulse*14)*glowBase;
+  c.fillStyle=pc;c.globalAlpha=Math.min(1,pnlA+.05);
+  c.font='800 80px ui-sans-serif,system-ui,Arial';c.fillText(pnlS,58,322);
+  const bigW=c.measureText(pnlS).width;
+  c.font='800 36px ui-sans-serif,system-ui,Arial';
+  const roiS=`(${roi>=0?'+':''}${roi.toFixed(2)}%)`;c.fillText(roiS,58+bigW+20,322);
+  c.shadowBlur=0;c.globalAlpha=1;
+
+  // ---- bottom rows (fade in 0.55-0.85s) ----
+  const rowA=Math.min(1,Math.max(0,(elapsed-.5)/.35));
+  c.globalAlpha=rowA;
+  const rows=[['SIZE',sizeStr(p)],['ENTRY','$'+sig6(p.entry)],['MARK','$'+sig6(p.mark)]];
+  c.font='600 22px ui-sans-serif,system-ui,Arial';let y=H-120;
+  rows.forEach(([k,v])=>{
+    c.fillStyle='rgba(255,255,255,.5)';c.textAlign='left';c.fillText(k,58,y);
+    c.fillStyle='#fff';c.textAlign='right';c.fillText(v,W-58,y);
+    c.strokeStyle='rgba(255,255,255,.13)';c.beginPath();c.moveTo(58,y+15);c.lineTo(W-58,y+15);c.stroke();y+=44;
+  });
+  c.textAlign='left';c.globalAlpha=1;
+
+  cardRaf=requestAnimationFrame(drawCardFrame);
+}
+
+function stopCardAnim(){if(cardRaf){cancelAnimationFrame(cardRaf);cardRaf=null;}}
+function renderSwatches(){$('swatches').innerHTML=VARS.map((v,i)=>`<button class="sw ${i===cardVar?'on':''}" style="background:${v.sw}" title="${v.n}" onclick="pickVar(${i})"></button>`).join('');}
+function openCard(i){
+  stopCardAnim();cardIdx=i;cardVar=0;cardT0=null;
+  genStars(1200,675,220);
+  $('cardModal').style.display='flex';renderSwatches();
+  cardRaf=requestAnimationFrame(drawCardFrame);
+}
+function closeCard(){stopCardAnim();$('cardModal').style.display='none';}
+function pickVar(i){cardVar=i;cardT0=null;renderSwatches();}   // restart reveal on theme switch
+function downloadCard(){
+  stopCardAnim();
+  const p=DATA.book[cardIdx],cv=$('cardCanvas');
+  // draw one clean static frame for export
+  const W=1200,H=675,c=cv.getContext('2d');cv.width=W;cv.height=H;
+  VARS[cardVar].d(c,W,H,2.0);
+  let ov=c.createLinearGradient(0,0,W,0);ov.addColorStop(0,'rgba(0,0,0,.62)');ov.addColorStop(.55,'rgba(0,0,0,.14)');ov.addColorStop(1,'rgba(0,0,0,.42)');
+  c.fillStyle=ov;c.fillRect(0,0,W,H);c.fillStyle='rgba(0,0,0,.36)';c.fillRect(0,H-176,W,176);
+  c.textBaseline='alphabetic';c.textAlign='left';
+  c.fillStyle='#fff';c.font='800 27px ui-sans-serif,system-ui,Arial';c.fillText('⚡ SENTINEL EDGE',58,74);
+  c.fillStyle='rgba(255,255,255,.6)';c.font='600 17px ui-sans-serif,system-ui,Arial';c.textAlign='right';
+  c.fillText(new Date().toLocaleString([],{month:'short',day:'numeric',year:'numeric',hour:'2-digit',minute:'2-digit'})+' · '+(DATA.mode||'paper').toUpperCase(),W-58,72);
   c.textAlign='left';
   const col=p.side==='LONG'?'#27d796':'#ff5d6c';
-  c.fillStyle='#fff'; c.font='800 58px ui-sans-serif,system-ui,Arial'; const asset=short(p.symbol); c.fillText(asset,58,216);
-  const aw=c.measureText(asset).width; c.fillStyle=col; c.font='800 30px ui-sans-serif,system-ui,Arial';
+  c.fillStyle='#fff';c.font='800 58px ui-sans-serif,system-ui,Arial';const asset=short(p.symbol);c.fillText(asset,58,216);
+  const aw=c.measureText(asset).width;c.fillStyle=col;c.font='800 30px ui-sans-serif,system-ui,Arial';
   c.fillText(`${p.side} ${p.leverage||1}X`,58+aw+24,216);
-  const pnl=p.upnl||0, roi=roiPct(p), pc=pnl>=0?'#27d796':'#ff5d6c';
-  c.fillStyle=pc; c.font='800 80px ui-sans-serif,system-ui,Arial';
-  const pnlS=(pnl>=0?'+$':'−$')+Math.abs(pnl).toLocaleString(undefined,{maximumFractionDigits:2});
-  c.fillText(pnlS,58,322);
-  const bigW=c.measureText(pnlS).width;          // measured at 80px (was the bug: measured at small font)
-  c.font='800 36px ui-sans-serif,system-ui,Arial'; c.fillStyle=pc;
+  const pnl=p.upnl||0,roi=roiPct(p),pc=pnl>=0?'#27d796':'#ff5d6c';
+  const pnlS=(pnl>=0?'+$':'−$')+Math.abs(pnl).toLocaleString(undefined,{maximumFractionDigits:2,minimumFractionDigits:2});
+  c.shadowColor=pc;c.shadowBlur=28;c.fillStyle=pc;c.font='800 80px ui-sans-serif,system-ui,Arial';c.fillText(pnlS,58,322);
+  const bigW=c.measureText(pnlS).width;c.font='800 36px ui-sans-serif,system-ui,Arial';c.shadowBlur=0;
   c.fillText(`(${roi>=0?'+':''}${roi.toFixed(2)}%)`,58+bigW+20,322);
   const rows=[['SIZE',sizeStr(p)],['ENTRY','$'+sig6(p.entry)],['MARK','$'+sig6(p.mark)]];
-  c.font='600 22px ui-sans-serif,system-ui,Arial'; let y=H-120;
+  c.font='600 22px ui-sans-serif,system-ui,Arial';let y=H-120;
   rows.forEach(([k,v])=>{c.fillStyle='rgba(255,255,255,.5)';c.textAlign='left';c.fillText(k,58,y);
     c.fillStyle='#fff';c.textAlign='right';c.fillText(v,W-58,y);
     c.strokeStyle='rgba(255,255,255,.13)';c.beginPath();c.moveTo(58,y+15);c.lineTo(W-58,y+15);c.stroke();y+=44;});
-  c.textAlign='left';
+  cv.toBlob(b=>{const a=document.createElement('a');a.href=URL.createObjectURL(b);
+    a.download=`sentinel-${short(p.symbol)}-${p.side}.png`;a.click();
+    // restart live animation
+    cardT0=null;cardRaf=requestAnimationFrame(drawCardFrame);});
 }
-function renderSwatches(){$('swatches').innerHTML=VARS.map((v,i)=>`<button class="sw ${i===cardVar?'on':''}" style="background:${v.sw}" title="${v.n}" onclick="pickVar(${i})"></button>`).join('');}
-function openCard(i){cardIdx=i;cardVar=0;$('cardModal').style.display='flex';renderSwatches();drawCard();}
-function closeCard(){$('cardModal').style.display='none';}
-function pickVar(i){cardVar=i;renderSwatches();drawCard();}
-function downloadCard(){const p=DATA.book[cardIdx];$('cardCanvas').toBlob(b=>{const a=document.createElement('a');
-  a.href=URL.createObjectURL(b);a.download=`sentinel-${short(p.symbol)}-${p.side}.png`;a.click();});}
 function copyCard(){try{$('cardCanvas').toBlob(async b=>{try{await navigator.clipboard.write([new ClipboardItem({'image/png':b})]);}catch(e){downloadCard();}});}catch(e){downloadCard();}}
 $('cardModal').addEventListener('click',e=>{if(e.target.id==='cardModal')closeCard();});
 
