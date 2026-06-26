@@ -83,6 +83,7 @@ class ExecutionCfg(BaseModel):
     asym_rebalance: bool = False       # let winners run / don't feed losers: widen the no-trade band for
                                        # trimming a winning position or adding to a losing one
     asym_band_mult: float = 3.0        # band multiplier applied in those two cases
+    take_profit_pct: float = 0.0       # close a held name once its gain since entry exceeds this % (0 = off)
     margin_mode: Literal["isolated", "cross"] = "isolated"
     position_mode: Literal["net", "two_way"] = "net"
 

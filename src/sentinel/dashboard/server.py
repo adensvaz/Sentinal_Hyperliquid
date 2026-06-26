@@ -411,16 +411,111 @@ HTML = r"""<!doctype html>
   .pgb.on{color:#fff;background:linear-gradient(135deg,var(--accent),var(--accent2));border:0;box-shadow:0 2px 10px rgba(107,140,255,.35)}
   .pgb:disabled{opacity:.32;cursor:default}
   .pager .dots{color:var(--dim);padding:0 3px;font-weight:700}
+
+  /* ===================== HEADER NAV ===================== */
+  .nav{display:flex;gap:4px;background:rgba(10,14,21,.6);border:1px solid var(--line);border-radius:11px;padding:3px}
+  .navbtn{background:transparent;border:0;color:var(--mut);font-size:12.5px;font-weight:650;
+    padding:6px 14px;border-radius:8px;cursor:pointer;transition:.16s;letter-spacing:.2px}
+  .navbtn:hover{color:var(--txt)}
+  .navbtn.on{color:#fff;background:linear-gradient(135deg,var(--accent),var(--accent2));box-shadow:0 2px 12px rgba(107,140,255,.4)}
+
+  /* ===================== ALIEN STRATEGY PAGE ===================== */
+  #alienBg{position:fixed;inset:0;z-index:0;pointer-events:none;opacity:0;transition:opacity .6s ease}
+  #alienBg.on{opacity:1}
+  .spage{position:relative;z-index:1;max-width:1080px;margin:0 auto;padding:10px 26px 80px}
+  @keyframes revUp{from{opacity:0;transform:translateY(34px)}to{opacity:1;transform:translateY(0)}}
+  .reveal{opacity:0}
+  .reveal.in{animation:revUp .8s cubic-bezier(.22,.9,.3,1) forwards}
+
+  /* hero */
+  .hero{position:relative;text-align:center;padding:70px 20px 56px;overflow:hidden}
+  .orb{position:absolute;top:-160px;left:50%;transform:translateX(-50%);width:620px;height:620px;border-radius:50%;
+    background:radial-gradient(circle,rgba(154,107,255,.34),rgba(74,158,255,.14) 42%,transparent 68%);
+    filter:blur(28px);animation:orbFloat 9s ease-in-out infinite;z-index:-1}
+  @keyframes orbFloat{0%,100%{transform:translateX(-50%) translateY(0) scale(1)}50%{transform:translateX(-50%) translateY(26px) scale(1.07)}}
+  .hero-tag{font-size:11.5px;letter-spacing:3.4px;font-weight:700;
+    background:linear-gradient(90deg,#4a9eff,#9a6bff,#27d796);-webkit-background-clip:text;background-clip:text;color:transparent;margin-bottom:18px}
+  .hero-title{font-size:clamp(46px,8vw,92px);font-weight:850;letter-spacing:-2px;line-height:1;margin:0 0 18px;
+    background:linear-gradient(180deg,#fff,#9fb4d8);-webkit-background-clip:text;background-clip:text;color:transparent;
+    text-shadow:0 0 60px rgba(107,140,255,.25);position:relative}
+  .hero-sub{font-size:clamp(15px,2.4vw,20px);color:var(--mut);max-width:620px;margin:0 auto;line-height:1.55}
+  .hero-sub b{color:#fff;font-weight:700}
+  .hero-stats{display:flex;flex-wrap:wrap;gap:14px;justify-content:center;margin-top:40px}
+  .hstat{flex:1;min-width:130px;max-width:200px;background:rgba(15,20,29,.6);border:1px solid var(--line);
+    border-radius:16px;padding:18px 14px;backdrop-filter:blur(8px);transition:.25s}
+  .hstat:hover{border-color:rgba(107,140,255,.5);transform:translateY(-3px);box-shadow:0 14px 40px rgba(74,158,255,.16)}
+  .hstat .hv{font-size:30px;font-weight:820;letter-spacing:-.5px;font-variant-numeric:tabular-nums;
+    background:linear-gradient(135deg,#4a9eff,#9a6bff);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .hstat .hl{font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--dim);margin-top:6px}
+
+  /* section blocks */
+  .sblock{margin-top:78px}
+  .seye{font-size:11px;letter-spacing:2.6px;font-weight:700;color:var(--accent);margin-bottom:12px}
+  .sh2{font-size:clamp(24px,4vw,38px);font-weight:800;letter-spacing:-.8px;margin:0 0 30px;line-height:1.12;
+    background:linear-gradient(180deg,#fff,#aab8d4);-webkit-background-clip:text;background-clip:text;color:transparent}
+
+  .steps{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}
+  @media(max-width:780px){.steps{grid-template-columns:1fr}}
+  .step{position:relative;background:linear-gradient(180deg,rgba(19,26,37,.72),rgba(15,20,29,.72));
+    border:1px solid var(--line);border-radius:20px;padding:26px 22px;overflow:hidden;transition:.3s}
+  .step::after{content:"";position:absolute;inset:0;border-radius:20px;padding:1px;background:linear-gradient(135deg,rgba(74,158,255,.5),transparent 45%);
+    -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude;opacity:0;transition:.3s}
+  .step:hover{transform:translateY(-5px);box-shadow:0 22px 60px rgba(0,0,0,.5)}
+  .step:hover::after{opacity:1}
+  .snum{position:absolute;top:16px;right:20px;font-size:54px;font-weight:850;color:rgba(107,140,255,.1);line-height:1}
+  .sicon{font-size:30px;margin-bottom:14px}
+  .step h3{font-size:19px;font-weight:760;margin:0 0 9px}
+  .step p{font-size:13.5px;color:var(--mut);line-height:1.6;margin:0}
+
+  .why{margin-top:22px;background:rgba(10,14,21,.5);border:1px solid var(--line);border-radius:18px;padding:8px 22px}
+  .whyrow{display:grid;grid-template-columns:200px 1fr;gap:18px;padding:16px 0;border-bottom:1px solid rgba(28,36,51,.5)}
+  .whyrow:last-child{border-bottom:0}
+  @media(max-width:640px){.whyrow{grid-template-columns:1fr;gap:5px}}
+  .wk{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--accent)}
+  .wv{font-size:14px;color:var(--mut);line-height:1.55} .wv b{color:#fff} .wv i{color:#9a6bff;font-style:normal;font-weight:600}
+
+  /* flow svg */
+  .flowwrap{background:radial-gradient(circle at 50% 40%,rgba(20,28,44,.7),rgba(10,14,21,.7));
+    border:1px solid var(--line);border-radius:22px;padding:14px;overflow:hidden}
+  #flowSvg{width:100%;height:auto;display:block}
+
+  /* architecture */
+  .arch{display:flex;flex-direction:column;align-items:center;gap:6px}
+  .alayer{width:100%;max-width:680px;background:linear-gradient(135deg,rgba(19,26,37,.8),rgba(15,20,29,.8));
+    border:1px solid var(--line);border-left:3px solid var(--ac);border-radius:14px;padding:18px 24px;transition:.28s}
+  .alayer:hover{transform:scale(1.02);box-shadow:0 0 0 1px var(--ac),0 16px 44px rgba(0,0,0,.5)}
+  .aname{font-size:16px;font-weight:760;color:#fff;margin-bottom:4px}
+  .alayer .adesc{font-size:13px;color:var(--mut);line-height:1.5}
+  .aflow{color:var(--accent);font-size:15px;opacity:.5;animation:aPulse 2s ease-in-out infinite}
+  @keyframes aPulse{0%,100%{opacity:.3;transform:translateY(0)}50%{opacity:.8;transform:translateY(3px)}}
+
+  /* performance */
+  .sp-note{font-size:13px;color:var(--dim);margin:-18px 0 26px}
+  .perfgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+  @media(max-width:680px){.perfgrid{grid-template-columns:repeat(2,1fr)}}
+  .pcard{background:linear-gradient(180deg,rgba(19,26,37,.75),rgba(15,20,29,.75));border:1px solid var(--line);
+    border-radius:18px;padding:26px 18px;text-align:center;transition:.28s}
+  .pcard:hover{transform:translateY(-4px);border-color:rgba(107,140,255,.45);box-shadow:0 18px 50px rgba(74,158,255,.14)}
+  .pcard .pv{font-size:36px;font-weight:840;letter-spacing:-1px;font-variant-numeric:tabular-nums;color:#fff}
+  .pcard .pv.grn{color:var(--grn)} .pcard .pv.red{color:var(--red)}
+  .pcard .pl{font-size:11.5px;text-transform:uppercase;letter-spacing:1px;color:var(--dim);margin-top:9px}
+  .disclaim{margin-top:24px;font-size:12.5px;color:var(--dim);line-height:1.65;background:rgba(245,196,81,.05);
+    border:1px solid rgba(245,196,81,.18);border-radius:14px;padding:16px 20px}
+  .sfoot{text-align:center;margin-top:70px;font-size:13px;color:var(--dim);letter-spacing:.3px}
 </style>
 </head>
 <body>
 <header>
   <div class="brand"><span class="mark">⚡</span> Sentinel&nbsp;Edge</div>
+  <nav class="nav">
+    <button class="navbtn on" data-page="dash" onclick="goPage('dash')">Dashboard</button>
+    <button class="navbtn" data-page="strat" onclick="goPage('strat')">How it works</button>
+  </nav>
   <span id="mode" class="pill paper">paper</span>
   <span class="status"><span id="dot" class="dot off"></span><span id="run">checking…</span></span>
   <span class="meta">updated <b id="upd">—</b> · <span id="cycles">0</span> cycles · rebal <span id="rebal">—</span></span>
 </header>
-<main>
+<main id="pageDash">
   <div class="cards" id="cards"></div>
 
   <div class="panel">
@@ -470,6 +565,87 @@ HTML = r"""<!doctype html>
       <div class="wallets" id="wallets"></div>
     </div>
   </div>
+</main>
+
+<canvas id="alienBg"></canvas>
+<main id="pageStrat" class="spage" style="display:none">
+
+  <!-- HERO -->
+  <section class="hero reveal">
+    <div class="orb"></div>
+    <div class="hero-tag">MARKET-NEUTRAL · ALGORITHMIC · KOINBAY FUTURES</div>
+    <h1 class="hero-title">Sentinel&nbsp;Edge</h1>
+    <p class="hero-sub">A self-driving trading brain that profits from <b>which coins beat which</b> —
+       not from the market going up or down.</p>
+    <div class="hero-stats">
+      <div class="hstat"><div class="hv" data-count="48.4" data-suffix="%">0%</div><div class="hl">backtest return</div></div>
+      <div class="hstat"><div class="hv" data-count="5.0" data-dec="1">0</div><div class="hl">Sharpe ratio</div></div>
+      <div class="hstat"><div class="hv" data-count="12.6" data-suffix="%">0%</div><div class="hl">max drawdown</div></div>
+      <div class="hstat"><div class="hv" data-count="0.07" data-dec="2">0</div><div class="hl">BTC exposure</div></div>
+    </div>
+  </section>
+
+  <!-- HOW IT WORKS -->
+  <section class="sblock reveal">
+    <div class="seye">01 — THE IDEA</div>
+    <h2 class="sh2">Long the strong, short the weak. Stay neutral.</h2>
+    <div class="steps">
+      <div class="step reveal"><div class="snum">1</div><div class="sicon">🛰️</div><h3>Scan</h3>
+        <p>Every day it reads live KoinBay data on 24 coins — price momentum, funding, volume, and what the top crypto whales are doing.</p></div>
+      <div class="step reveal"><div class="snum">2</div><div class="sicon">🧮</div><h3>Score &amp; Rank</h3>
+        <p>Each coin gets one number. It strips out Bitcoin's pull so the score is pure <i>independent</i> strength — then ranks all 24.</p></div>
+      <div class="step reveal"><div class="snum">3</div><div class="sicon">⚖️</div><h3>Trade Neutral</h3>
+        <p>Buys the top 5, short-sells the bottom 5, balanced equally. If the whole market crashes, longs and shorts cancel out.</p></div>
+    </div>
+    <div class="why reveal">
+      <div class="whyrow"><span class="wk">Why it's safe</span><span class="wv">Long $ ≈ Short $ → market direction barely matters. The bet is purely <b>relative</b>.</span></div>
+      <div class="whyrow"><span class="wk">Where profit comes from</span><span class="wv">The strong names outperform the weak ones over days-to-weeks. Winners &gt; losers on average.</span></div>
+      <div class="whyrow"><span class="wk">The edge word</span><span class="wv"><b>Residual momentum</b> — strength <i>after</i> removing Bitcoin's gravity. Cleaner signal, fewer crashes.</span></div>
+    </div>
+  </section>
+
+  <!-- FLOW DIAGRAM -->
+  <section class="sblock reveal">
+    <div class="seye">02 — THE FLOW</div>
+    <h2 class="sh2">How a trade is born</h2>
+    <div class="flowwrap"><svg id="flowSvg" viewBox="0 0 1000 360" preserveAspectRatio="xMidYMid meet"></svg></div>
+  </section>
+
+  <!-- ARCHITECTURE -->
+  <section class="sblock reveal">
+    <div class="seye">03 — THE MACHINE</div>
+    <h2 class="sh2">Five layers, fully automated</h2>
+    <div class="arch">
+      <div class="alayer reveal" style="--ac:#4a9eff"><div class="aname">⬡ Signal</div><div class="adesc">Momentum · Funding · Volume · Whale overlay → one residual score</div></div>
+      <div class="aflow">▼</div>
+      <div class="alayer reveal" style="--ac:#a78bfa"><div class="aname">⬡ Portfolio</div><div class="adesc">Rank → long 5 / short 5 → beta-neutralize → liquidity caps</div></div>
+      <div class="aflow">▼</div>
+      <div class="alayer reveal" style="--ac:#ff5d6c"><div class="aname">⬡ Risk</div><div class="adesc">Vol-target · crash guard · daily-loss breaker · kill-switch · per-name stop</div></div>
+      <div class="aflow">▼</div>
+      <div class="alayer reveal" style="--ac:#27d796"><div class="aname">⬡ Execution</div><div class="adesc">Reconcile → minimal maker orders → paper or live KoinBay futures</div></div>
+      <div class="aflow">▼</div>
+      <div class="alayer reveal" style="--ac:#f5c451"><div class="aname">⬡ State &amp; Dashboard</div><div class="adesc">SQLite · equity curve · trades · this live dashboard · copy-trade signal</div></div>
+    </div>
+  </section>
+
+  <!-- PERFORMANCE -->
+  <section class="sblock reveal">
+    <div class="seye">04 — THE NUMBERS</div>
+    <h2 class="sh2">Backtest performance</h2>
+    <p class="sp-note">Jan → Jun 2026 · real KoinBay daily data · the full strategy stack</p>
+    <div class="perfgrid">
+      <div class="pcard reveal"><div class="pv grn" data-count="48.4" data-suffix="%" data-sign="+">0</div><div class="pl">Net return</div></div>
+      <div class="pcard reveal"><div class="pv" data-count="5.0" data-dec="1">0</div><div class="pl">Sharpe ratio</div></div>
+      <div class="pcard reveal"><div class="pv red" data-count="12.6" data-suffix="%">0</div><div class="pl">Max drawdown</div></div>
+      <div class="pcard reveal"><div class="pv" data-count="503" data-int="1">0</div><div class="pl">Trades taken</div></div>
+      <div class="pcard reveal"><div class="pv" data-count="44" data-suffix="%">0</div><div class="pl">Win rate</div></div>
+      <div class="pcard reveal"><div class="pv" data-count="1.37" data-dec="2">0</div><div class="pl">Profit factor</div></div>
+    </div>
+    <div class="disclaim reveal">⚠ Backtest assumes ideal fills and excludes some live frictions. Real results will be lower —
+       this is a paper track record, not a guarantee. The strategy is market-neutral, not risk-free.</div>
+  </section>
+
+  <div class="sfoot reveal">⚡ Sentinel Edge · built to run a clean, followable, market-neutral book</div>
 </main>
 
 <div id="cardModal" class="modal">
@@ -838,6 +1014,98 @@ $('cardModal').addEventListener('click',e=>{if(e.target.id==='cardModal')closeCa
 
 async function tick(){try{render(await (await fetch('/api/state')).json());}catch(e){$('run').textContent='offline';}}
 tick();setInterval(tick,5000);
+
+/* ============ STRATEGY PAGE: nav, particles, reveals, counters, flow ============ */
+let stratBuilt=false, alienRaf=null, alienParts=[];
+function goPage(p){
+  const dash=p==='dash';
+  $('pageDash').style.display=dash?'':'none';
+  $('pageStrat').style.display=dash?'none':'block';
+  document.querySelectorAll('.navbtn').forEach(b=>b.classList.toggle('on',b.dataset.page===p));
+  $('alienBg').classList.toggle('on',!dash);
+  window.scrollTo({top:0,behavior:'instant'});
+  if(!dash){ startAlien(); if(!stratBuilt){buildStrat();stratBuilt=true;} runReveals(); }
+  else stopAlien();
+}
+
+/* --- alien particle field (canvas) --- */
+function startAlien(){
+  const cv=$('alienBg'); function size(){cv.width=innerWidth;cv.height=innerHeight;}
+  size(); if(!alienParts.length){for(let i=0;i<70;i++)alienParts.push({
+    x:Math.random()*cv.width,y:Math.random()*cv.height,vx:(Math.random()-.5)*.25,vy:(Math.random()-.5)*.25,r:Math.random()*1.6+.4});}
+  cv._sz=size; addEventListener('resize',size);
+  const c=cv.getContext('2d');
+  function frame(){
+    c.clearRect(0,0,cv.width,cv.height);
+    for(const p of alienParts){
+      p.x+=p.vx;p.y+=p.vy;
+      if(p.x<0)p.x=cv.width;if(p.x>cv.width)p.x=0;if(p.y<0)p.y=cv.height;if(p.y>cv.height)p.y=0;
+    }
+    // links
+    for(let i=0;i<alienParts.length;i++)for(let j=i+1;j<alienParts.length;j++){
+      const a=alienParts[i],b=alienParts[j],dx=a.x-b.x,dy=a.y-b.y,d=Math.hypot(dx,dy);
+      if(d<140){c.strokeStyle=`rgba(107,140,255,${.10*(1-d/140)})`;c.lineWidth=1;
+        c.beginPath();c.moveTo(a.x,a.y);c.lineTo(b.x,b.y);c.stroke();}
+    }
+    for(const p of alienParts){c.fillStyle='rgba(154,107,255,.55)';c.beginPath();c.arc(p.x,p.y,p.r,0,7);c.fill();}
+    alienRaf=requestAnimationFrame(frame);
+  }
+  if(!alienRaf)frame();
+}
+function stopAlien(){if(alienRaf){cancelAnimationFrame(alienRaf);alienRaf=null;}}
+
+/* --- scroll reveal + number count-up --- */
+const revObserver=new IntersectionObserver(es=>{es.forEach(e=>{if(e.isIntersecting){
+  e.target.classList.add('in');
+  e.target.querySelectorAll('[data-count]').forEach(countUp);
+  if(e.target.matches('[data-count]'))countUp(e.target);
+  revObserver.unobserve(e.target);
+}});},{threshold:.18});
+function runReveals(){document.querySelectorAll('#pageStrat .reveal,#pageStrat [data-count]').forEach(el=>revObserver.observe(el));}
+function countUp(el){
+  if(el._done)return; el._done=true;
+  const target=parseFloat(el.dataset.count),dec=+(el.dataset.dec||0),isInt=el.dataset.int,
+    suf=el.dataset.suffix||'',sign=el.dataset.sign||'';
+  const dur=1100,t0=performance.now();
+  function step(t){const k=Math.min(1,(t-t0)/dur),e=1-Math.pow(1-k,3),v=target*e;
+    el.textContent=sign+(isInt?Math.round(v).toLocaleString():v.toFixed(dec))+suf;
+    if(k<1)requestAnimationFrame(step);}
+  requestAnimationFrame(step);
+}
+
+/* --- animated flow diagram (SVG) --- */
+function buildStrat(){
+  const svg=$('flowSvg'),NS='http://www.w3.org/2000/svg';
+  const nodes=[
+    {x:90,y:60,t:'KoinBay',s:'live data',c:'#4a9eff'},
+    {x:90,y:180,t:'Whales',s:'10 wallets',c:'#4a9eff'},
+    {x:90,y:300,t:'Funding',s:'crowding',c:'#4a9eff'},
+    {x:340,y:180,t:'Residual Score',s:'beta-stripped',c:'#9a6bff'},
+    {x:600,y:180,t:'Rank & Build',s:'long 5 / short 5',c:'#a78bfa'},
+    {x:840,y:90,t:'Risk Gate',s:'guards + stops',c:'#ff5d6c'},
+    {x:840,y:270,t:'Execute',s:'maker orders',c:'#27d796'},
+  ];
+  const links=[[0,3],[1,3],[2,3],[3,4],[4,5],[4,6]];
+  let defs=`<defs><filter id="glow"><feGaussianBlur stdDeviation="3.2" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>`;
+  let paths='',dots='',boxes='';
+  links.forEach(([a,b],i)=>{const A=nodes[a],B=nodes[b];
+    const mx=(A.x+B.x)/2;
+    const d=`M ${A.x+58} ${A.y} C ${mx} ${A.y}, ${mx} ${B.y}, ${B.x-58} ${B.y}`;
+    paths+=`<path d="${d}" fill="none" stroke="rgba(107,140,255,.28)" stroke-width="1.6"/>
+      <path d="${d}" fill="none" stroke="${B.c}" stroke-width="1.8" stroke-dasharray="7 220" filter="url(#glow)">
+        <animate attributeName="stroke-dashoffset" from="227" to="0" dur="${1.6+i*.12}s" repeatCount="indefinite"/></path>`;
+  });
+  nodes.forEach((n)=>{
+    boxes+=`<g transform="translate(${n.x-58},${n.y-26})">
+      <rect width="116" height="52" rx="12" fill="rgba(15,20,29,.92)" stroke="${n.c}" stroke-width="1.3"/>
+      <rect width="116" height="52" rx="12" fill="${n.c}" opacity=".08"/>
+      <text x="58" y="22" text-anchor="middle" fill="#fff" font-size="13" font-weight="700" font-family="ui-sans-serif,system-ui">${n.t}</text>
+      <text x="58" y="38" text-anchor="middle" fill="#8a94a6" font-size="10" font-family="ui-sans-serif,system-ui">${n.s}</text>
+      <circle cx="58" cy="-1" r="2.5" fill="${n.c}"><animate attributeName="opacity" values=".3;1;.3" dur="2.4s" repeatCount="indefinite"/></circle>
+    </g>`;
+  });
+  svg.innerHTML=defs+paths+boxes+dots;
+}
 </script>
 </body>
 </html>"""
