@@ -249,7 +249,7 @@ class Handler(BaseHTTPRequestHandler):
 def serve(cfg: Config, port: int = 8787, open_browser: bool = True) -> None:
     global _CFG
     _CFG = cfg
-    httpd = ThreadingHTTPServer(("127.0.0.1", port), Handler)
+    httpd = ThreadingHTTPServer(("0.0.0.0", port), Handler)
     url = f"http://127.0.0.1:{port}"
     log.info("dashboard live at %s  (Ctrl-C to stop)", url)
     if open_browser:
