@@ -114,6 +114,8 @@ risk:
 
 schedule:
   rebalance_minutes: 1440      # DAILY — backtest showed 4h bled ~39% to fees vs ~14% daily (higher net + Sharpe)
+  rebalance_hour_utc: 14       # rebalance daily at 14:00 UTC (deep US+EU liquidity, off funding boundaries,
+                               # predictable + restart-proof). set to null to use the interval instead.
 
 state:
   db_path: data/sentinel.db

@@ -164,7 +164,8 @@ def main(argv: Optional[list] = None) -> int:
         elif args.command == "flatten":
             print_report(engine.flatten())
         elif args.command == "loop":
-            run_loop(engine, cfg.schedule.rebalance_minutes, print_report, cfg.risk.monitor_seconds)
+            run_loop(engine, cfg.schedule.rebalance_minutes, print_report, cfg.risk.monitor_seconds,
+                     cfg.schedule.rebalance_hour_utc)
         elif args.command == "status":
             print_status(engine)
     finally:
