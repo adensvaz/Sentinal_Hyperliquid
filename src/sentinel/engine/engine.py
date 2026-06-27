@@ -27,6 +27,7 @@ from ..signal.market_proxy import MarketProxySignal
 from ..signal.technicals import ta_consensus
 from ..signal.whale_tracker import WhaleTracker, map_bias_to_symbols
 from ..state.store import Store
+from ..strategy.momentum_regime import MomentumRegimeStrategy
 from ..strategy.portfolio import beta_scales, book_beta, compute_betas, demean_by_beta, dispersion
 from ..strategy.sentiment_edge import SentimentEdgeStrategy
 from ..strategy.sizing import adv_caps, net_scales
@@ -63,6 +64,7 @@ class Engine:
                                     timeout_s=cfg.exchange.timeout_s)
         self.fx = KoinbayFutures(self.client)
         self.strategy = SentimentEdgeStrategy(cfg.portfolio)
+        self.champion = MomentumRegimeStrategy(cfg)   # directional momentum+regime (used when cfg.strategy=='champion')
         self.store = Store(cfg.state.db_path, cfg.state.equity_csv)
         self.registry: Optional[ContractRegistry] = None
         self.signal: Optional[MarketProxySignal] = None
@@ -143,10 +145,17 @@ class Engine:
         active = self.registry.active_usdt()
         self.coin_to_symbol = {s.multiplier_coin.upper(): s.name for s in active}
         ref = "E-BTC-USDT" if self.registry.has("E-BTC-USDT") else (active[0].name if active else "E-BTC-USDT")
-        self.base_interval = pick_base_interval(self.fx, ref)
         horizons = [parse_duration_to_hours(h) for h in self.cfg.signal.momentum_horizons]
-        itv_h = parse_duration_to_hours(self.base_interval)
-        self.history_bars = max(30, min(300, int(max(horizons) / itv_h) + 5))
+        if self.cfg.strategy == "champion":
+            # the champion's signals are DAILY (50/100-day MAs, 30-day momentum) — force daily bars
+            # with enough history to compute the regime/trend MAs.
+            ch = self.cfg.champion
+            self.base_interval = "1day"
+            self.history_bars = min(300, max(ch.regime_ma, ch.trend_ma, ch.lookback) + 30)
+        else:
+            self.base_interval = pick_base_interval(self.fx, ref)
+            itv_h = parse_duration_to_hours(self.base_interval)
+            self.history_bars = max(30, min(300, int(max(horizons) / itv_h) + 5))
         w = self.cfg.signal.weights
         self.signal = MarketProxySignal(
             horizons_hours=horizons,
@@ -253,40 +262,46 @@ class Engine:
             if cfg.risk.daily_loss_limit_pct > 0:
                 gscale *= float(self.store.get_meta("daily_loss_scale", 1.0) or 1.0)
             self.store.set_meta("crash_scale", round(gscale, 3))
-            ta_scores = ({s: ta_consensus(d.closes) for s, d in data.items()}
-                         if cfg.signal.ta_veto > 0 else None)
-            adv_quote = self._adv_quote(data) if cfg.portfolio.adv_cap_frac > 0 else {}
-            vol_by_symbol = ({s: realized_vol(d.closes) for s, d in data.items()}
-                             if cfg.portfolio.risk_parity else None)
-            book = self.strategy.build_book(scores, prices, self.registry, equity, gross_scale=gscale,
-                                            ta=ta_scores, ta_veto=cfg.signal.ta_veto,
-                                            vol_by_symbol=vol_by_symbol)
-            # ---- portfolio robustness, in order: beta-hedge -> ADV caps -> dollar-neutral clamp ----
-            closes_by = {s: d.closes for s, d in data.items()}
-            betas = betas_cs if book.positions else {}   # computed once above (also used for whale-demean)
-            if cfg.portfolio.beta_neutralize and betas:
-                sn = {s: p.target_notional for s, p in book.positions.items()}
-                b0 = book_beta(sn, betas, equity)
-                # bound the sleeve shrink by max_net_exposure so the hedge never breaches the rail
-                heavier = max(sum(n for n in sn.values() if n > 0), sum(-n for n in sn.values() if n < 0))
-                net_cap = (cfg.risk.max_net_exposure * equity / heavier) if heavier > 0 else 0.0
-                self._apply_scales(book, beta_scales(sn, betas, min(cfg.portfolio.beta_max_imbalance, net_cap)))
-                b1 = book_beta({s: p.target_notional for s, p in book.positions.items()}, betas, equity)
-                self.store.set_meta("book_beta", round(b1, 4))
-                if abs(b0) >= 0.05:
-                    log.info("beta-neutralize: book BTC-beta %+.2f -> %+.2f", b0, b1)
-            if cfg.portfolio.adv_cap_frac > 0 and book.positions:
-                acaps = adv_caps({s: p.target_notional for s, p in book.positions.items()},
-                                 adv_quote, cfg.portfolio.adv_cap_frac)
-                hit = [s for s, f in acaps.items() if f < 0.999]
-                self._apply_scales(book, acaps)
-                if hit:
-                    log.info("ADV cap: shrank %d name(s) to <=%.0f%% of ADV: %s",
-                             len(hit), cfg.portfolio.adv_cap_frac * 100, ", ".join(hit))
-            self.store.set_meta("dispersion", round(dispersion(closes_by), 5))
-            # HARD dollar-neutral clamp, after the hedge + ADV caps + integer rounding
-            self._apply_scales(book, net_scales({s: p.target_notional for s, p in book.positions.items()},
-                                                equity, cfg.risk.max_net_exposure))
+            if cfg.strategy == "champion":
+                # DIRECTIONAL champion: long-only top-K momentum, BTC-regime gated. Beta is intentional —
+                # NO beta-neutralize / net-clamp / dollar-neutrality (that's the whole point of this book).
+                book = self.champion.build_book({s: d.closes for s, d in data.items()}, prices,
+                                                self.registry, equity, gross_scale=gscale)
+            else:
+                ta_scores = ({s: ta_consensus(d.closes) for s, d in data.items()}
+                             if cfg.signal.ta_veto > 0 else None)
+                adv_quote = self._adv_quote(data) if cfg.portfolio.adv_cap_frac > 0 else {}
+                vol_by_symbol = ({s: realized_vol(d.closes) for s, d in data.items()}
+                                 if cfg.portfolio.risk_parity else None)
+                book = self.strategy.build_book(scores, prices, self.registry, equity, gross_scale=gscale,
+                                                ta=ta_scores, ta_veto=cfg.signal.ta_veto,
+                                                vol_by_symbol=vol_by_symbol)
+                # ---- portfolio robustness, in order: beta-hedge -> ADV caps -> dollar-neutral clamp ----
+                closes_by = {s: d.closes for s, d in data.items()}
+                betas = betas_cs if book.positions else {}   # computed once above (also used for whale-demean)
+                if cfg.portfolio.beta_neutralize and betas:
+                    sn = {s: p.target_notional for s, p in book.positions.items()}
+                    b0 = book_beta(sn, betas, equity)
+                    # bound the sleeve shrink by max_net_exposure so the hedge never breaches the rail
+                    heavier = max(sum(n for n in sn.values() if n > 0), sum(-n for n in sn.values() if n < 0))
+                    net_cap = (cfg.risk.max_net_exposure * equity / heavier) if heavier > 0 else 0.0
+                    self._apply_scales(book, beta_scales(sn, betas, min(cfg.portfolio.beta_max_imbalance, net_cap)))
+                    b1 = book_beta({s: p.target_notional for s, p in book.positions.items()}, betas, equity)
+                    self.store.set_meta("book_beta", round(b1, 4))
+                    if abs(b0) >= 0.05:
+                        log.info("beta-neutralize: book BTC-beta %+.2f -> %+.2f", b0, b1)
+                if cfg.portfolio.adv_cap_frac > 0 and book.positions:
+                    acaps = adv_caps({s: p.target_notional for s, p in book.positions.items()},
+                                     adv_quote, cfg.portfolio.adv_cap_frac)
+                    hit = [s for s, f in acaps.items() if f < 0.999]
+                    self._apply_scales(book, acaps)
+                    if hit:
+                        log.info("ADV cap: shrank %d name(s) to <=%.0f%% of ADV: %s",
+                                 len(hit), cfg.portfolio.adv_cap_frac * 100, ", ".join(hit))
+                self.store.set_meta("dispersion", round(dispersion(closes_by), 5))
+                # HARD dollar-neutral clamp, after the hedge + ADV caps + integer rounding
+                self._apply_scales(book, net_scales({s: p.target_notional for s, p in book.positions.items()},
+                                                    equity, cfg.risk.max_net_exposure))
             target = book.signed_contracts()
             scale = leverage_scale(book.realized_gross, equity, cfg.risk.max_gross_leverage)
             if scale < 0.999:

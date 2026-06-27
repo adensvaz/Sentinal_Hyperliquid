@@ -181,6 +181,7 @@ def gather_state(cfg: Config) -> dict:
                                        "drawdown_pct": round(dd, 4)}]
         return {
             "mode": cfg.mode,
+            "strategy": cfg.strategy,
             "running": _loop_running(),
             "rebalance_minutes": cfg.schedule.rebalance_minutes,
             "rebalance_hour_utc": cfg.schedule.rebalance_hour_utc,
@@ -379,6 +380,8 @@ HTML = r"""<!doctype html>
   .pill{font-size:11px;font-weight:700;padding:4px 10px;border-radius:999px;letter-spacing:.6px;text-transform:uppercase}
   .pill.paper{background:rgba(107,140,255,.14);color:#a9c0ff;border:1px solid rgba(107,140,255,.28)}
   .pill.live{background:var(--red-d);color:var(--red);border:1px solid rgba(255,93,108,.35)}
+  .pill.strat{background:rgba(154,107,255,.12);color:#c7b3ff;border:1px solid rgba(154,107,255,.3)}
+  .pill.strat.champ{background:rgba(39,215,150,.14);color:#7dffc4;border:1px solid rgba(39,215,150,.32)}
   .status{display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--mut);
     background:var(--surface);border:1px solid var(--line);padding:5px 11px;border-radius:999px}
   .dot{width:8px;height:8px;border-radius:50%}
@@ -685,6 +688,7 @@ HTML = r"""<!doctype html>
     <button class="navbtn on" data-page="dash" onclick="goPage('dash')">Dashboard</button>
     <button class="navbtn" data-page="strat" onclick="goPage('strat')">How it works</button>
   </nav>
+  <span id="strat" class="pill strat">—</span>
   <span id="mode" class="pill paper">paper</span>
   <span class="status"><span id="dot" class="dot off"></span><span id="run">checking…</span></span>
   <span class="cd" id="cdwrap" title="time until the next scheduled daily rebalance"><span class="cd-ic">⟳</span> next rebalance <b id="cd">—</b></span>
@@ -865,6 +869,8 @@ function render(d){
   if(d.error){$('run').textContent='error: '+d.error;return;}
   DATA=d;
   $('mode').textContent=d.mode; $('mode').className='pill '+d.mode;
+  if(d.strategy){const s=$('strat'); s.textContent=d.strategy==='champion'?'⚡ momentum':'⚖ market-neutral';
+    s.className='pill strat '+(d.strategy==='champion'?'champ':'');}
   $('dot').className='dot '+(d.running?'on':'off');
   $('run').textContent=d.running?'loop running':'loop stopped'; $('run').className=d.running?'grn':'mut';
   $('upd').textContent=new Date().toLocaleTimeString(); $('cycles').textContent=d.cycles;
