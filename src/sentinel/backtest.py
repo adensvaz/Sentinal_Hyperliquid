@@ -122,6 +122,7 @@ def simulate(hist: dict, cfg: Config, rebalance_every: int = 1,
     beta_count = beta_count_post = 0
     disp_hist: list = []        # rolling cross-sectional dispersion (for the no-edge-day gate)
     daily_loss_scale_next = 1.0  # carries a daily-loss circuit-breaker cut into the next bar
+    scaled: set = set()         # names already partial-scaled-out (held trimmed until they close)
 
     i = warmup
     while i < n - 1:
@@ -232,6 +233,20 @@ def simulate(hist: dict, cfg: Config, rebalance_every: int = 1,
                     gain = (closes[c][i] / pos[c]["entry"] - 1.0) * (1 if cu > 0 else -1)
                     if gain >= tp / 100.0:
                         target[c] = 0.0
+
+        # ---- partial scale-out: once a held name is up scale_out_pct, permanently trim it by frac (keep the rest) ----
+        so_pct = getattr(cfg.execution, "scale_out_pct", 0.0)
+        so_frac = getattr(cfg.execution, "scale_out_frac", 0.0)
+        if so_pct > 0 and so_frac > 0:
+            for c in universe:
+                if c in scaled and cur[c] == 0:
+                    scaled.discard(c)                    # rotated out -> reset for next entry
+                if cur[c] != 0 and c in pos and pos[c].get("entry", 0) > 0:
+                    g = (closes[c][i] / pos[c]["entry"] - 1.0) * (1 if cur[c] > 0 else -1)
+                    if g >= so_pct / 100.0:
+                        scaled.add(c)
+                if c in scaled:
+                    target[c] = target[c] * (1.0 - so_frac)   # hold the trimmed weight until it closes
 
         # ---- apply anti-churn band, compute turnover + cost ----
         turnover = 0.0
