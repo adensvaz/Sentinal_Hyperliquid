@@ -504,6 +504,7 @@ HTML = r"""<!doctype html>
   .pane{display:none} .pane.on{display:block;animation:fade .18s ease}
   @keyframes fade{from{opacity:0}to{opacity:1}}
   .pager{display:flex;align-items:center;gap:10px;margin-top:14px;padding-top:13px;border-top:1px solid var(--line);flex-wrap:wrap}
+  .pgcount{font-size:12px;color:var(--dim);white-space:nowrap;font-variant-numeric:tabular-nums}
   .pager .info{font-size:12px;color:var(--mut);font-variant-numeric:tabular-nums}
   .pager .ctrls{margin-left:auto;display:flex;gap:4px;align-items:center}
   .pgb{background:#0c121b;border:1px solid var(--line);color:var(--mut);min-width:32px;height:32px;
@@ -951,7 +952,7 @@ function makePager(endpoint,tbodyId,pagerId,renderRow,gname,cols){
     const pages=Math.max(1,Math.ceil(total/size)),page=Math.floor(offset/size)+1;
     const from=total?offset+1:0,to=Math.min(offset+size,total);
     const b=(lbl,p,on,dis)=>`<button class="pgb ${on?'on':''}" ${dis?'disabled':''} onclick="${gname}.go(${p})">${lbl}</button>`;
-    let h=`<span class="info">${from.toLocaleString()}–${to.toLocaleString()} of ${total.toLocaleString()}</span><div class="ctrls">`;
+    let h=`<span class="pgcount">${from.toLocaleString()}–${to.toLocaleString()} of ${total.toLocaleString()}</span><div class="ctrls">`;
     h+=b('«',1,false,page<=1)+b('‹',Math.max(1,page-1),false,page<=1);
     for(const n of pageList(page,pages)) h+= n==='…'?'<span class="dots">…</span>':b(n,n,n===page,false);
     h+=b('›',page+1,false,page>=pages)+b('»',pages,false,page>=pages);
