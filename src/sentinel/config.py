@@ -84,6 +84,8 @@ class ExecutionCfg(BaseModel):
                                        # trimming a winning position or adding to a losing one
     asym_band_mult: float = 3.0        # band multiplier applied in those two cases
     take_profit_pct: float = 0.0       # close a held name once its gain since entry exceeds this % (0 = off)
+    scale_out_pct: float = 0.0         # once a held name is up this %, permanently trim it (partial profit)
+    scale_out_frac: float = 0.0        # ... by this fraction, keeping the rest running (0 = off)
     margin_mode: Literal["isolated", "cross"] = "isolated"
     position_mode: Literal["net", "two_way"] = "net"
 
