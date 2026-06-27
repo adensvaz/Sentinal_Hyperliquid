@@ -94,8 +94,10 @@ def _max_drawdown(curve: list[float]) -> float:
 
 
 def simulate(hist: dict, cfg: Config, rebalance_every: int = 1,
-             taker_fee: float = 0.00075, slippage_bps: float = 8.0) -> dict:
+             taker_fee: float = 0.00075, slippage_bps: float = 8.0, funding: dict = None) -> dict:
     universe, T, closes, vols = hist["universe"], hist["T"], hist["closes"], hist["vols"]
+    fund = funding or {}          # optional per-symbol daily funding series aligned to T (signal + carry)
+    funding_total = 0.0
     interval_h = hist["interval_h"]
     sig = _signal(cfg, interval_h)
     p = cfg.portfolio
@@ -128,7 +130,8 @@ def simulate(hist: dict, cfg: Config, rebalance_every: int = 1,
     while i < n - 1:
         nxt = min(i + rebalance_every, n - 1)
         # ---- score using ONLY data up to bar i (no lookahead) ----
-        data = {c: SymbolData(c, T[: i + 1], closes[c][: i + 1], vols[c][: i + 1], funding=0.0,
+        data = {c: SymbolData(c, T[: i + 1], closes[c][: i + 1], vols[c][: i + 1],
+                              funding=(fund[c][i] if c in fund and i < len(fund[c]) else 0.0),
                               last_price=closes[c][i]) for c in universe}
         scores = sig.scores(data)              # funding & whale components are 0 here (see module docstring)
         # beta-aware selection: rank by RESIDUAL (beta-adjusted) score so the book is born neutral
@@ -304,12 +307,20 @@ def simulate(hist: dict, cfg: Config, rebalance_every: int = 1,
 
         # ---- realize PnL over the holding period [i, nxt] ----
         pnl = 0.0
+        fpnl = 0.0
         for c, s in cur.items():
             if s != 0 and closes[c][i] > 0:
                 d = s * (closes[c][nxt] / closes[c][i] - 1.0)
                 pnl += d
                 if c in pos:
                     pos[c]["accum"] += d   # attribute period PnL to the open round-trip
+            # funding carry: long pays positive funding, short collects it (summed over the hold)
+            if s != 0 and c in fund:
+                for j in range(i, nxt):
+                    if j < len(fund[c]):
+                        fpnl += -fund[c][j] * s
+        pnl += fpnl
+        funding_total += fpnl
 
         equity_before = equity
         equity += pnl - cost
@@ -342,7 +353,7 @@ def simulate(hist: dict, cfg: Config, rebalance_every: int = 1,
         "net_return_pct": net_ret * 100, "gross_return_pct": gross_ret * 100,
         "fee_drag_pct": (gross_ret - net_ret) * 100,
         "ann_return_pct": ann * 100, "sharpe": sharpe, "max_dd_pct": _max_drawdown(eq_curve),
-        "hit_rate_pct": hit, "fees_total": fees_total,
+        "hit_rate_pct": hit, "fees_total": fees_total, "funding_total": funding_total,
         "avg_turnover_x": (turnover_total / rebalances / eq_curve[0]) if rebalances else 0.0,
         "final_equity": equity, "start_equity": eq_curve[0],
         "book_beta_pre": (beta_abs_sum / beta_count) if beta_count else 0.0,
