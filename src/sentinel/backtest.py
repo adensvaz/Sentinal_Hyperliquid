@@ -182,11 +182,16 @@ def simulate(hist: dict, cfg: Config, rebalance_every: int = 1,
                                       cfg.risk.crash_scale_floor)
             if getattr(cfg.risk, "dispersion_gate", False):
                 disp = dispersion({c: closes[c][: i + 1] for c in universe})
-                ref = sorted(disp_hist)[len(disp_hist) // 2] if disp_hist else 0.0   # trailing median
-                gscale *= dispersion_scale(disp, ref, cfg.risk.dispersion_min_scale)
                 disp_hist.append(disp)
                 if len(disp_hist) > cfg.risk.dispersion_ref_window:
                     disp_hist.pop(0)
+                ref_abs = getattr(cfg.risk, "dispersion_ref_abs", 0.0)
+                if ref_abs > 0:   # gate on SMOOTHED dispersion vs an absolute healthy level (regime, not noise)
+                    smoothed = sum(disp_hist) / len(disp_hist)
+                    gscale *= dispersion_scale(smoothed, ref_abs, cfg.risk.dispersion_min_scale)
+                else:             # legacy relative gate (trailing median)
+                    ref = sorted(disp_hist)[len(disp_hist) // 2] if disp_hist else 0.0
+                    gscale *= dispersion_scale(disp, ref, cfg.risk.dispersion_min_scale)
             gscale *= daily_loss_scale_next   # daily-loss circuit-breaker carry (1.0 unless tripped)
             sleeve = p.target_gross_leverage * gscale * equity / 2.0
             target = {c: 0.0 for c in universe}

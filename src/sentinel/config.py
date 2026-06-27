@@ -124,6 +124,8 @@ class RiskCfg(BaseModel):
     # dispersion gate (shrink the book on no-edge days when coins move together)
     dispersion_gate: bool = False
     dispersion_ref_window: int = 20    # trailing window (rebalances) for the dispersion reference
+    dispersion_ref_abs: float = 0.0    # if >0, use this ABSOLUTE healthy-dispersion level as the reference
+                                       # (catches sustained low-dispersion regimes a trailing median misses)
     dispersion_min_scale: float = 0.5  # floor when dispersion collapses
     # daily loss circuit-breaker (cap the worst single days)
     daily_loss_limit_pct: float = 0.0  # if a day loses >= this %, shrink next day's gross (0 = off)
