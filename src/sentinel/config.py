@@ -132,6 +132,16 @@ class RiskCfg(BaseModel):
     daily_loss_scale: float = 0.5      # gross multiplier applied the day after a daily-loss breach
 
 
+class ChampionCfg(BaseModel):
+    """Directional momentum + regime strategy (the backtest champion). Long-only, keeps market beta."""
+    top_k: int = 5                 # hold the top-K strongest names
+    lookback: int = 30             # momentum lookback (days)
+    trend_ma: int = 50             # a name must be above this MA to qualify (absolute uptrend)
+    regime_ma: int = 100           # only invest when BTC is above this MA (risk-on brake)
+    dual_confirm: bool = True      # require both relative strength AND absolute uptrend
+    target_gross: float = 1.0      # gross leverage when fully risk-on (vol-target may scale below)
+
+
 class ScheduleCfg(BaseModel):
     rebalance_minutes: int = 240
     rebalance_hour_utc: Optional[int] = None  # if 0-23, rebalance daily at this fixed UTC hour
@@ -146,10 +156,12 @@ class StateCfg(BaseModel):
 
 class Config(BaseModel):
     mode: Literal["paper", "live"] = "paper"
+    strategy: Literal["neutral", "champion"] = "neutral"   # neutral = market-neutral book; champion = momentum+regime
     exchange: ExchangeCfg = Field(default_factory=ExchangeCfg)
     capital_usdt: Optional[float] = 10_000.0
     universe: UniverseCfg = Field(default_factory=UniverseCfg)
     signal: SignalCfg = Field(default_factory=SignalCfg)
+    champion: ChampionCfg = Field(default_factory=ChampionCfg)
     whales: WhalesCfg = Field(default_factory=WhalesCfg)
     portfolio: PortfolioCfg = Field(default_factory=PortfolioCfg)
     execution: ExecutionCfg = Field(default_factory=ExecutionCfg)
