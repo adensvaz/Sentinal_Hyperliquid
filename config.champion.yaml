@@ -1,0 +1,64 @@
+# ============================================================================
+# CHAMPION strategy config — directional momentum + BTC-regime (the 5.5yr backtest winner).
+# Runs SEPARATELY from the neutral book: own database (data/champion.db), own loop, own dashboard.
+# The neutral strategy (config.yaml -> data/sentinel.db) is untouched.
+# ============================================================================
+mode: paper
+strategy: champion           # <- selects MomentumRegimeStrategy (long-only top-K momentum, regime-gated)
+capital_usdt: 10000
+
+exchange:
+  futures_host: https://futuresopenapi.koinbay.com
+  spot_host: https://openapi.koinbay.com
+
+universe:
+  top_n: 24
+  min_quote_volume_usdt: 500000
+
+champion:
+  top_k: 5                   # hold the 5 strongest names
+  lookback: 30               # momentum measured over 30 days
+  trend_ma: 50               # must be above its 50d average (absolute uptrend)
+  regime_ma: 100             # only invest when BTC is above its 100d average (risk-on brake)
+  dual_confirm: true         # relative strength AND absolute uptrend
+  target_gross: 1.0          # long-only, 1x gross when fully risk-on (vol-target may scale below)
+
+execution:
+  order_type: limit
+  maker: true
+  slippage_bps: 8
+  time_in_force: IOC
+  min_trade_notional: 25
+  min_rebalance_frac: 0.10
+  margin_mode: isolated
+  position_mode: net
+
+risk:
+  max_gross_leverage: 10
+  max_net_exposure: 1.0        # champion is net-LONG by design — no dollar-neutral rail
+  max_drawdown_pct: 45         # allow the champion's natural ~30-40% drawdowns; flatten only at catastrophe
+  max_position_loss_pct: 12    # loose per-name catastrophe stop (so it can ride volatility)
+  pause_hours: 24
+  monitor_seconds: 60
+  # balanced-champion risk overlay: vol-target ~35% annual + a deep-drawdown throttle
+  dynamic_risk: true
+  vol_target_daily: 0.018
+  vol_lookback: 21
+  dd_throttle_start: 0.12
+  dd_throttle_full: 0.35
+  min_risk_scale: 0.25
+  crash_guard: true
+  crash_dd_hours: 720
+  crash_bounce_hours: 48
+  crash_dd_trigger: 0.15
+  crash_bounce_trigger: 0.05
+  crash_scale_floor: 0.5
+
+schedule:
+  rebalance_minutes: 1440
+  rebalance_hour_utc: 14       # daily at 14:00 UTC (same clock as the neutral book)
+
+state:
+  db_path: data/champion.db
+  equity_csv: data/champion_equity.csv
+  log_path: data/champion.log
