@@ -240,7 +240,7 @@ def _page_payload(path: str) -> bytes:
         store.close()
 
 
-REPO_URL = "https://github.com/avaz-cell/Koinbay_Copytrading_bot"
+REPO_URL = "https://github.com/adensvaz/Sentinal_Hyperliquid"
 
 FAVICON_SVG = (
     '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">'
@@ -399,11 +399,16 @@ HTML = r"""<!doctype html>
   main{padding:22px 26px;max-width:1280px;margin:0 auto}
   .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(232px,1fr));gap:14px;margin-bottom:18px}
   .card{position:relative;background:linear-gradient(180deg,var(--surface2),var(--surface));border:1px solid var(--line);
-    border-radius:var(--r);padding:16px 18px;transition:transform .15s ease,border-color .15s ease,z-index 0s}
-  .card:hover{transform:translateY(-2px);border-color:#2a3445;z-index:40}
-  .card::before{content:"";position:absolute;left:0;right:0;top:0;height:2px;border-radius:var(--r) var(--r) 0 0;
-    background:linear-gradient(90deg,var(--accent),var(--accent2));opacity:.0;transition:opacity .15s}
-  .card:hover::before{opacity:.7}
+    border-radius:var(--r);padding:16px 18px;
+    transition:transform .22s cubic-bezier(.22,.9,.3,1),border-color .22s ease,box-shadow .22s ease,z-index 0s}
+  .card:hover{transform:translateY(-3px);border-color:rgba(107,140,255,.4);z-index:40;
+    box-shadow:0 16px 44px rgba(0,0,0,.42),0 0 26px rgba(107,140,255,.13)}
+  /* inset, rounded, glowing accent line — soft fade at the ends */
+  .card::before{content:"";position:absolute;left:16px;right:16px;top:0;height:2px;border-radius:2px;
+    background:linear-gradient(90deg,transparent,var(--accent) 22%,var(--accent2) 78%,transparent);
+    opacity:0;transform:scaleX(.6);transform-origin:center;
+    transition:opacity .28s ease,transform .35s cubic-bezier(.22,.9,.3,1)}
+  .card:hover::before{opacity:1;transform:scaleX(1);box-shadow:0 0 14px rgba(122,150,255,.6)}
   .card .k{font-size:10.5px;text-transform:uppercase;letter-spacing:.9px;color:var(--mut);margin-bottom:9px}
   .info{display:inline-grid;place-items:center;width:14px;height:14px;border-radius:50%;border:1px solid var(--line);
     color:var(--dim);font-size:9px;font-weight:700;font-style:italic;cursor:help;vertical-align:middle;position:relative;text-transform:none;
@@ -633,6 +638,44 @@ HTML = r"""<!doctype html>
     background:rgba(15,20,29,.7);border:1px solid var(--line);border-radius:10px;padding:6px 12px;font-weight:600;transition:.18s}
   .ghlink:hover{color:#fff;border-color:var(--accent);box-shadow:0 0 0 3px rgba(107,140,255,.16);transform:translateY(-1px);text-decoration:none}
   @media(max-width:560px){.ghlink{margin-left:0}}
+
+  /* horizontally-scrollable tables on small screens (keeps columns crisp, no squish) */
+  .tblwrap{overflow-x:auto;-webkit-overflow-scrolling:touch;border-radius:10px}
+  .tblwrap::-webkit-scrollbar{height:6px}
+  .tblwrap::-webkit-scrollbar-thumb{background:#1c2433;border-radius:3px}
+  .tblwrap::-webkit-scrollbar-track{background:transparent}
+
+  /* ===================== MOBILE ===================== */
+  @media(max-width:720px){
+    main{padding:14px 12px}
+    header{padding:11px 13px;gap:9px 10px;flex-wrap:wrap}
+    .brand{font-size:14.5px;flex:1 1 auto}
+    .nav{order:5;width:100%;justify-content:center}
+    .meta{display:none}
+    .cd{margin-left:0;font-size:11.5px;padding:4px 10px}
+    .cards{grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:14px}
+    .card{padding:13px 14px} .card .v{font-size:21px} .card .k{margin-bottom:7px}
+    .info::after{width:min(72vw,260px)}
+    .panel{padding:14px 13px;margin-bottom:14px}
+    .ph .big{font-size:24px} #chart{max-height:240px}
+    .seg{padding:2px} .seg .t{padding:5px 10px;font-size:11px}
+    .segs{gap:8px}
+    .tabs{gap:1px;overflow-x:auto} .tab{padding:10px 9px;font-size:12.5px;white-space:nowrap}
+    th,td{padding:9px 11px}
+    .charttip .ct-v{font-size:16px}
+    /* strategy page */
+    .spage{padding:4px 14px 60px} .hero{padding:46px 6px 38px}
+    .sblock{margin-top:52px} .sh2{margin-bottom:22px}
+    .hero-stats{gap:9px} .hstat{min-width:0;flex:1 1 44%}
+    .perfgrid{grid-template-columns:repeat(2,1fr)}
+    .whyrow{grid-template-columns:1fr;gap:4px}
+    .dfoot{flex-direction:column;gap:8px;text-align:center} .ghlink{margin-left:0}
+  }
+  @media(max-width:430px){
+    .cards{grid-template-columns:1fr}
+    .hstat{flex:1 1 100%} .perfgrid{grid-template-columns:1fr}
+    .ph .big{font-size:21px} .card .v{font-size:20px}
+  }
 </style>
 </head>
 <body>
@@ -671,24 +714,24 @@ HTML = r"""<!doctype html>
     </div>
 
     <div class="pane on" id="pane-positions">
-      <table><colgroup><col style="width:78px"><col style="width:96px"><col style="width:78px"><col style="width:96px"><col style="width:96px"><col style="width:98px"><col style="width:90px"><col style="width:94px"><col style="width:138px"><col style="width:76px"><col style="width:30px"></colgroup>
+      <div class="tblwrap"><table><colgroup><col style="width:78px"><col style="width:96px"><col style="width:78px"><col style="width:96px"><col style="width:96px"><col style="width:98px"><col style="width:90px"><col style="width:94px"><col style="width:138px"><col style="width:76px"><col style="width:30px"></colgroup>
       <thead><tr><th>Asset</th><th>Side</th><th class="r">Size</th><th class="r">Value</th>
       <th class="r">Entry</th><th class="r">Mark</th><th class="r">uPnL</th><th class="r">Funding</th><th class="r">Opened</th><th class="r">Score</th><th></th></tr></thead>
-      <tbody id="pos"></tbody></table>
+      <tbody id="pos"></tbody></table></div>
     </div>
 
     <div class="pane" id="pane-trades">
       <div class="tstrip" id="tstrip"></div>
-      <table><thead><tr><th>Asset</th><th>Side</th><th class="r">Entry</th><th class="r">Exit</th>
+      <div class="tblwrap"><table><thead><tr><th>Asset</th><th>Side</th><th class="r">Entry</th><th class="r">Exit</th>
       <th class="r">Net PnL</th><th class="r">Opened</th><th class="r">Closed</th><th class="r">Held</th></tr></thead>
-      <tbody id="ctrd"></tbody></table>
+      <tbody id="ctrd"></tbody></table></div>
 
       <div class="pager" id="pgTrades"></div>
     </div>
 
     <div class="pane" id="pane-fills">
-      <table><thead><tr><th>Asset</th><th>Side</th><th>Action</th><th class="r">Vol</th><th class="r">Price</th><th class="r">Status</th></tr></thead>
-      <tbody id="fillrows"></tbody></table>
+      <div class="tblwrap"><table><thead><tr><th>Asset</th><th>Side</th><th>Action</th><th class="r">Vol</th><th class="r">Price</th><th class="r">Status</th></tr></thead>
+      <tbody id="fillrows"></tbody></table></div>
       <div class="pager" id="pgFills"></div>
     </div>
 
@@ -702,7 +745,7 @@ HTML = r"""<!doctype html>
     <span class="dfoot-mark">⚡ Sentinel&nbsp;Edge</span>
     <span class="dfoot-dot">·</span>
     <span class="dfoot-txt">market-neutral · residual-momentum · KoinBay futures</span>
-    <a class="ghlink" href="https://github.com/avaz-cell/Koinbay_Copytrading_bot" target="_blank" rel="noopener" title="View source on GitHub">
+    <a class="ghlink" href="https://github.com/adensvaz/Sentinal_Hyperliquid" target="_blank" rel="noopener" title="View source on GitHub">
       <svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.6 7.6 0 012-.27c.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
       <span>GitHub</span>
     </a>
