@@ -476,6 +476,14 @@ HTML = r"""<!doctype html>
   .wallets{margin-top:14px;border-top:1px solid var(--line);padding-top:12px;font-size:12px}
   .wallets .w{display:flex;justify-content:space-between;align-items:center;padding:4px 0;color:var(--mut)}
   #chart{max-height:340px}
+  .chartwrap{position:relative}
+  .charttip{position:absolute;left:0;top:0;pointer-events:none;opacity:0;z-index:6;will-change:transform;
+    transform:translate(0,0);transition:opacity .16s ease,transform .12s cubic-bezier(.22,.9,.3,1);
+    background:linear-gradient(180deg,rgba(18,26,40,.97),rgba(10,14,21,.97));border:1px solid rgba(107,140,255,.42);
+    border-radius:12px;padding:9px 13px;backdrop-filter:blur(12px);white-space:nowrap;
+    box-shadow:0 16px 44px rgba(0,0,0,.62),0 0 26px rgba(107,140,255,.2),inset 0 1px 0 rgba(255,255,255,.06)}
+  .charttip .ct-v{font-size:19px;font-weight:820;letter-spacing:-.3px;font-variant-numeric:tabular-nums;line-height:1.05}
+  .charttip .ct-t{font-size:10.5px;color:var(--dim);margin-top:4px;letter-spacing:.2px}
   .empty{color:var(--dim);padding:14px 2px;font-size:13px}
 
   .share{background:#0c121b;border:1px solid var(--line);color:var(--mut);border-radius:7px;
@@ -651,7 +659,7 @@ HTML = r"""<!doctype html>
       <button class="t" data-r="24H">24H</button><button class="t" data-r="7D">7D</button>
       <button class="t" data-r="30D">30D</button><button class="t on" data-r="ALL">ALL</button>
     </div></div>
-    <canvas id="chart"></canvas>
+    <div class="chartwrap"><canvas id="chart"></canvas><div id="chartTip" class="charttip"></div></div>
   </div>
 
   <div class="panel tabwrap">
@@ -921,16 +929,48 @@ function drawChart(){
   const grad=ctx.createLinearGradient(0,0,0,340);
   grad.addColorStop(0, up?'rgba(39,215,150,.28)':'rgba(255,93,108,.28)');
   grad.addColorStop(1,'rgba(0,0,0,0)');
-  const ds={data:vals,borderColor:line,backgroundColor:grad,fill:true,tension:.32,pointRadius:0,borderWidth:2.4};
+  const ds={data:vals,borderColor:line,backgroundColor:grad,fill:true,tension:.32,pointRadius:0,pointHoverRadius:0,borderWidth:2.4};
   if(!chart){
     chart=new Chart(ctx,{type:'line',data:{labels,datasets:[ds]},
-      options:{responsive:true,animation:{duration:300},plugins:{legend:{display:false},
-        tooltip:{backgroundColor:'#0f141d',borderColor:'#1c2433',borderWidth:1,titleColor:'#7d8799',padding:10,
-          callbacks:{label:c=>(metric==='value'?money(c.parsed.y):sgn(c.parsed.y))}}},
+      plugins:[crosshairPlugin],
+      options:{responsive:true,animation:{duration:300},
+        interaction:{mode:'index',intersect:false},
+        plugins:{legend:{display:false},
+          tooltip:{enabled:false,external:externalTip}},
         scales:{x:{ticks:{color:'#5a6473',maxTicksLimit:8,font:{size:11}},grid:{color:'rgba(28,36,51,.5)'}},
                 y:{ticks:{color:'#5a6473',font:{size:11}},grid:{color:'rgba(28,36,51,.5)'}}}}});
   }else{chart.data.labels=labels;chart.data.datasets[0]=ds;chart.update('none');}
 }
+
+// cinematic chart hover: glassmorphic floating value card that glides to each point
+function externalTip(ctx){
+  const tip=$('chartTip'); if(!tip) return;
+  const tt=ctx.tooltip;
+  if(!tt||tt.opacity===0||!tt.dataPoints||!tt.dataPoints.length){ tip.style.opacity=0; return; }
+  const dp=tt.dataPoints[0], y=dp.parsed.y, isVal=metric==='value';
+  const col=isVal?(y>=0?'#27d796':'#ff5d6c'):(y>=0?'#27d796':'#ff5d6c');
+  tip.innerHTML=`<div class="ct-v" style="color:${col}">${isVal?money(y):sgn(y)}</div><div class="ct-t">${dp.label}</div>`;
+  tip.style.opacity=1;
+  const cw=ctx.chart.canvas, w=tip.offsetWidth, h=tip.offsetHeight;
+  let left=Math.max(2,Math.min(tt.caretX - w/2, cw.clientWidth - w - 2));
+  let top=tt.caretY - h - 18; if(top<2) top=tt.caretY + 18;
+  tip.style.transform=`translate(${left}px,${top}px)`;
+}
+// glowing vertical crosshair + pulsing point at the hovered x
+const crosshairPlugin={id:'crosshair', afterDatasetsDraw(chart){
+  const act=chart.getActiveElements?chart.getActiveElements():[];
+  if(!act||!act.length) return;
+  const c=chart.ctx, el=act[0].element, x=el.x, py=el.y;
+  const {top,bottom}=chart.chartArea, col=chart.data.datasets[0].borderColor;
+  c.save();
+  const g=c.createLinearGradient(0,top,0,bottom);
+  g.addColorStop(0,'rgba(107,140,255,0)');g.addColorStop(.5,'rgba(107,140,255,.5)');g.addColorStop(1,'rgba(107,140,255,0)');
+  c.strokeStyle=g;c.lineWidth=1;c.beginPath();c.moveTo(x,top);c.lineTo(x,bottom);c.stroke();
+  c.shadowColor=col;c.shadowBlur=18;c.fillStyle=col;c.beginPath();c.arc(x,py,5,0,7);c.fill();
+  c.shadowBlur=0;c.fillStyle='#0a0e15';c.beginPath();c.arc(x,py,2.4,0,7);c.fill();
+  c.fillStyle='#fff';c.beginPath();c.arc(x,py,1.3,0,7);c.fill();
+  c.restore();
+}};
 
 document.querySelectorAll('#metricTog .t').forEach(t=>t.onclick=()=>{
   metric=t.dataset.m;document.querySelectorAll('#metricTog .t').forEach(x=>x.classList.toggle('on',x===t));drawChart();});
