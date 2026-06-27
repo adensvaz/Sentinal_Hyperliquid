@@ -130,6 +130,8 @@ class RiskCfg(BaseModel):
 
 class ScheduleCfg(BaseModel):
     rebalance_minutes: int = 240
+    rebalance_hour_utc: Optional[int] = None  # if 0-23, rebalance daily at this fixed UTC hour
+                                              # (predictable + restart-proof); else use the interval
 
 
 class StateCfg(BaseModel):

@@ -183,6 +183,9 @@ def gather_state(cfg: Config) -> dict:
             "mode": cfg.mode,
             "running": _loop_running(),
             "rebalance_minutes": cfg.schedule.rebalance_minutes,
+            "rebalance_hour_utc": cfg.schedule.rebalance_hour_utc,
+            "next_rebalance_ts": store.get_meta("next_rebalance"),
+            "paused_until": store.paused_until(mode) or None,
             "starting_capital": starting,
             "equity": eq,
             "pnl": pnl,
@@ -382,7 +385,16 @@ HTML = r"""<!doctype html>
   .dot.on{background:var(--grn);box-shadow:0 0 0 0 rgba(39,215,150,.6);animation:pulse 1.8s infinite}
   .dot.off{background:#4b5563}
   @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(39,215,150,.5)}70%{box-shadow:0 0 0 7px rgba(39,215,150,0)}100%{box-shadow:0 0 0 0 rgba(39,215,150,0)}}
-  .meta{margin-left:auto;font-size:12px;color:var(--dim)}
+  .meta{font-size:12px;color:var(--dim)}
+  .cd{display:inline-flex;align-items:center;gap:6px;margin-left:auto;font-size:12.5px;color:var(--mut);
+    background:linear-gradient(135deg,rgba(107,140,255,.1),rgba(154,107,255,.06));
+    border:1px solid rgba(107,140,255,.28);padding:5px 12px;border-radius:999px;white-space:nowrap}
+  .cd b{color:#fff;font-weight:700;font-variant-numeric:tabular-nums;letter-spacing:.4px;min-width:62px;text-align:right}
+  .cd-ic{color:var(--accent);font-size:13px;animation:spin 7s linear infinite}
+  .cd.soon{border-color:rgba(245,196,81,.5);background:rgba(245,196,81,.08)} .cd.soon b{color:var(--gold)}
+  .cd.paused{border-color:rgba(255,93,108,.4);background:rgba(255,93,108,.07)} .cd.paused b{color:var(--red)}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .meta{margin-left:14px}
 
   main{padding:22px 26px;max-width:1280px;margin:0 auto}
   .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(232px,1fr));gap:14px;margin-bottom:18px}
@@ -624,6 +636,7 @@ HTML = r"""<!doctype html>
   </nav>
   <span id="mode" class="pill paper">paper</span>
   <span class="status"><span id="dot" class="dot off"></span><span id="run">checking…</span></span>
+  <span class="cd" id="cdwrap" title="time until the next scheduled daily rebalance"><span class="cd-ic">⟳</span> next rebalance <b id="cd">—</b></span>
   <span class="meta">updated <b id="upd">—</b> · <span id="cycles">0</span> cycles · rebal <span id="rebal">—</span></span>
 </header>
 <main id="pageDash">
@@ -803,7 +816,9 @@ function render(d){
   $('mode').textContent=d.mode; $('mode').className='pill '+d.mode;
   $('dot').className='dot '+(d.running?'on':'off');
   $('run').textContent=d.running?'loop running':'loop stopped'; $('run').className=d.running?'grn':'mut';
-  $('upd').textContent=new Date().toLocaleTimeString(); $('cycles').textContent=d.cycles; $('rebal').textContent=d.rebalance_minutes+'m';
+  $('upd').textContent=new Date().toLocaleTimeString(); $('cycles').textContent=d.cycles;
+  $('rebal').textContent=(d.rebalance_hour_utc!=null)?('daily '+String(d.rebalance_hour_utc).padStart(2,'0')+':00 UTC'):(d.rebalance_minutes+'m');
+  NEXT_REBAL=d.next_rebalance_ts||null; PAUSED=d.paused_until||null; renderCountdown();
 
   const pc=d.pnl>=0?'grn':'red';
   const lev=d.leverage||0, levPct=Math.min(100,lev/(d.max_gross_leverage||10)*100);
@@ -1158,6 +1173,23 @@ $('cardModal').addEventListener('click',e=>{if(e.target.id==='cardModal')closeCa
 
 async function tick(){try{render(await (await fetch('/api/state')).json());}catch(e){$('run').textContent='offline';}}
 tick();setInterval(tick,5000);
+
+// ---- live rebalance countdown (ticks every second) ----
+let NEXT_REBAL=null, PAUSED=null;
+function renderCountdown(){
+  const el=$('cd'), wrap=$('cdwrap'); if(!el) return;
+  const now=Date.now()/1000;
+  wrap.classList.remove('soon','paused');
+  if(PAUSED && PAUSED>now){ el.textContent='paused'; wrap.classList.add('paused'); return; }
+  if(!NEXT_REBAL){ el.textContent='—'; return; }
+  let s=Math.max(0,Math.floor(NEXT_REBAL-now));
+  if(s===0){ el.textContent='now…'; wrap.classList.add('soon'); return; }
+  const h=Math.floor(s/3600), m=Math.floor(s%3600/60), sec=s%60;
+  const p=n=>String(n).padStart(2,'0');
+  el.textContent=(h>0?h+':':'')+p(m)+':'+p(sec);
+  if(s<3600) wrap.classList.add('soon');   // amber in the final hour
+}
+setInterval(renderCountdown,1000);
 
 /* ============ STRATEGY PAGE: nav, particles, reveals, counters, flow ============ */
 let stratBuilt=false, alienRaf=null, alienParts=[];
