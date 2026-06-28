@@ -633,6 +633,39 @@ HTML = r"""<!doctype html>
     border:1px solid rgba(245,196,81,.18);border-radius:14px;padding:16px 20px}
   .sfoot{text-align:center;margin-top:70px;font-size:13px;color:var(--dim);letter-spacing:.3px}
 
+  /* two-strategy comparison */
+  .tchip{display:inline-block;vertical-align:middle;font-size:.42em;font-weight:800;letter-spacing:1.4px;
+    text-transform:uppercase;padding:.45em .8em;border-radius:999px;margin-left:.5em;color:#0b0e14;
+    background:linear-gradient(135deg,#f5c451,#ffb24a);transform:translateY(-.28em)}
+  .vsgrid{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+  @media(max-width:720px){.vsgrid{grid-template-columns:1fr}}
+  .vscard{position:relative;background:linear-gradient(180deg,rgba(19,26,37,.7),rgba(15,20,29,.7));
+    border:1px solid var(--line);border-radius:20px;padding:24px 22px 22px;transition:.3s}
+  .vscard:hover{transform:translateY(-4px);box-shadow:0 18px 50px rgba(0,0,0,.32)}
+  .vscard.cur{border-color:rgba(107,140,255,.5);box-shadow:0 0 0 1px rgba(107,140,255,.3),0 18px 54px rgba(74,158,255,.16)}
+  .vscard.cur::after{content:'You are here';position:absolute;top:14px;right:14px;font-size:9.5px;font-weight:800;
+    letter-spacing:1.3px;text-transform:uppercase;color:var(--accent);background:rgba(107,140,255,.12);
+    border:1px solid rgba(107,140,255,.3);border-radius:999px;padding:.35em .7em}
+  .vshead{font-size:19px;font-weight:800;letter-spacing:-.4px;display:flex;align-items:center;gap:9px}
+  .vsicon{font-size:20px} .vsicon.n{color:var(--accent)} .vsicon.c{color:#f5c451}
+  .vsbadge{font-size:9.5px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;color:#0b0e14;
+    background:linear-gradient(135deg,#f5c451,#ffb24a);border-radius:999px;padding:.34em .7em;margin-left:2px}
+  .vstag{font-size:11.5px;font-weight:700;letter-spacing:1.4px;text-transform:uppercase;color:var(--dim);margin:7px 0 13px}
+  .vscard p{font-size:13.5px;line-height:1.62;color:var(--txt);margin:0 0 14px}
+  .vsstats{list-style:none;padding:0;margin:0 0 15px;display:flex;flex-direction:column;gap:8px}
+  .vsstats li{font-size:13px;color:var(--dim);padding-left:18px;position:relative}
+  .vsstats li::before{content:'';position:absolute;left:0;top:7px;width:7px;height:7px;border-radius:50%;
+    background:var(--accent);opacity:.7}
+  #vs-champion .vsstats li::before{background:#f5c451;opacity:.8}
+  .vsstats b{color:#fff} .vsbest{font-size:12px;color:var(--mut);font-style:italic;margin-bottom:16px}
+  .vslink{display:inline-block;font-size:13px;font-weight:700;color:var(--accent);text-decoration:none;
+    border-bottom:1px solid transparent;transition:.2s}
+  .vslink:hover{border-bottom-color:var(--accent);transform:translateX(2px)}
+  #vs-champion .vslink{color:#f5c451} #vs-champion .vslink:hover{border-bottom-color:#f5c451}
+  /* nav cross-link to the other strategy */
+  .navx{text-decoration:none;border:1px solid var(--line);color:var(--mut)!important}
+  .navx:hover{color:var(--txt)!important;border-color:rgba(107,140,255,.4);background:rgba(107,140,255,.06)}
+
   .dfoot{display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:center;
     margin-top:26px;padding:18px 0 8px;border-top:1px solid var(--line);font-size:12.5px;color:var(--dim)}
   .dfoot-mark{font-weight:700;color:var(--mut)} .dfoot-dot{color:var(--line)}
@@ -687,6 +720,7 @@ HTML = r"""<!doctype html>
   <nav class="nav">
     <button class="navbtn on" data-page="dash" onclick="goPage('dash')">Dashboard</button>
     <button class="navbtn" data-page="strat" onclick="goPage('strat')">How it works</button>
+    <a class="navbtn navx" id="navCross" target="_blank" rel="noopener" title="open the other strategy">↗&nbsp;<span id="navCrossLbl">Other</span></a>
   </nav>
   <span id="strat" class="pill strat">—</span>
   <span id="mode" class="pill paper">paper</span>
@@ -759,38 +793,46 @@ HTML = r"""<!doctype html>
 <canvas id="alienBg"></canvas>
 <main id="pageStrat" class="spage" style="display:none">
 
-  <!-- HERO -->
+  <!-- HERO (populated per strategy by paintStrategy) -->
   <section class="hero reveal">
     <div class="orb"></div>
-    <div class="hero-tag">MARKET-NEUTRAL · ALGORITHMIC · KOINBAY FUTURES</div>
-    <h1 class="hero-title">Sentinel&nbsp;Edge</h1>
-    <p class="hero-sub">A self-driving trading brain that profits from <b>which coins beat which</b> —
-       not from the market going up or down.</p>
-    <div class="hero-stats">
-      <div class="hstat"><div class="hv" data-count="48.4" data-suffix="%">0%</div><div class="hl">backtest return</div></div>
-      <div class="hstat"><div class="hv" data-count="5.0" data-dec="1">0</div><div class="hl">Sharpe ratio</div></div>
-      <div class="hstat"><div class="hv" data-count="12.6" data-suffix="%">0%</div><div class="hl">max drawdown</div></div>
-      <div class="hstat"><div class="hv" data-count="0.07" data-dec="2">0</div><div class="hl">BTC exposure</div></div>
+    <div class="hero-tag" id="heroTag">KOINBAY FUTURES</div>
+    <h1 class="hero-title" id="heroTitle">Sentinel&nbsp;Edge</h1>
+    <p class="hero-sub" id="heroSub">Two strategies, one engine.</p>
+    <div class="hero-stats" id="heroStats"></div>
+  </section>
+
+  <!-- TWO STRATEGIES -->
+  <section class="sblock reveal">
+    <div class="seye">THE SYSTEM</div>
+    <h2 class="sh2">Two strategies, one engine</h2>
+    <p class="sp-note">Same data, same execution, same risk rails — two ways to trade. You're viewing <b id="curStrat">—</b>.</p>
+    <div class="vsgrid">
+      <div class="vscard" id="vs-neutral">
+        <div class="vshead"><span class="vsicon n">⚖</span> Market-Neutral</div>
+        <div class="vstag">Steady · market-proof</div>
+        <p>Buys the strongest coins, short-sells the weakest, balanced to near-zero market exposure. Profits from <i>which coins beat which</i> — not the market's direction.</p>
+        <ul class="vsstats"><li><b>~13%</b> max drawdown</li><li><b>≈0.07</b> BTC exposure</li><li>works in <b>any</b> market</li></ul>
+        <div class="vsbest">Best for — capital preservation, a low-stress ride</div>
+        <a class="vslink" id="link-neutral" target="_blank" rel="noopener">Open live dashboard →</a>
+      </div>
+      <div class="vscard" id="vs-champion">
+        <div class="vshead"><span class="vsicon c">⚡</span> Momentum <span class="vsbadge">Champion</span></div>
+        <div class="vstag">Growth · rides the trend</div>
+        <p>Holds the 5 strongest coins while Bitcoin trends up — and moves fully to <b>cash</b> when BTC drops below its 100-day line. Keeps the upside, sidesteps the crashes.</p>
+        <ul class="vsstats"><li><b>+39%</b> / yr · <b>1.12</b> Sharpe</li><li><b>~32%</b> max drawdown</li><li><b>5.5-yr</b> walk-forward backtest</li></ul>
+        <div class="vsbest">Best for — maximum growth, if you can stomach the swings</div>
+        <a class="vslink" id="link-champion" target="_blank" rel="noopener">Open live dashboard →</a>
+      </div>
     </div>
   </section>
 
-  <!-- HOW IT WORKS -->
+  <!-- THE IDEA (strategy-aware, populated by paintStrategy) -->
   <section class="sblock reveal">
     <div class="seye">01 — THE IDEA</div>
-    <h2 class="sh2">Long the strong, short the weak. Stay neutral.</h2>
-    <div class="steps">
-      <div class="step reveal"><div class="snum">1</div><div class="sicon">🛰️</div><h3>Scan</h3>
-        <p>Every day it reads live KoinBay data on 24 coins — price momentum, funding, volume, and what the top crypto whales are doing.</p></div>
-      <div class="step reveal"><div class="snum">2</div><div class="sicon">🧮</div><h3>Score &amp; Rank</h3>
-        <p>Each coin gets one number. It strips out Bitcoin's pull so the score is pure <i>independent</i> strength — then ranks all 24.</p></div>
-      <div class="step reveal"><div class="snum">3</div><div class="sicon">⚖️</div><h3>Trade Neutral</h3>
-        <p>Buys the top 5, short-sells the bottom 5, balanced equally. If the whole market crashes, longs and shorts cancel out.</p></div>
-    </div>
-    <div class="why reveal">
-      <div class="whyrow"><span class="wk">Why it's safe</span><span class="wv">Long $ ≈ Short $ → market direction barely matters. The bet is purely <b>relative</b>.</span></div>
-      <div class="whyrow"><span class="wk">Where profit comes from</span><span class="wv">The strong names outperform the weak ones over days-to-weeks. Winners &gt; losers on average.</span></div>
-      <div class="whyrow"><span class="wk">The edge word</span><span class="wv"><b>Residual momentum</b> — strength <i>after</i> removing Bitcoin's gravity. Cleaner signal, fewer crashes.</span></div>
-    </div>
+    <h2 class="sh2" id="ideaTitle">—</h2>
+    <div class="steps" id="ideaSteps"></div>
+    <div class="why reveal" id="ideaWhy"></div>
   </section>
 
   <!-- FLOW DIAGRAM -->
@@ -804,37 +846,19 @@ HTML = r"""<!doctype html>
   <section class="sblock reveal">
     <div class="seye">03 — THE MACHINE</div>
     <h2 class="sh2">Five layers, fully automated</h2>
-    <div class="arch">
-      <div class="alayer reveal" style="--ac:#4a9eff"><div class="aname">⬡ Signal</div><div class="adesc">Momentum · Funding · Volume · Whale overlay → one residual score</div></div>
-      <div class="aflow">▼</div>
-      <div class="alayer reveal" style="--ac:#a78bfa"><div class="aname">⬡ Portfolio</div><div class="adesc">Rank → long 5 / short 5 → beta-neutralize → liquidity caps</div></div>
-      <div class="aflow">▼</div>
-      <div class="alayer reveal" style="--ac:#ff5d6c"><div class="aname">⬡ Risk</div><div class="adesc">Vol-target · crash guard · daily-loss breaker · kill-switch · per-name stop</div></div>
-      <div class="aflow">▼</div>
-      <div class="alayer reveal" style="--ac:#27d796"><div class="aname">⬡ Execution</div><div class="adesc">Reconcile → minimal maker orders → paper or live KoinBay futures</div></div>
-      <div class="aflow">▼</div>
-      <div class="alayer reveal" style="--ac:#f5c451"><div class="aname">⬡ State &amp; Dashboard</div><div class="adesc">SQLite · equity curve · trades · this live dashboard · copy-trade signal</div></div>
-    </div>
+    <div class="arch" id="archLayers"></div>
   </section>
 
-  <!-- PERFORMANCE -->
+  <!-- PERFORMANCE (strategy-aware, populated by paintStrategy) -->
   <section class="sblock reveal">
     <div class="seye">04 — THE NUMBERS</div>
-    <h2 class="sh2">Backtest performance</h2>
-    <p class="sp-note">Jan → Jun 2026 · real KoinBay daily data · the full strategy stack</p>
-    <div class="perfgrid">
-      <div class="pcard reveal"><div class="pv grn" data-count="48.4" data-suffix="%" data-sign="+">0</div><div class="pl">Net return</div></div>
-      <div class="pcard reveal"><div class="pv" data-count="5.0" data-dec="1">0</div><div class="pl">Sharpe ratio</div></div>
-      <div class="pcard reveal"><div class="pv red" data-count="12.6" data-suffix="%">0</div><div class="pl">Max drawdown</div></div>
-      <div class="pcard reveal"><div class="pv" data-count="503" data-int="1">0</div><div class="pl">Trades taken</div></div>
-      <div class="pcard reveal"><div class="pv" data-count="44" data-suffix="%">0</div><div class="pl">Win rate</div></div>
-      <div class="pcard reveal"><div class="pv" data-count="1.37" data-dec="2">0</div><div class="pl">Profit factor</div></div>
-    </div>
-    <div class="disclaim reveal">⚠ Backtest assumes ideal fills and excludes some live frictions. Real results will be lower —
-       this is a paper track record, not a guarantee. The strategy is market-neutral, not risk-free.</div>
+    <h2 class="sh2" id="numTitle">Backtest performance</h2>
+    <p class="sp-note" id="numNote">—</p>
+    <div class="perfgrid" id="perfGrid"></div>
+    <div class="disclaim reveal" id="numDisclaim">—</div>
   </section>
 
-  <div class="sfoot reveal">⚡ Sentinel Edge · built to run a clean, followable, market-neutral book</div>
+  <div class="sfoot reveal" id="sfoot">⚡ Sentinel Edge · two strategies, one clean engine</div>
 </main>
 
 <div id="cardModal" class="modal">
@@ -861,6 +885,96 @@ const ago=s=>{if(!s)return '';const d=Math.max(0,Date.now()/1000-s);return dur(d
 let DATA=null, chart=null, metric='pnl', range='ALL';
 const RANGES={'24H':864e5,'7D':6048e5,'30D':2592e6,'ALL':Infinity};
 
+/* ============ STRATEGY CONTENT (the "How it works" page is shared by both books) ============ */
+let CUR_STRAT=null, STRAT_PAINTED=false;
+const stepHTML=(n,icon,h,p)=>`<div class="step reveal"><div class="snum">${n}</div><div class="sicon">${icon}</div><h3>${h}</h3><p>${p}</p></div>`;
+const whyHTML=(k,v)=>`<div class="whyrow"><span class="wk">${k}</span><span class="wv">${v}</span></div>`;
+const pcardHTML=(v,l,cls,o={})=>`<div class="pcard reveal"><div class="pv ${cls||''}" data-count="${v}"${o.dec?` data-dec="${o.dec}"`:''}${o.suf?` data-suffix="${o.suf}"`:''}${o.sign?` data-sign="${o.sign}"`:''}${o.int?' data-int="1"':''}>0</div><div class="pl">${l}</div></div>`;
+const archHTML=layers=>layers.map(L=>`<div class="alayer reveal" style="--ac:${L.c}"><div class="aname">⬡ ${L.n}</div><div class="adesc">${L.d}</div></div>`).join('<div class="aflow">▼</div>');
+const STRAT_INFO={
+  neutral:{
+    tag:'MARKET-NEUTRAL · LONG / SHORT · KOINBAY FUTURES',
+    title:'Sentinel&nbsp;Edge',
+    sub:'The steady book. It profits from <b>which coins beat which</b> — and barely flinches when the whole market moves up or down.',
+    stats:[{v:0.07,dec:2,l:'BTC exposure'},{v:13,suf:'%',l:'max drawdown'},{v:24,l:'coins scanned'},{v:10,l:'positions (5 + 5)'}],
+    ideaTitle:'Long the strong, short the weak. Stay neutral.',
+    steps:stepHTML(1,'🛰️','Scan','Every day it reads live KoinBay data on 24 coins — price momentum, funding, volume, and what the top crypto whales are doing.')
+        +stepHTML(2,'🧮','Score &amp; Rank','Each coin gets one number. It strips out Bitcoin&rsquo;s pull so the score is pure <i>independent</i> strength — then ranks all 24.')
+        +stepHTML(3,'⚖️','Trade Neutral','Buys the top 5, short-sells the bottom 5, balanced equally. If the whole market crashes, longs and shorts cancel out.'),
+    why:whyHTML('Why it&rsquo;s safe','Long $ &asymp; Short $ &rarr; market direction barely matters. The bet is purely <b>relative</b>.')
+       +whyHTML('Where profit comes from','The strong names outperform the weak ones over days-to-weeks. Winners &gt; losers on average.')
+       +whyHTML('The edge word','<b>Residual momentum</b> — strength <i>after</i> removing Bitcoin&rsquo;s gravity. Cleaner signal, fewer crashes.'),
+    arch:archHTML([
+      {c:'#4a9eff',n:'Signal',d:'Momentum · Funding · Volume · Whale overlay → one residual score'},
+      {c:'#a78bfa',n:'Portfolio',d:'Rank → long 5 / short 5 → beta-neutralize → liquidity caps'},
+      {c:'#ff5d6c',n:'Risk',d:'Vol-target · crash guard · daily-loss breaker · kill-switch · per-name stop'},
+      {c:'#27d796',n:'Execution',d:'Reconcile → minimal maker orders → paper or live KoinBay futures'},
+      {c:'#f5c451',n:'State &amp; Dashboard',d:'SQLite · equity curve · trades · this live dashboard · copy-trade signal'},
+    ]),
+    numNote:'Jan → Jun 2026 · real KoinBay daily data · the full neutral stack',
+    perf:pcardHTML(48.4,'Net return','grn',{suf:'%',sign:'+'})+pcardHTML(5.0,'Sharpe ratio','',{dec:1})
+        +pcardHTML(12.6,'Max drawdown','red',{suf:'%'})+pcardHTML(503,'Trades taken','',{int:1})
+        +pcardHTML(44,'Win rate','',{suf:'%'})+pcardHTML(1.37,'Profit factor','',{dec:2}),
+    disclaim:'⚠ This is a short, favorable window. On 5+ years of clean data a pure market-neutral book earns far less — its real value is the <b>steadiness</b> (low drawdown, near-zero market exposure), not the headline return. Paper track, not a guarantee.'
+  },
+  champion:{
+    tag:'DIRECTIONAL MOMENTUM · REGIME-FILTERED · KOINBAY FUTURES',
+    title:'Sentinel&nbsp;Edge <span class="tchip">Champion</span>',
+    sub:'The growth book. It rides the <b>strongest coins</b> while the market trends up — and steps fully to cash the moment Bitcoin turns down.',
+    stats:[{v:39,suf:'%',sign:'+',l:'backtest CAGR'},{v:1.12,dec:2,l:'Sharpe ratio'},{v:32,suf:'%',l:'max drawdown'},{v:5.5,dec:1,l:'years tested'}],
+    ideaTitle:'Ride the strongest coins. Sit in cash when the market turns.',
+    steps:stepHTML(1,'🛰️','Scan','Every day it reads daily price action on 24 KoinBay coins and measures each one&rsquo;s 30-day momentum.')
+        +stepHTML(2,'📈','Rank','It keeps the 5 strongest names that are <i>also</i> trading above their own 50-day average — strength confirmed two ways.')
+        +stepHTML(3,'🚦','Ride or Cash','It holds them while Bitcoin is above its 100-day line. The moment BTC drops below it, the whole book goes to <b>cash</b>.'),
+    why:whyHTML('Why it works','Crypto&rsquo;s strongest trends keep running for weeks. Owning the current leaders captures that drift.')
+       +whyHTML('Why it survives crashes','The BTC-regime brake pulls everything to cash in bear markets — where momentum&rsquo;s worst drawdowns happen.')
+       +whyHTML('The edge word','<b>Regime-gated momentum</b> — validated walk-forward across 5.5 years, ~3&times; buy-and-hold&rsquo;s risk-adjusted return.'),
+    arch:archHTML([
+      {c:'#4a9eff',n:'Signal',d:'30-day momentum across 24 coins → one strength score per name'},
+      {c:'#f5c451',n:'Regime',d:'BTC above its 100-day line → risk-on; below → everything to cash'},
+      {c:'#a78bfa',n:'Portfolio',d:'Top-5 dual-confirmed names · equal-weight · long-only'},
+      {c:'#ff5d6c',n:'Risk',d:'Vol-target · drawdown throttle · crash guard · per-name catastrophe stop'},
+      {c:'#27d796',n:'Execution',d:'Reconcile → maker orders → paper or live KoinBay + this dashboard'},
+    ]),
+    numNote:'5.5 years · survivorship-free Binance daily data · walk-forward validated',
+    perf:pcardHTML(39,'CAGR (per year)','grn',{suf:'%',sign:'+'})+pcardHTML(1.12,'Sharpe ratio','',{dec:2})
+        +pcardHTML(32,'Max drawdown','red',{suf:'%'})+pcardHTML(0.75,'Worst-half Sharpe','',{dec:2})
+        +pcardHTML(3,'vs buy &amp; hold','',{suf:'×'})+pcardHTML(45,'Time in cash','',{suf:'%'}),
+    disclaim:'⚠ Tested on clean, survivorship-free data with walk-forward validation — but it still assumes ideal fills and excludes funding/slippage. Live paper results will be lower, and the ~32% drawdowns are real. Not a guarantee.'
+  }
+};
+function paintStrategy(strat){
+  strat=(strat==='champion')?'champion':'neutral';
+  if(STRAT_PAINTED && CUR_STRAT===strat) return;
+  CUR_STRAT=strat; STRAT_PAINTED=true;
+  const S=STRAT_INFO[strat];
+  $('heroTag').textContent=S.tag;
+  $('heroTitle').innerHTML=S.title;
+  $('heroSub').innerHTML=S.sub;
+  $('heroStats').innerHTML=S.stats.map(s=>`<div class="hstat"><div class="hv" data-count="${s.v}"${s.dec?` data-dec="${s.dec}"`:''}${s.suf?` data-suffix="${s.suf}"`:''}${s.sign?` data-sign="${s.sign}"`:''}>0</div><div class="hl">${s.l}</div></div>`).join('');
+  $('ideaTitle').textContent=S.ideaTitle;
+  $('ideaSteps').innerHTML=S.steps;
+  $('ideaWhy').innerHTML=S.why;
+  $('archLayers').innerHTML=S.arch;
+  $('numNote').textContent=S.numNote;
+  $('perfGrid').innerHTML=S.perf;
+  $('numDisclaim').innerHTML=S.disclaim;
+  // comparison block: label + highlight the one you're viewing
+  $('curStrat').textContent=(strat==='champion')?'⚡ Momentum (Champion)':'⚖ Market-Neutral';
+  document.getElementById('vs-neutral').classList.toggle('cur',strat==='neutral');
+  document.getElementById('vs-champion').classList.toggle('cur',strat==='champion');
+  // cross-dashboard links (neutral :8787, champion :8788 — same host)
+  const host=location.hostname||'localhost', nUrl='http://'+host+':8787', cUrl='http://'+host+':8788';
+  $('link-neutral').href=nUrl; $('link-champion').href=cUrl;
+  $('link-neutral').textContent=(strat==='neutral')?"You're viewing this →":'Open live dashboard →';
+  $('link-champion').textContent=(strat==='champion')?"You're viewing this →":'Open live dashboard →';
+  // nav button jumps to the OTHER book
+  if(strat==='champion'){$('navCross').href=nUrl; $('navCrossLbl').textContent='Market-Neutral';}
+  else{$('navCross').href=cUrl; $('navCrossLbl').textContent='Champion';}
+  if($('pageStrat').style.display!=='none') runReveals();
+  if(stratBuilt) buildStrat();
+}
+
 function card(k,v,cls,s,bar,tip){
   const info=tip?` <span class="info" data-tip="${tip}">i</span>`:'';
   return `<div class="card"><div class="k">${k}${info}</div><div class="v num ${cls||''}">${v}</div>${bar||''}${s?`<div class="s">${s}</div>`:''}</div>`}
@@ -870,7 +984,7 @@ function render(d){
   DATA=d;
   $('mode').textContent=d.mode; $('mode').className='pill '+d.mode;
   if(d.strategy){const s=$('strat'); s.textContent=d.strategy==='champion'?'⚡ momentum':'⚖ market-neutral';
-    s.className='pill strat '+(d.strategy==='champion'?'champ':'');}
+    s.className='pill strat '+(d.strategy==='champion'?'champ':''); paintStrategy(d.strategy);}
   $('dot').className='dot '+(d.running?'on':'off');
   $('run').textContent=d.running?'loop running':'loop stopped'; $('run').className=d.running?'grn':'mut';
   $('upd').textContent=new Date().toLocaleTimeString(); $('cycles').textContent=d.cycles;
@@ -1289,7 +1403,8 @@ function goPage(p){
   document.querySelectorAll('.navbtn').forEach(b=>b.classList.toggle('on',b.dataset.page===p));
   $('alienBg').classList.toggle('on',!dash);
   window.scrollTo({top:0,behavior:'instant'});
-  if(!dash){ startAlien(); if(!stratBuilt){buildStrat();stratBuilt=true;} runReveals(); }
+  if(!dash){ if(!STRAT_PAINTED) paintStrategy((DATA&&DATA.strategy)||'neutral');
+    startAlien(); if(!stratBuilt){buildStrat();stratBuilt=true;} runReveals(); }
   else stopAlien();
 }
 
@@ -1341,7 +1456,14 @@ function countUp(el){
 /* --- animated flow diagram (SVG) --- */
 function buildStrat(){
   const svg=$('flowSvg'),NS='http://www.w3.org/2000/svg';
-  const nodes=[
+  const champ=(CUR_STRAT==='champion');
+  const nodes=champ?[
+    {x:90,y:110,t:'KoinBay',s:'daily data',c:'#4a9eff'},
+    {x:90,y:270,t:'BTC Regime',s:'above 100d MA?',c:'#f5c451'},
+    {x:360,y:110,t:'Momentum',s:'rank 30d',c:'#9a6bff'},
+    {x:620,y:180,t:'Top-5 or Cash',s:'dual-confirmed',c:'#a78bfa'},
+    {x:860,y:180,t:'Execute',s:'maker orders',c:'#27d796'},
+  ]:[
     {x:90,y:60,t:'KoinBay',s:'live data',c:'#4a9eff'},
     {x:90,y:180,t:'Whales',s:'10 wallets',c:'#4a9eff'},
     {x:90,y:300,t:'Funding',s:'crowding',c:'#4a9eff'},
@@ -1350,7 +1472,7 @@ function buildStrat(){
     {x:840,y:90,t:'Risk Gate',s:'guards + stops',c:'#ff5d6c'},
     {x:840,y:270,t:'Execute',s:'maker orders',c:'#27d796'},
   ];
-  const links=[[0,3],[1,3],[2,3],[3,4],[4,5],[4,6]];
+  const links=champ?[[0,2],[2,3],[1,3],[3,4]]:[[0,3],[1,3],[2,3],[3,4],[4,5],[4,6]];
   let defs=`<defs><filter id="glow"><feGaussianBlur stdDeviation="3.2" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>`;
   let paths='',dots='',boxes='';
   links.forEach(([a,b],i)=>{const A=nodes[a],B=nodes[b];
