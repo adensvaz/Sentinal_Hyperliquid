@@ -1,5 +1,11 @@
 # Sentinel Edge — KoinBay Copy-Trading Bot
 
+[![tests](https://github.com/adensvaz/Sentinal_Hyperliquid/actions/workflows/ci.yml/badge.svg)](https://github.com/adensvaz/Sentinal_Hyperliquid/actions/workflows/ci.yml)
+[![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![python](https://img.shields.io/badge/python-3.11%2B-blue.svg)](pyproject.toml)
+[![strategies](https://img.shields.io/badge/strategies-3%20uncorrelated-6b8cff.svg)](#)
+[![mode](https://img.shields.io/badge/mode-paper%20trading-27d796.svg)](#)
+
 > **Three** uncorrelated algorithmic crypto-futures strategies on **KoinBay**, sharing one engine.
 > Modeled on Gamma's **Sentiment Edge** vault. Goal: become a **copy-trading lead** (signal provider).
 
