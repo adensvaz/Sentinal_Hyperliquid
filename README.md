@@ -1,17 +1,17 @@
 # Sentinel Edge — KoinBay Copy-Trading Bot
 
-> **Two** algorithmic crypto-futures strategies on **KoinBay**, sharing one engine.
+> **Three** uncorrelated algorithmic crypto-futures strategies on **KoinBay**, sharing one engine.
 > Modeled on Gamma's **Sentiment Edge** vault. Goal: become a **copy-trading lead** (signal provider).
 
-| | ⚖ **Market-Neutral** | ⚡ **Momentum + Regime** *(Champion)* |
-|---|---|---|
-| **Idea** | Long the strong, short the weak — balanced to ~zero market exposure | Ride the 5 strongest coins in an uptrend; go to cash when BTC turns down |
-| **Profits from** | *Which* coins beat which (relative) | The market's strongest trends (directional) |
-| **Risk** | Low — ~13% max drawdown, BTC-β ≈ 0.07 | Higher — ~32% max drawdown |
-| **Backtest edge** | Thin long-run (Sharpe ~0.06 on 5.5yr clean data) | **Validated** — Sharpe 1.12 / +39%/yr, walk-forward over 5.5yr |
-| **Best for** | Capital preservation, low stress | Maximum growth, can stomach swings |
+| | ⚖ **Market-Neutral** | ⚡ **Momentum + Regime** *(Champion)* | 💰 **Funding Carry** |
+|---|---|---|---|
+| **Idea** | Long the strong, short the weak — ~zero market exposure | Ride the 5 strongest coins; go to cash when BTC turns down | Short high-funding coins / long low-funding; collect the carry |
+| **Profits from** | *Which* coins beat which (relative) | The market's strongest trends (directional) | The structural funding premium (income) |
+| **Risk** | Low — ~13% DD, BTC-β ≈ 0.07 | Higher — ~32% DD | Medium — ~28% DD (with overlay) |
+| **Backtest edge** | Thin long-run (Sharpe ~0.06, 5.5yr clean) | **Validated** — Sharpe ~1.3, +39-74%/yr, 5.5yr | **Validated** — Sharpe ~2.0, +123%/yr, 6.5yr, every year green |
+| **Best for** | Capital preservation, low stress | Maximum growth, can stomach swings | Best risk-adjusted return; a diversifier |
 
-Both run **side-by-side in paper**, each with its own database, rebalance loop, and dashboard. The same data feed, execution path, and risk rails serve both.
+All three run **side-by-side in paper**, each with its own database, rebalance loop, and dashboard — and they are **mutually uncorrelated** (carry vs the others ≈ 0), so the combined book is smoother than any one alone. The same data feed, execution path, and risk rails serve all three.
 
 ## 🔴 Live Dashboards
 
@@ -19,6 +19,7 @@ Both run **side-by-side in paper**, each with its own database, rebalance loop, 
 |---|---|---|
 | ⚖ Market-Neutral | **▶ [136.113.89.123:8787](http://136.113.89.123:8787)** | steady, market-proof |
 | ⚡ Momentum *(Champion)* | **▶ [136.113.89.123:8788](http://136.113.89.123:8788)** | directional, regime-gated growth |
+| 💰 Funding Carry | **▶ [136.113.89.123:8789](http://136.113.89.123:8789)** | market-neutral funding income |
 
 Each has a **Dashboard** tab (live PnL, equity curve, open positions) and a **How it works** tab (animated, strategy-aware walkthrough). Running 24/7 on Google Cloud.
 
@@ -115,11 +116,60 @@ flowchart TD
     DB --> COPY["📡 Copy-trading Lead\nlong-only · 1× gross"]:::good
 ```
 
+### Strategy 3 — 💰 Funding Carry (market-neutral, income)
+
+Harvests the **structural funding premium** — perpetual funding is a payment from crowded longs to shorts. Dollar-neutral and orthogonal to price; the momentum tilt tames the classic short-squeeze tail. Uncorrelated to the other two books (corr ≈ 0) — a genuine diversifier.
+
+```mermaid
+flowchart TD
+    classDef data fill:#1e3a5f,stroke:#4a9eff,color:#e8f4ff,font-weight:bold
+    classDef signal fill:#1a3a2a,stroke:#27d796,color:#e8fff4,font-weight:bold
+    classDef portfolio fill:#2a1f3d,stroke:#a78bfa,color:#f0e8ff,font-weight:bold
+    classDef risk fill:#3d1a1a,stroke:#ff5d6c,color:#ffe8e8,font-weight:bold
+    classDef exec fill:#1f2d3d,stroke:#60a5fa,color:#e8f0ff,font-weight:bold
+    classDef state fill:#1a2a1a,stroke:#86efac,color:#e8ffe8,font-weight:bold
+    classDef good fill:#14532d,stroke:#22c55e,color:#dcfce7,font-weight:bold
+    classDef warn fill:#7c2d12,stroke:#f97316,color:#ffedd5,font-weight:bold
+
+    KB[("🏦 KoinBay Futures\nDaily price + funding")]:::data
+
+    KB --> FUND["💸 Funding Rate\ntrailing-average per coin"]:::signal
+    KB --> MOM["📈 21-day Momentum\nper coin"]:::signal
+
+    FUND & MOM --> RANK["🎯 Combined Rank\nfunding + momentum"]:::portfolio
+    RANK --> SHORT["🔴 SHORT top-5 funding\ncollect the funding paid"]:::warn
+    RANK --> LONG["🟢 LONG bottom-5 funding\ncheapest / negative"]:::good
+    SHORT & LONG --> NEUTRAL["⚖️ Dollar-neutral\nequal $ long & short · net ~0"]:::portfolio
+
+    NEUTRAL --> DRISK["📉 Vol-target + DD throttle\ntames the squeeze tail"]:::risk
+    DRISK --> RECON["🔄 Reconcile → maker orders"]:::exec
+    RECON --> PAPER["📄 PAPER MODE\nreal signals · simulated fills"]:::good
+    PAPER --> DB[("💾 carry.db\nfunding history · equity · trades")]:::state
+    DB --> DASH["🖥️ Dashboard :8789\nPnL · Positions · equity chart"]:::state
+    DB --> COPY["📡 Copy-trading Lead\nmarket-neutral · dollar-neutral"]:::good
+```
+
 ---
 
 ## Backtest Results
 
-### ⚡ Momentum + Regime (Champion) — the validated edge
+### 💰 Funding Carry — the best risk-adjusted edge (and a diversifier)
+
+**6.5 years** of real Binance funding history + daily prices, dynamic universe, **look-ahead-free** and fee-tested.
+
+| Metric | Value |
+|---|---|
+| CAGR | **+123%/yr** (production code, through risk overlay) |
+| Sharpe ratio | **2.05** |
+| Max drawdown | ~28% (raw ~56%; overlay tames it) |
+| Worst-half Sharpe | 1.56 |
+| Consistency | **positive every year 2020-2026** |
+| Robustness | Sharpe >0.5 in **96%** of random coin-universes; survives fees to 25 bps |
+| Correlation | ≈ **0** to the other two books and to BTC (true diversifier) |
+
+> Caveat: backtest uses real funding rates but today's surviving coins (delisted names absent), and carry carries squeeze tail-risk. Live paper is the real test.
+
+### ⚡ Momentum + Regime (Champion) — the validated directional edge
 
 **5.5 years** of survivorship-free Binance daily data, **walk-forward validated** (robust across both halves).
 
@@ -198,14 +248,18 @@ python run.py dashboard   # dashboard at http://127.0.0.1:8787
 python run.py loop      --config config.champion.yaml
 python run.py dashboard --config config.champion.yaml --port 8788
 
+# 3c. Run the FUNDING CARRY book too (its own config + DB + port)
+python run.py loop      --config config.carry.yaml
+python run.py dashboard --config config.carry.yaml --port 8789
+
 # 4. Go live (only after reviewing the paper track record)
 # set mode: live in the chosen config, then:
 python run.py once --live
 ```
 
-> On the server the two books run as independent systemd services
-> (`sentinel` / `sentinel-dashboard` and `sentinel-champion` / `sentinel-champion-dashboard`),
-> writing to `data/sentinel.db` and `data/champion.db` respectively.
+> On the server the three books run as independent systemd services
+> (`sentinel*`, `sentinel-champion*`, `sentinel-carry*` — loop + dashboard each),
+> writing to `data/sentinel.db`, `data/champion.db`, and `data/carry.db` respectively.
 
 ---
 
@@ -213,12 +267,13 @@ python run.py once --live
 
 ```
 GAMMA_SENTIMENTEDGE/
-├── config.yaml                    # MARKET-NEUTRAL knobs (strategy: neutral, data/sentinel.db)
+├── config.yaml                    # MARKET-NEUTRAL knobs (strategy: neutral, data/sentinel.db, port 8787)
 ├── config.champion.yaml           # MOMENTUM CHAMPION knobs (strategy: champion, data/champion.db, port 8788)
+├── config.carry.yaml              # FUNDING CARRY knobs (strategy: carry, data/carry.db, port 8789)
 ├── run.py                         # CLI entrypoint (--config selects the book)
 ├── sentinel                       # shell helper (start/stop/status)
 ├── src/sentinel/
-│   ├── config.py                  # pydantic config (+ ChampionCfg) + .env overlay
+│   ├── config.py                  # pydantic config (+ ChampionCfg, CarryCfg) + .env overlay
 │   ├── exchange/                  # KoinBay client, signing, contract specs
 │   ├── signal/
 │   │   ├── market_proxy.py        # momentum + funding + volume + whale scorer
@@ -227,19 +282,21 @@ GAMMA_SENTIMENTEDGE/
 │   ├── strategy/
 │   │   ├── sentiment_edge.py      # neutral: scores → dollar-neutral target book
 │   │   ├── momentum_regime.py     # champion: top-K momentum + BTC-regime brake (long-only)
+│   │   ├── funding_carry.py       # carry: short hi-funding / long lo-funding, momentum-tilted (neutral)
 │   │   ├── sizing.py              # weights, caps, vol-adjust, net-clamp
 │   │   └── portfolio.py           # beta math: compute_betas, demean_by_beta, dispersion
 │   ├── risk/limits.py             # all risk functions (pure, testable)
 │   ├── execution/                 # paper + live broker, reconciler
 │   ├── engine/engine.py           # full rebalance pipeline (branches on cfg.strategy)
-│   ├── state/store.py             # SQLite WAL store (equity, trades, fills, funding)
-│   └── dashboard/server.py        # web dashboard (strategy-aware, serves both books)
+│   ├── state/store.py             # SQLite WAL store (equity, trades, fills, funding history)
+│   └── dashboard/server.py        # web dashboard (strategy-aware, serves all three books)
 ├── scripts/
 │   ├── backfill.py                # seed dashboard with backtest history
-│   ├── bt_compare.py              # A/B harness (used to validate every feature)
 │   ├── bt_longbinance.py          # 5.5yr survivorship-free Binance backtest
-│   └── sweep_champion.py          # walk-forward sweep that found the champion config
-├── tests/                         # 120 tests
+│   ├── sweep_champion.py          # walk-forward sweep that found the champion config
+│   ├── neutral_carry.py           # 6.5yr funding-carry research (the carry edge)
+│   └── carry_integration_bt.py    # production-code carry backtest (build_book through the overlay)
+├── tests/                         # 135 tests
 └── docs/KOINBAY_API.md            # live-verified KoinBay API reference
 ```
 

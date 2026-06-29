@@ -318,29 +318,33 @@ ROBOTS_TXT = (
 
 LLMS_TXT = f"""# Sentinel Edge
 
-> An autonomous, market-neutral long/short crypto futures strategy running on KoinBay. It scores every
-> liquid USDT-margined perpetual by **residual (beta-adjusted) momentum** plus funding/crowding, volume
-> surge, and a smart-money whale overlay; goes long the top-ranked and short the bottom-ranked names in
-> equal dollar size; and stays neutral to overall market direction. Built to operate as a copy-trading lead.
+> Three uncorrelated, autonomous algorithmic crypto-futures strategies running on KoinBay, sharing one
+> engine (data -> signal -> portfolio -> risk -> execution -> state). Built to operate as a copy-trading
+> lead. Paper-traded by default; live is double-opt-in.
 
-## What it is
-- Cross-sectional momentum, dollar-neutral AND beta-neutral, daily rebalance
-- Execution on KoinBay USDT-margined futures (paper by default; live is double-opt-in), maker orders
-- Backtest (Jan-Jun 2026, real KoinBay data): ~+48% return, Sharpe ~5.0, max drawdown ~12.6%
+## The three strategies
+1. Market-Neutral — cross-sectional momentum, long top / short bottom, dollar- & beta-neutral, daily.
+   Steady, ~zero market exposure. Honest note: long-run edge is thin; value is low drawdown, not return.
+2. Champion (Momentum + Regime) — long-only top-5 momentum, momentum-weighted, gated by a BTC 100-day
+   regime brake (cash in bear markets). Backtest (5.5yr, walk-forward): Sharpe ~1.3, CAGR ~+39-74%, maxDD ~32%.
+3. Funding Carry — dollar-neutral; short the highest-funding coins (collect funding crowded longs pay),
+   long the lowest, tilted by momentum. Backtest (6.5yr): Sharpe ~2.0, CAGR ~+123%, maxDD ~28%, positive
+   every year, uncorrelated to the other two and to BTC. The best risk-adjusted book and a true diversifier.
 
 ## How it works
-- Signal: residual momentum + funding + volume + Hyperliquid top-wallet consensus -> one score per coin
-- Portfolio: rank 24 coins, long top 5 / short bottom 5, beta-neutralize, liquidity caps
-- Risk: vol-targeting, momentum-crash guard, daily-loss circuit breaker, drawdown kill-switch, per-name stop
-- Stack: Python 3.9, SQLite (WAL), stdlib HTTP dashboard, fully parallelized REST fan-out
+- Signal: momentum / funding-carry / smart-money overlay depending on the strategy
+- Portfolio: cross-sectional rank -> long/short or long-only sleeves -> neutralization / regime gate
+- Risk: vol-targeting, drawdown throttle, crash guard, daily-loss breaker, kill-switch, per-name stop
+- Stack: Python 3.9, SQLite (WAL), stdlib HTTP dashboard, parallelized REST fan-out
+- Each strategy runs as its own paper book with its own dashboard (ports 8787 / 8788 / 8789)
 
 ## Links
-- Live dashboard: this site (Dashboard + "How it works" tabs)
+- Live dashboards: market-neutral :8787, champion :8788, carry :8789 (Dashboard + "How it works" tabs)
 - Source code: {REPO_URL}
 
 ## Disclaimer
-Trading futures is risky and can lose money. This is software, not financial advice. The track record is
-paper-traded; real-money results will differ. Market-neutral does not mean risk-free.
+Trading futures is risky and can lose money. This is software, not financial advice. Track records are
+paper-traded; real-money results will differ. Market-neutral and carry strategies are not risk-free.
 """
 
 
@@ -397,12 +401,12 @@ HTML = r"""<!doctype html>
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
-<title>Sentinel Edge — Market-Neutral Crypto Trading Bot</title>
+<title>Sentinel Edge — Algorithmic Crypto Trading Bot (3 strategies)</title>
 <link rel="icon" type="image/svg+xml" href="/favicon.svg"/>
-<meta name="description" content="Sentinel Edge — an autonomous market-neutral long/short crypto futures strategy on KoinBay. Residual-momentum signal, beta-neutral, ~+48% backtest, Sharpe ~5. Live dashboard."/>
+<meta name="description" content="Sentinel Edge — three uncorrelated algorithmic crypto-futures strategies on KoinBay sharing one engine: market-neutral momentum, regime-gated momentum (champion), and funding-carry. Live paper-trading dashboards with real PnL, equity curves and backtests."/>
 <meta name="theme-color" content="#6b8cff"/>
-<meta property="og:title" content="Sentinel Edge — Market-Neutral Crypto Trading Bot"/>
-<meta property="og:description" content="Autonomous long/short crypto strategy on KoinBay. Residual momentum, beta-neutral, live PnL dashboard."/>
+<meta property="og:title" content="Sentinel Edge — Algorithmic Crypto Trading Bot"/>
+<meta property="og:description" content="Three uncorrelated crypto strategies on KoinBay — market-neutral, momentum+regime, and funding-carry — with live PnL dashboards."/>
 <meta property="og:type" content="website"/>
 <meta name="twitter:card" content="summary"/>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
@@ -435,7 +439,8 @@ HTML = r"""<!doctype html>
   .pill.paper{background:rgba(107,140,255,.14);color:#a9c0ff;border:1px solid rgba(107,140,255,.28)}
   .pill.live{background:var(--red-d);color:var(--red);border:1px solid rgba(255,93,108,.35)}
   .pill.strat{background:rgba(154,107,255,.12);color:#c7b3ff;border:1px solid rgba(154,107,255,.3)}
-  .pill.strat.champ{background:rgba(39,215,150,.14);color:#7dffc4;border:1px solid rgba(39,215,150,.32)}
+  .pill.strat.champ{background:rgba(245,196,81,.14);color:#ffdf8a;border:1px solid rgba(245,196,81,.32)}
+  .pill.strat.carry{background:rgba(39,215,150,.14);color:#7dffc4;border:1px solid rgba(39,215,150,.32)}
   .status{display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--mut);
     background:var(--surface);border:1px solid var(--line);padding:5px 11px;border-radius:999px}
   .dot{width:8px;height:8px;border-radius:50%}
@@ -746,7 +751,10 @@ HTML = r"""<!doctype html>
   .tchip{display:inline-block;vertical-align:middle;font-size:.42em;font-weight:800;letter-spacing:1.4px;
     text-transform:uppercase;padding:.45em .8em;border-radius:999px;margin-left:.5em;color:#0b0e14;
     background:linear-gradient(135deg,#f5c451,#ffb24a);transform:translateY(-.28em)}
+  .tchip.cy{background:linear-gradient(135deg,#27d796,#34e0ff)}
   .vsgrid{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+  .vsgrid.vs3{grid-template-columns:1fr 1fr 1fr}
+  @media(max-width:980px){.vsgrid.vs3{grid-template-columns:1fr}}
   @media(max-width:720px){.vsgrid{grid-template-columns:1fr}}
   .vscard{position:relative;background:linear-gradient(180deg,rgba(19,26,37,.7),rgba(15,20,29,.7));
     border:1px solid var(--line);border-radius:20px;padding:24px 22px 22px;transition:.3s}
@@ -756,9 +764,10 @@ HTML = r"""<!doctype html>
     letter-spacing:1.3px;text-transform:uppercase;color:var(--accent);background:rgba(107,140,255,.12);
     border:1px solid rgba(107,140,255,.3);border-radius:999px;padding:.35em .7em}
   .vshead{font-size:19px;font-weight:800;letter-spacing:-.4px;display:flex;align-items:center;gap:9px}
-  .vsicon{font-size:20px} .vsicon.n{color:var(--accent)} .vsicon.c{color:#f5c451}
+  .vsicon{font-size:20px} .vsicon.n{color:var(--accent)} .vsicon.c{color:#f5c451} .vsicon.k{color:var(--grn)}
   .vsbadge{font-size:9.5px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;color:#0b0e14;
     background:linear-gradient(135deg,#f5c451,#ffb24a);border-radius:999px;padding:.34em .7em;margin-left:2px}
+  .vsbadge.cb{background:linear-gradient(135deg,#27d796,#34e0ff)}
   .vstag{font-size:11.5px;font-weight:700;letter-spacing:1.4px;text-transform:uppercase;color:var(--dim);margin:7px 0 13px}
   .vscard p{font-size:13.5px;line-height:1.62;color:var(--txt);margin:0 0 14px}
   .vsstats{list-style:none;padding:0;margin:0 0 15px;display:flex;flex-direction:column;gap:8px}
@@ -766,11 +775,17 @@ HTML = r"""<!doctype html>
   .vsstats li::before{content:'';position:absolute;left:0;top:7px;width:7px;height:7px;border-radius:50%;
     background:var(--accent);opacity:.7}
   #vs-champion .vsstats li::before{background:#f5c451;opacity:.8}
+  #vs-carry .vsstats li::before{background:var(--grn);opacity:.85}
   .vsstats b{color:#fff} .vsbest{font-size:12px;color:var(--mut);font-style:italic;margin-bottom:16px}
   .vslink{display:inline-block;font-size:13px;font-weight:700;color:var(--accent);text-decoration:none;
     border-bottom:1px solid transparent;transition:.2s}
   .vslink:hover{border-bottom-color:var(--accent);transform:translateX(2px)}
   #vs-champion .vslink{color:#f5c451} #vs-champion .vslink:hover{border-bottom-color:#f5c451}
+  #vs-carry .vslink{color:var(--grn)} #vs-carry .vslink:hover{border-bottom-color:var(--grn)}
+  #vs-carry.cur{border-color:rgba(39,215,150,.5);box-shadow:0 0 0 1px rgba(39,215,150,.3),0 18px 54px rgba(39,215,150,.16)}
+  #vs-carry.cur::after{color:var(--grn);background:rgba(39,215,150,.12);border-color:rgba(39,215,150,.3)}
+  #vs-champion.cur{border-color:rgba(245,196,81,.5);box-shadow:0 0 0 1px rgba(245,196,81,.3),0 18px 54px rgba(245,196,81,.16)}
+  #vs-champion.cur::after{color:#f5c451;background:rgba(245,196,81,.12);border-color:rgba(245,196,81,.3)}
   /* nav cross-link to the other strategy */
   .navx{text-decoration:none;border:1px solid var(--line);color:var(--mut)!important}
   .navx:hover{color:var(--txt)!important;border-color:rgba(107,140,255,.4);background:rgba(107,140,255,.06)}
@@ -829,7 +844,8 @@ HTML = r"""<!doctype html>
   <nav class="nav">
     <button class="navbtn on" data-page="dash" onclick="goPage('dash')">Dashboard</button>
     <button class="navbtn" data-page="strat" onclick="goPage('strat')">How it works</button>
-    <a class="navbtn navx" id="navCross" target="_blank" rel="noopener" title="open the other strategy">↗&nbsp;<span id="navCrossLbl">Other</span></a>
+    <a class="navbtn navx" id="navX1" target="_blank" rel="noopener" title="open another strategy">↗&nbsp;<span id="navX1Lbl">—</span></a>
+    <a class="navbtn navx" id="navX2" target="_blank" rel="noopener" title="open another strategy">↗&nbsp;<span id="navX2Lbl">—</span></a>
   </nav>
   <span id="strat" class="pill strat">—</span>
   <span id="mode" class="pill paper">paper</span>
@@ -912,12 +928,12 @@ HTML = r"""<!doctype html>
     <div class="hero-stats" id="heroStats"></div>
   </section>
 
-  <!-- TWO STRATEGIES -->
+  <!-- THREE STRATEGIES -->
   <section class="sblock reveal">
     <div class="seye">THE SYSTEM</div>
-    <h2 class="sh2">Two strategies, one engine</h2>
-    <p class="sp-note">Same data, same execution, same risk rails — two ways to trade. You're viewing <b id="curStrat">—</b>.</p>
-    <div class="vsgrid">
+    <h2 class="sh2">Three strategies, one engine</h2>
+    <p class="sp-note">Same data, same execution, same risk rails — three uncorrelated ways to trade. You're viewing <b id="curStrat">—</b>.</p>
+    <div class="vsgrid vs3">
       <div class="vscard" id="vs-neutral">
         <div class="vshead"><span class="vsicon n">⚖</span> Market-Neutral</div>
         <div class="vstag">Steady · market-proof</div>
@@ -933,6 +949,14 @@ HTML = r"""<!doctype html>
         <ul class="vsstats"><li><b>+39%</b> / yr · <b>1.12</b> Sharpe</li><li><b>~32%</b> max drawdown</li><li><b>5.5-yr</b> walk-forward backtest</li></ul>
         <div class="vsbest">Best for — maximum growth, if you can stomach the swings</div>
         <a class="vslink" id="link-champion" target="_blank" rel="noopener">Open live dashboard →</a>
+      </div>
+      <div class="vscard" id="vs-carry">
+        <div class="vshead"><span class="vsicon k">💰</span> Funding Carry <span class="vsbadge cb">New</span></div>
+        <div class="vstag">Income · harvests funding</div>
+        <p>Dollar-neutral: <b>shorts</b> the coins paying the most funding (income the crowd pays you), <b>longs</b> the cheapest — tilted by momentum so it isn't short a coin that's ripping.</p>
+        <ul class="vsstats"><li><b>+123%</b> / yr · <b>2.05</b> Sharpe</li><li><b>~28%</b> max drawdown</li><li><b>6.5-yr</b> backtest, every year green</li></ul>
+        <div class="vsbest">Best for — the best risk-adjusted return; a true diversifier</div>
+        <a class="vslink" id="link-carry" target="_blank" rel="noopener">Open live dashboard →</a>
       </div>
     </div>
   </section>
@@ -968,7 +992,7 @@ HTML = r"""<!doctype html>
     <div class="disclaim reveal" id="numDisclaim">—</div>
   </section>
 
-  <div class="sfoot reveal" id="sfoot">⚡ Sentinel Edge · two strategies, one clean engine</div>
+  <div class="sfoot reveal" id="sfoot">⚡ Sentinel Edge · three strategies, one clean engine</div>
 </main>
 
 <div id="cardModal" class="modal">
@@ -1051,10 +1075,38 @@ const STRAT_INFO={
         +pcardHTML(32,'Max drawdown','red',{suf:'%'})+pcardHTML(0.75,'Worst-half Sharpe','',{dec:2})
         +pcardHTML(3,'vs buy &amp; hold','',{suf:'×'})+pcardHTML(45,'Time in cash','',{suf:'%'}),
     disclaim:'⚠ Tested on clean, survivorship-free data with walk-forward validation — but it still assumes ideal fills and excludes funding/slippage. Live paper results will be lower, and the ~32% drawdowns are real. Not a guarantee.'
+  },
+  carry:{
+    tag:'FUNDING CARRY · MARKET-NEUTRAL · KOINBAY FUTURES',
+    title:'Sentinel&nbsp;Edge <span class="tchip cy">Carry</span>',
+    sub:'The income book. It <b>collects the funding</b> that crowded longs pay — shorting the priciest coins, longing the cheapest — and stays market-neutral.',
+    stats:[{v:123,suf:'%',sign:'+',l:'backtest CAGR'},{v:2.05,dec:2,l:'Sharpe ratio'},{v:28,suf:'%',l:'max drawdown'},{v:6.5,dec:1,l:'years tested'}],
+    ideaTitle:'Get paid to hold the spread. Stay market-neutral.',
+    steps:stepHTML(1,'🛰️','Read funding','Every day it reads each coin&rsquo;s <i>funding rate</i> — the fee perp traders pay to hold a position — averaged over recent days.')
+        +stepHTML(2,'💰','Short pricey, long cheap','It <b>shorts</b> the 5 coins paying the highest funding (it collects that fee) and <b>longs</b> the 5 paying the lowest/negative.')
+        +stepHTML(3,'⚖️','Balance &amp; tilt','Equal dollars long and short (market-neutral), tilted by momentum so it&rsquo;s never short a coin that&rsquo;s ripping.'),
+    why:whyHTML('Where the income comes from','Perp funding is a structural payment from crowded longs to shorts. Being on the paid side harvests it.')
+       +whyHTML('Why it&rsquo;s a diversifier','Its returns are <b>uncorrelated</b> to the other two books (corr ~0) and to Bitcoin — it earns in regimes where they stall.')
+       +whyHTML('The edge word','<b>Funding carry</b> — positive every year 2020-2026 in backtest; the momentum tilt tames the classic short-squeeze tail.'),
+    arch:archHTML([
+      {c:'#4a9eff',n:'Signal',d:'Trailing-average funding rate + 21-day momentum, per coin'},
+      {c:'#a78bfa',n:'Portfolio',d:'Short top-5 funding / long bottom-5 · momentum-tilted · dollar-neutral'},
+      {c:'#ff5d6c',n:'Risk',d:'Vol-target · drawdown throttle · per-name catastrophe stop'},
+      {c:'#27d796',n:'Execution',d:'Reconcile → maker orders → paper or live KoinBay + this dashboard'},
+      {c:'#f5c451',n:'State &amp; Dashboard',d:'SQLite · funding history · equity curve · trades · copy-trade signal'},
+    ]),
+    numNote:'6.5 years · Binance funding history + daily prices · look-ahead-free, fee-tested',
+    perf:pcardHTML(123,'CAGR (per year)','grn',{suf:'%',sign:'+'})+pcardHTML(2.05,'Sharpe ratio','',{dec:2})
+        +pcardHTML(28,'Max drawdown','red',{suf:'%'})+pcardHTML(1.56,'Worst-half Sharpe','',{dec:2})
+        +pcardHTML(96,'Universe-robust','',{suf:'%'})+pcardHTML(0,'BTC correlation','',{dec:2}),
+    disclaim:'⚠ Backtest uses real funding rates but today&rsquo;s surviving coins (delisted names absent), and carry carries squeeze tail-risk (the ~28% is with the risk overlay; raw is ~56%). Live paper is the real test. Not a guarantee.'
   }
 };
+const STRAT_PORT={neutral:8787,champion:8788,carry:8789};
+const STRAT_LABEL={neutral:'⚖ Market-Neutral',champion:'⚡ Momentum (Champion)',carry:'💰 Funding Carry'};
+const STRAT_SHORT={neutral:'Market-Neutral',champion:'Champion',carry:'Carry'};
 function paintStrategy(strat){
-  strat=(strat==='champion')?'champion':'neutral';
+  if(!STRAT_INFO[strat]) strat='neutral';
   if(STRAT_PAINTED && CUR_STRAT===strat) return;
   CUR_STRAT=strat; STRAT_PAINTED=true;
   const S=STRAT_INFO[strat];
@@ -1070,17 +1122,17 @@ function paintStrategy(strat){
   $('perfGrid').innerHTML=S.perf;
   $('numDisclaim').innerHTML=S.disclaim;
   // comparison block: label + highlight the one you're viewing
-  $('curStrat').textContent=(strat==='champion')?'⚡ Momentum (Champion)':'⚖ Market-Neutral';
-  document.getElementById('vs-neutral').classList.toggle('cur',strat==='neutral');
-  document.getElementById('vs-champion').classList.toggle('cur',strat==='champion');
-  // cross-dashboard links (neutral :8787, champion :8788 — same host)
-  const host=location.hostname||'localhost', nUrl='http://'+host+':8787', cUrl='http://'+host+':8788';
-  $('link-neutral').href=nUrl; $('link-champion').href=cUrl;
-  $('link-neutral').textContent=(strat==='neutral')?"You're viewing this →":'Open live dashboard →';
-  $('link-champion').textContent=(strat==='champion')?"You're viewing this →":'Open live dashboard →';
-  // nav button jumps to the OTHER book
-  if(strat==='champion'){$('navCross').href=nUrl; $('navCrossLbl').textContent='Market-Neutral';}
-  else{$('navCross').href=cUrl; $('navCrossLbl').textContent='Champion';}
+  $('curStrat').textContent=STRAT_LABEL[strat];
+  const host=location.hostname||'localhost', url=k=>'http://'+host+':'+STRAT_PORT[k];
+  ['neutral','champion','carry'].forEach(k=>{
+    document.getElementById('vs-'+k).classList.toggle('cur',strat===k);
+    const ln=$('link-'+k); if(ln){ ln.href=url(k);
+      ln.textContent=(strat===k)?"You're viewing this →":'Open live dashboard →'; }
+  });
+  // nav: link to the OTHER two books
+  const others=['neutral','champion','carry'].filter(k=>k!==strat);
+  $('navX1').href=url(others[0]); $('navX1Lbl').textContent=STRAT_SHORT[others[0]];
+  $('navX2').href=url(others[1]); $('navX2Lbl').textContent=STRAT_SHORT[others[1]];
   if($('pageStrat').style.display!=='none') runReveals();
   if(stratBuilt) buildStrat();
 }
@@ -1093,8 +1145,9 @@ function render(d){
   if(d.error){$('run').textContent='error: '+d.error;return;}
   DATA=d;
   $('mode').textContent=d.mode; $('mode').className='pill '+d.mode;
-  if(d.strategy){const s=$('strat'); s.textContent=d.strategy==='champion'?'⚡ momentum':'⚖ market-neutral';
-    s.className='pill strat '+(d.strategy==='champion'?'champ':''); paintStrategy(d.strategy);}
+  if(d.strategy){const s=$('strat');
+    s.textContent={champion:'⚡ momentum',carry:'💰 carry'}[d.strategy]||'⚖ market-neutral';
+    s.className='pill strat '+({champion:'champ',carry:'carry'}[d.strategy]||''); paintStrategy(d.strategy);}
   $('dot').className='dot '+(d.running?'on':'off');
   $('run').textContent=d.running?'loop running':'loop stopped'; $('run').className=d.running?'grn':'mut';
   $('upd').textContent=new Date().toLocaleTimeString(); $('cycles').textContent=d.cycles;
@@ -1640,23 +1693,38 @@ function countUp(el){
 /* --- animated flow diagram (SVG) --- */
 function buildStrat(){
   const svg=$('flowSvg'),NS='http://www.w3.org/2000/svg';
-  const champ=(CUR_STRAT==='champion');
-  const nodes=champ?[
-    {x:90,y:110,t:'KoinBay',s:'daily data',c:'#4a9eff'},
-    {x:90,y:270,t:'BTC Regime',s:'above 100d MA?',c:'#f5c451'},
-    {x:360,y:110,t:'Momentum',s:'rank 30d',c:'#9a6bff'},
-    {x:620,y:180,t:'Top-5 or Cash',s:'dual-confirmed',c:'#a78bfa'},
-    {x:860,y:180,t:'Execute',s:'maker orders',c:'#27d796'},
-  ]:[
-    {x:90,y:60,t:'KoinBay',s:'live data',c:'#4a9eff'},
-    {x:90,y:180,t:'Whales',s:'10 wallets',c:'#4a9eff'},
-    {x:90,y:300,t:'Funding',s:'crowding',c:'#4a9eff'},
-    {x:340,y:180,t:'Residual Score',s:'beta-stripped',c:'#9a6bff'},
-    {x:600,y:180,t:'Rank & Build',s:'long 5 / short 5',c:'#a78bfa'},
-    {x:840,y:90,t:'Risk Gate',s:'guards + stops',c:'#ff5d6c'},
-    {x:840,y:270,t:'Execute',s:'maker orders',c:'#27d796'},
-  ];
-  const links=champ?[[0,2],[2,3],[1,3],[3,4]]:[[0,3],[1,3],[2,3],[3,4],[4,5],[4,6]];
+  let nodes,links;
+  if(CUR_STRAT==='champion'){
+    nodes=[
+      {x:90,y:110,t:'KoinBay',s:'daily data',c:'#4a9eff'},
+      {x:90,y:270,t:'BTC Regime',s:'above 100d MA?',c:'#f5c451'},
+      {x:360,y:110,t:'Momentum',s:'rank 30d',c:'#9a6bff'},
+      {x:620,y:180,t:'Top-5 or Cash',s:'dual-confirmed',c:'#a78bfa'},
+      {x:860,y:180,t:'Execute',s:'maker orders',c:'#27d796'},
+    ];
+    links=[[0,2],[2,3],[1,3],[3,4]];
+  }else if(CUR_STRAT==='carry'){
+    nodes=[
+      {x:90,y:110,t:'Funding',s:'trailing avg',c:'#4a9eff'},
+      {x:90,y:270,t:'Momentum',s:'21-day',c:'#4a9eff'},
+      {x:360,y:180,t:'Combined Rank',s:'funding + trend',c:'#9a6bff'},
+      {x:610,y:90,t:'Short high-fund',s:'collect funding',c:'#ff5d6c'},
+      {x:610,y:270,t:'Long low-fund',s:'cheap to hold',c:'#27d796'},
+      {x:860,y:180,t:'Execute',s:'dollar-neutral',c:'#27d796'},
+    ];
+    links=[[0,2],[1,2],[2,3],[2,4],[3,5],[4,5]];
+  }else{
+    nodes=[
+      {x:90,y:60,t:'KoinBay',s:'live data',c:'#4a9eff'},
+      {x:90,y:180,t:'Whales',s:'10 wallets',c:'#4a9eff'},
+      {x:90,y:300,t:'Funding',s:'crowding',c:'#4a9eff'},
+      {x:340,y:180,t:'Residual Score',s:'beta-stripped',c:'#9a6bff'},
+      {x:600,y:180,t:'Rank & Build',s:'long 5 / short 5',c:'#a78bfa'},
+      {x:840,y:90,t:'Risk Gate',s:'guards + stops',c:'#ff5d6c'},
+      {x:840,y:270,t:'Execute',s:'maker orders',c:'#27d796'},
+    ];
+    links=[[0,3],[1,3],[2,3],[3,4],[4,5],[4,6]];
+  }
   let defs=`<defs><filter id="glow"><feGaussianBlur stdDeviation="3.2" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>`;
   let paths='',dots='',boxes='';
   links.forEach(([a,b],i)=>{const A=nodes[a],B=nodes[b];

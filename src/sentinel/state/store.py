@@ -294,6 +294,20 @@ class Store:
         self.conn.execute("DELETE FROM funding_history WHERE ts < ?", (ts - 180 * 86_400,))
         self.conn.commit()
 
+    def recent_funding_avg(self, mode: str, cycles: int = 5) -> dict:
+        """Per-symbol average of the last `cycles` recorded funding snapshots. Funding is persistent,
+        so the trailing average is a cleaner carry signal than a single instantaneous rate."""
+        ts_rows = self.conn.execute(
+            "SELECT DISTINCT ts FROM funding_history WHERE mode=? ORDER BY ts DESC LIMIT ?",
+            (mode, cycles)).fetchall()
+        if not ts_rows:
+            return {}
+        oldest = ts_rows[-1][0]
+        rows = self.conn.execute(
+            "SELECT symbol, AVG(current) FROM funding_history WHERE mode=? AND ts>=? GROUP BY symbol",
+            (mode, oldest)).fetchall()
+        return {r[0]: float(r[1]) for r in rows}
+
     def latest_whales(self) -> dict:
         ts = self.get_meta("whales_ts")
         if not ts:
