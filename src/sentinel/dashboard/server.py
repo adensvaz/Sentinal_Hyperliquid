@@ -73,51 +73,57 @@ def _funding_rates() -> dict:
         return dict(_marks["fr"])
 
 
-_regime_cache = {"ts": 0.0, "data": None}
+_regime_cache = {"ts": 0.0, "ma": None, "ma_period": None, "series": None, "last_close": None}
 _regime_lock = threading.Lock()
 
 
 def _get_regime(cfg, ttl: float = 300.0):
     """CHAMPION only: where BTC sits vs its regime-MA (the risk-on/off gate), with a daily sparkline.
-    Lets the dashboard explain *why* the book is in cash and how close it is to flipping. Cached ~5min
-    (daily data barely moves). Returns None for the neutral book or on failure."""
+    Explains *why* the book is in cash and how close it is to flipping.
+
+    Two-speed refresh so the gauge feels live: the 100-day MA + sparkline come from daily candles and
+    are cached ~5min (they barely move intraday), but the live BTC price is re-read every call (its mark
+    is cached ~12s), so the marker + distance update on every poll."""
     if getattr(cfg, "strategy", "neutral") != "champion":
         return None
     now = time.time()
+    ma_n = cfg.champion.regime_ma
     with _regime_lock:
-        if _regime_cache["data"] is not None and now - _regime_cache["ts"] < ttl:
-            return _regime_cache["data"]
-    global _fx_client
+        fresh = _regime_cache["ma"] is not None and now - _regime_cache["ts"] < ttl
+    if not fresh:
+        global _fx_client
+        try:
+            from ..exchange.client import KoinbayClient
+            from ..exchange.futures import KoinbayFutures
+            from ..engine.marketdata import _parse_klines
+            if _fx_client is None:
+                _fx_client = KoinbayFutures(KoinbayClient(cfg.exchange.futures_host, timeout_s=8))
+            spark = 90
+            _, closes, _ = _parse_klines(_fx_client.klines("E-BTC-USDT", "1day", ma_n + spark + 5))
+            if len(closes) >= ma_n + 2:
+                series = [{"c": round(closes[i], 2),
+                           "ma": round(sum(closes[i - ma_n + 1:i + 1]) / ma_n, 2)}
+                          for i in range(len(closes) - spark, len(closes)) if i >= ma_n - 1]
+                with _regime_lock:
+                    _regime_cache.update(ts=now, ma=sum(closes[-ma_n:]) / ma_n, ma_period=ma_n,
+                                         series=series, last_close=closes[-1])
+        except Exception:
+            pass
+    ma = _regime_cache["ma"]
+    if ma is None:
+        return None
     try:
-        from ..exchange.client import KoinbayClient
-        from ..exchange.futures import KoinbayFutures
-        from ..engine.marketdata import _parse_klines
-        if _fx_client is None:
-            _fx_client = KoinbayFutures(KoinbayClient(cfg.exchange.futures_host, timeout_s=8))
-        ma_n = cfg.champion.regime_ma
-        spark = 90
-        rows = _fx_client.klines("E-BTC-USDT", "1day", ma_n + spark + 5)
-        _, closes, _ = _parse_klines(rows)
-        if len(closes) < ma_n + 2:
-            return _regime_cache["data"]
-        ma = sum(closes[-ma_n:]) / ma_n
-        live = _get_marks(cfg, ["E-BTC-USDT"]).get("E-BTC-USDT") or closes[-1]
-        price = float(live)
-        series = [{"c": round(closes[i], 2),
-                   "ma": round(sum(closes[i - ma_n + 1:i + 1]) / ma_n, 2)}
-                  for i in range(len(closes) - spark, len(closes)) if i >= ma_n - 1]
-        data = {
-            "on": price > ma, "price": round(price, 2), "ma": round(ma, 2), "ma_period": ma_n,
-            "dist_pct": round((price / ma - 1.0) * 100.0, 2),       # +above / -below the line
-            "to_cross_pct": round((ma / price - 1.0) * 100.0, 2),   # % BTC must move to reach the line
-            "series": series, "updated": int(now),
-        }
+        live = _get_marks(cfg, ["E-BTC-USDT"]).get("E-BTC-USDT")
     except Exception:
-        return _regime_cache["data"]
-    with _regime_lock:
-        _regime_cache["data"] = data
-        _regime_cache["ts"] = now
-    return data
+        live = None
+    price = float(live) if live else float(_regime_cache["last_close"] or ma)
+    return {
+        "on": price > ma, "price": round(price, 2), "ma": round(ma, 2),
+        "ma_period": _regime_cache["ma_period"],
+        "dist_pct": round((price / ma - 1.0) * 100.0, 2),       # +above / -below the line
+        "to_cross_pct": round((ma / price - 1.0) * 100.0, 2),   # % BTC must move to reach the line
+        "series": _regime_cache["series"], "updated": int(now),
+    }
 
 
 _whales_cache = {"ts": 0.0, "data": None}
@@ -448,34 +454,51 @@ HTML = r"""<!doctype html>
   .meta{margin-left:14px}
 
   main{padding:22px 26px;max-width:1280px;margin:0 auto}
-  /* champion market-regime module */
+  /* champion market-regime module — cinematic */
   #regimeWrap{margin-bottom:18px}
-  .regime{position:relative;border-radius:var(--r);padding:20px 22px;overflow:hidden;
-    border:1px solid var(--line);background:linear-gradient(180deg,var(--surface2),var(--surface))}
-  .regime::before{content:"";position:absolute;inset:0 auto 0 0;width:3px}
-  .regime.off::before{background:linear-gradient(180deg,var(--gold),#ff7a8a)}
-  .regime.on::before{background:linear-gradient(180deg,var(--grn),var(--accent))}
-  .regime.off{box-shadow:inset 0 0 60px rgba(245,196,81,.05)}
-  .regime.on{box-shadow:inset 0 0 60px rgba(39,215,150,.06)}
+  .regime{--rgc:var(--gold);--prox:0;position:relative;border-radius:var(--r);padding:20px 22px;overflow:hidden;
+    border:1px solid var(--line);background:linear-gradient(180deg,var(--surface2),var(--surface));isolation:isolate}
+  .regime.on{--rgc:var(--grn)}
+  .regime::before{content:"";position:absolute;inset:0 auto 0 0;width:3px;background:linear-gradient(180deg,var(--rgc),transparent)}
+  /* breathing ambient glow, brighter as BTC nears the line (--prox) */
+  .regime::after{content:"";position:absolute;inset:0;z-index:-1;pointer-events:none;
+    background:radial-gradient(120% 90% at 8% 0%,color-mix(in srgb,var(--rgc) 14%,transparent),transparent 60%);
+    opacity:calc(.35 + .55*var(--prox));animation:rgBreath 6s ease-in-out infinite}
+  @keyframes rgBreath{0%,100%{opacity:calc(.30 + .45*var(--prox))}50%{opacity:calc(.55 + .45*var(--prox))}}
+  /* radar scan sweep across the card */
+  .rg-scan{position:absolute;top:0;bottom:0;width:42%;left:-42%;z-index:-1;pointer-events:none;
+    background:linear-gradient(90deg,transparent,color-mix(in srgb,var(--rgc) 9%,transparent),transparent);
+    animation:rgScan 7s linear infinite}
+  @keyframes rgScan{0%{left:-42%}100%{left:100%}}
   .rg-top{display:flex;align-items:center;gap:18px}
   .rg-head{flex:1;min-width:0}
-  .rg-state{display:flex;align-items:center;gap:9px;font-size:21px;font-weight:850;letter-spacing:.4px}
-  .regime.off .rg-state{color:var(--gold)} .regime.on .rg-state{color:var(--grn)}
-  .rg-dot{width:9px;height:9px;border-radius:50%;background:currentColor;box-shadow:0 0 0 0 currentColor;
-    animation:rgpulse 2s infinite}
-  @keyframes rgpulse{0%{box-shadow:0 0 0 0 rgba(255,255,255,.35)}70%{box-shadow:0 0 0 7px rgba(255,255,255,0)}100%{box-shadow:0 0 0 0 rgba(255,255,255,0)}}
+  .rg-state{display:flex;align-items:center;gap:9px;font-size:21px;font-weight:850;letter-spacing:.4px;color:var(--rgc)}
+  .rg-dot{width:9px;height:9px;border-radius:50%;background:currentColor;animation:rgpulse 2s infinite}
+  @keyframes rgpulse{0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--rgc) 55%,transparent)}70%{box-shadow:0 0 0 8px transparent}100%{box-shadow:0 0 0 0 transparent}}
   .rg-sub{font-size:12.5px;color:var(--dim);margin-top:3px;text-transform:uppercase;letter-spacing:1.2px}
-  .rg-spk{width:240px;height:46px;flex:none;opacity:.95}
-  @media(max-width:560px){.rg-spk{display:none}}
+  .rg-spark-wrap{width:240px;height:46px;flex:none}
+  .rg-spk{width:240px;height:46px;display:block;overflow:visible}
+  @media(max-width:560px){.rg-spark-wrap{display:none}}
+  .rg-spk-line{stroke-dasharray:1;stroke-dashoffset:1;animation:rgDraw 1.6s cubic-bezier(.4,0,.2,1) forwards}
+  @keyframes rgDraw{to{stroke-dashoffset:0}}
+  .rg-spk-tip{filter:drop-shadow(0 0 4px currentColor)}
+  .rg-spk-ping{transform-box:fill-box;transform-origin:center;animation:rgPing 2.4s ease-out infinite;opacity:0}
+  @keyframes rgPing{0%{transform:scale(1);opacity:.8}100%{transform:scale(4);opacity:0}}
   .rg-gauge{margin:16px 0 10px}
   .rg-track{position:relative;height:10px;border-radius:6px;background:rgba(255,255,255,.06);overflow:visible}
-  .rg-fill{position:absolute;left:0;top:0;bottom:0;border-radius:6px;opacity:.5}
-  .rg-fill.off{background:linear-gradient(90deg,rgba(245,196,81,.25),var(--gold))}
-  .rg-fill.on{background:linear-gradient(90deg,rgba(39,215,150,.25),var(--grn))}
-  .rg-trig{position:absolute;left:50%;top:-4px;bottom:-4px;width:2px;background:rgba(255,255,255,.55);transform:translateX(-1px)}
-  .rg-mk{position:absolute;top:50%;width:15px;height:15px;border-radius:50%;transform:translate(-50%,-50%);
-    border:2.5px solid var(--bg);box-shadow:0 0 10px rgba(0,0,0,.5)}
-  .rg-mk.off{background:var(--gold)} .rg-mk.on{background:var(--grn)}
+  .rg-fill{position:absolute;left:0;top:0;bottom:0;border-radius:6px;width:0;
+    background:linear-gradient(90deg,color-mix(in srgb,var(--rgc) 22%,transparent),var(--rgc));opacity:.5;
+    transition:width 1.3s cubic-bezier(.22,.9,.3,1)}
+  .rg-trig{position:absolute;left:50%;top:-5px;bottom:-5px;width:2px;background:rgba(255,255,255,.5);transform:translateX(-1px);
+    box-shadow:0 0 6px rgba(255,255,255,.4);animation:rgTrig 3s ease-in-out infinite}
+  @keyframes rgTrig{0%,100%{opacity:.45}50%{opacity:.9}}
+  .rg-mk{position:absolute;top:50%;left:0;width:16px;height:16px;border-radius:50%;background:var(--rgc);
+    transform:translate(-50%,-50%);border:2.5px solid var(--bg);
+    box-shadow:0 0 0 0 var(--rgc),0 0 12px color-mix(in srgb,var(--rgc) 70%,transparent);
+    transition:left 1.3s cubic-bezier(.22,.9,.3,1);animation:rgMk 2.2s ease-out infinite}
+  @keyframes rgMk{0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--rgc) 55%,transparent),0 0 12px color-mix(in srgb,var(--rgc) 60%,transparent)}
+    70%{box-shadow:0 0 0 calc(7px + 7px*var(--prox)) transparent,0 0 12px color-mix(in srgb,var(--rgc) 60%,transparent)}
+    100%{box-shadow:0 0 0 0 transparent,0 0 12px color-mix(in srgb,var(--rgc) 60%,transparent)}}
   .rg-scale{display:flex;justify-content:space-between;font-size:10.5px;color:var(--mut);margin-top:9px;letter-spacing:.4px}
   .rg-trig-lbl{color:var(--txt);font-weight:650}
   .rg-read{display:flex;flex-wrap:wrap;align-items:center;gap:8px 16px;font-size:14px;color:var(--dim);margin-top:6px}
@@ -484,6 +507,8 @@ HTML = r"""<!doctype html>
   .rg-need{color:var(--gold)} .rg-need b{color:var(--gold)}
   .rg-tip{margin-top:13px;padding-top:13px;border-top:1px solid rgba(255,255,255,.06);font-size:13px;
     color:var(--txt);line-height:1.5}
+  @media(prefers-reduced-motion:reduce){.rg-scan,.regime::after,.rg-mk,.rg-trig,.rg-dot,.rg-spk-ping,.rg-spk-line{animation:none}
+    .rg-spk-line{stroke-dashoffset:0}}
   .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(232px,1fr));gap:14px;margin-bottom:18px}
   .card{position:relative;background:linear-gradient(180deg,var(--surface2),var(--surface));border:1px solid var(--line);
     border-radius:var(--r);padding:16px 18px;
@@ -1496,38 +1521,61 @@ function regimeSpark(series){
   const x=i=>i/(n-1)*W, y=v=>H-3-((v-lo)/rng)*(H-6);
   const path=arr=>arr.map((v,i)=>(i?'L':'M')+x(i).toFixed(1)+' '+y(v).toFixed(1)).join(' ');
   const last=series[n-1], above=last.c>=last.ma, col=above?'#27d796':'#ff7a8a';
+  const cx=x(n-1).toFixed(1), cy=y(last.c).toFixed(1);
   return `<svg class="rg-spk" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">
-    <path d="${path(series.map(p=>p.ma))}" fill="none" stroke="#f5c451" stroke-width="1.1" stroke-dasharray="3 3" opacity=".75"/>
-    <path d="${path(series.map(p=>p.c))}" fill="none" stroke="${col}" stroke-width="1.8"/>
-    <circle cx="${x(n-1).toFixed(1)}" cy="${y(last.c).toFixed(1)}" r="2.8" fill="${col}"/></svg>`;
+    <defs><filter id="rgglow"><feGaussianBlur stdDeviation="1.6" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
+    <path d="${path(series.map(p=>p.ma))}" fill="none" stroke="#f5c451" stroke-width="1.1" stroke-dasharray="3 3" opacity=".7"/>
+    <path class="rg-spk-line" pathLength="1" d="${path(series.map(p=>p.c))}" fill="none" stroke="${col}" stroke-width="1.8" filter="url(#rgglow)"/>
+    <circle class="rg-spk-tip" cx="${cx}" cy="${cy}" r="2.8" fill="${col}"/>
+    <circle class="rg-spk-ping" cx="${cx}" cy="${cy}" r="2.8" fill="none" stroke="${col}"/></svg>`;
+}
+let RG_BUILT=false, RG_SIG=null;
+function buildRegimeSkeleton(wrap){
+  wrap.innerHTML=`<div class="regime" id="rgCard">
+    <div class="rg-scan"></div>
+    <div class="rg-top">
+      <div class="rg-head"><div class="rg-state" id="rgState"></div><div class="rg-sub" id="rgSub"></div></div>
+      <div class="rg-spark-wrap" id="rgSpark"></div>
+    </div>
+    <div class="rg-gauge">
+      <div class="rg-track"><div class="rg-fill" id="rgFill"></div>
+        <div class="rg-trig"></div><div class="rg-mk" id="rgMk"><span class="rg-mk-core"></span></div></div>
+      <div class="rg-scale"><span>← cash</span><span class="rg-trig-lbl" id="rgTrigLbl"></span><span>invested →</span></div>
+    </div>
+    <div class="rg-read"><span>BTC <b id="rgPrice">—</b></span>
+      <span class="rg-vs" id="rgVs"></span><span class="rg-need" id="rgNeed"></span></div>
+    <div class="rg-tip" id="rgTip"></div>
+  </div>`;
 }
 function renderRegime(r){
   const wrap=$('regimeWrap'); if(!wrap) return;
-  if(!r){ wrap.style.display='none'; return; }
+  if(!r){ wrap.style.display='none'; RG_BUILT=false; return; }
   wrap.style.display='';
+  if(!RG_BUILT){ buildRegimeSkeleton(wrap); RG_BUILT=true; RG_SIG=null; }
   const on=r.on, dist=r.dist_pct, cross=r.to_cross_pct, P=r.ma_period, cls=on?'on':'off';
   const span=0.40, pos=Math.max(3,Math.min(97,((r.price/r.ma-1)/span*0.5+0.5)*100));
+  const prox=Math.max(0,Math.min(1,1-Math.abs(cross)/20));   // 0 far → 1 at the line: drives pulse urgency
+  const card=$('rgCard'); card.className='regime '+cls;
+  card.style.setProperty('--prox', prox.toFixed(3));
+  // glide the marker + fill (CSS transitions animate left/width → smooth slide as BTC moves)
+  const mk=$('rgMk'); mk.className='rg-mk '+cls; mk.style.left=pos+'%';
+  mk.style.animationDuration=(2.6-1.9*prox).toFixed(2)+'s';   // pulses faster the closer BTC gets
+  const fill=$('rgFill'); fill.className='rg-fill '+cls; fill.style.width=pos+'%';
+  $('rgState').innerHTML='<span class="rg-dot"></span>'+(on?'RISK-ON':'RISK-OFF');
+  $('rgSub').textContent=on?'deployed · holding the strongest names':'holding 100% cash';
+  $('rgPrice').textContent=rgMoney(r.price);
+  const vs=$('rgVs'); vs.className='rg-vs '+(on?'grn':'red'); vs.textContent=(on?'+':'')+dist.toFixed(1)+'% vs line';
+  const need=$('rgNeed'); need.style.display=on?'none':''; need.innerHTML=on?'':('needs <b>+'+cross.toFixed(1)+'%</b> to flip risk-on');
+  $('rgTrigLbl').textContent=P+'-day line · '+rgMoney(r.ma);
   let tip;
   if(on) tip=`✅ BTC is ${Math.abs(dist).toFixed(1)}% above its ${P}-day line — trend intact, riding the leaders.`;
   else if(cross<=3) tip=`👀 Knocking on the door — BTC is just ${cross.toFixed(1)}% under its ${P}-day line. A flip to risk-on could be near.`;
   else if(cross<=10) tip=`Climbing back — BTC ${cross.toFixed(1)}% under its ${P}-day line. Getting warmer.`;
   else tip=`Deep risk-off — BTC ${cross.toFixed(1)}% under its ${P}-day line. The cash wait is the edge; patience pays.`;
-  wrap.innerHTML=`<div class="regime ${cls}">
-    <div class="rg-top">
-      <div class="rg-head"><div class="rg-state"><span class="rg-dot"></span>${on?'RISK-ON':'RISK-OFF'}</div>
-        <div class="rg-sub">${on?'deployed · holding the strongest names':'holding 100% cash'}</div></div>
-      ${regimeSpark(r.series)}
-    </div>
-    <div class="rg-gauge">
-      <div class="rg-track"><div class="rg-fill ${cls}" style="width:${pos}%"></div>
-        <div class="rg-trig"></div><div class="rg-mk ${cls}" style="left:${pos}%"></div></div>
-      <div class="rg-scale"><span>← cash</span><span class="rg-trig-lbl">${P}-day line · ${rgMoney(r.ma)}</span><span>invested →</span></div>
-    </div>
-    <div class="rg-read"><span>BTC <b>${rgMoney(r.price)}</b></span>
-      <span class="rg-vs ${on?'grn':'red'}">${on?'+':''}${dist.toFixed(1)}% vs line</span>
-      ${on?'':`<span class="rg-need">needs <b>+${cross.toFixed(1)}%</b> to flip risk-on</span>`}</div>
-    <div class="rg-tip">${tip}</div>
-  </div>`;
+  $('rgTip').textContent=tip;
+  // sparkline only redraws when the daily series actually changes (~5min) → its draw-in animation replays then
+  const sig=(r.series&&r.series.length)?(r.series.length+':'+r.series[r.series.length-1].c+':'+r.series[0].c):'';
+  if(sig!==RG_SIG){ $('rgSpark').innerHTML=regimeSpark(r.series); RG_SIG=sig; }
 }
 
 /* ============ STRATEGY PAGE: nav, particles, reveals, counters, flow ============ */
