@@ -1,8 +1,14 @@
 """Tiny local dashboard (stdlib HTTP server + Chart.js, no extra deps).
 
 Reads the same SQLite the loop writes to and serves:
-  GET /            -> the HTML dashboard
-  GET /api/state   -> JSON snapshot (equity curve, PnL, positions, smart-money whales)
+  GET /              -> the HTML dashboard
+  GET /api/state     -> JSON snapshot (equity curve, PnL, positions, smart-money whales)
+  GET /signals       -> live signal page (semantic HTML, LLM-readable, no JS required)
+  GET /signals.md    -> same content as clean Markdown (ideal for AI agent consumption)
+  GET /signals.json  -> JSON-LD structured data feed (schema.org DataFeed)
+  GET /llms.txt      -> AI agent discovery (static + live hints)
+  GET /robots.txt    -> crawl policy (exposes /signals* for indexing)
+  GET /.well-known/ai-plugin.json -> ChatGPT/agent plugin manifest
 Run via:  ./sentinel dashboard   (or  python run.py dashboard --port 8787)
 """
 from __future__ import annotations
@@ -308,44 +314,341 @@ FAVICON_SVG = (
 )
 
 ROBOTS_TXT = (
-    "# Sentinel Edge — autonomous market-neutral crypto trading strategy\n"
+    "# Sentinel Edge — live algorithmic crypto trading signals (KoinBay futures)\n"
+    "# Three strategies: market-neutral momentum, regime-gated momentum, funding-carry\n"
+    "\n"
     "User-agent: *\n"
     "Allow: /\n"
+    "Allow: /signals\n"
+    "Allow: /signals.md\n"
+    "Allow: /signals.json\n"
+    "Allow: /llms.txt\n"
+    "Allow: /.well-known/\n"
     "Disallow: /api/\n"
-    f"# Project: {REPO_URL}\n"
-    "# AI agents: see /llms.txt\n"
+    "\n"
+    "# Live signal feed (no JS, LLM-readable):\n"
+    "# /signals       -> semantic HTML with current positions + regime\n"
+    "# /signals.md    -> clean Markdown (best for AI agent consumption)\n"
+    "# /signals.json  -> JSON-LD structured data (schema.org DataFeed)\n"
+    "# /llms.txt      -> AI agent guide\n"
+    f"# Source: {REPO_URL}\n"
 )
 
-LLMS_TXT = f"""# Sentinel Edge
+def _build_llms_txt(cfg: Config) -> str:
+    """Dynamic llms.txt — static guide + live regime/signal status so AI agents get fresh context."""
+    try:
+        state = gather_state(cfg)
+        strat = state.get("strategy", "neutral")
+        pnl_pct = state.get("pnl_pct", 0.0)
+        eq = state.get("equity", 0.0)
+        dd = state.get("drawdown_pct", 0.0)
+        n_pos = state.get("n_positions", 0)
+        regime = state.get("regime")
+        r = state.get("regime") or {}
+        regime_line = ""
+        if regime:
+            on = r.get("on", False)
+            ma = r.get("ma_period", 100)
+            dist = r.get("dist_pct", 0.0)
+            regime_line = (
+                f"\n## Live market regime (BTC vs {ma}-day MA)\n"
+                f"- Status: {'RISK-ON — deployed, holding positions' if on else 'RISK-OFF — 100% cash, waiting for uptrend'}\n"
+                f"- BTC is {abs(dist):.1f}% {'above' if on else 'below'} its {ma}-day line\n"
+                f"- This is the champion strategy's entry gate\n"
+            )
+        live_line = (
+            f"\n## Live strategy status (updated every 5 seconds)\n"
+            f"- Strategy: {strat}\n"
+            f"- Equity: ${eq:,.2f}\n"
+            f"- All-time PnL: {pnl_pct:+.2f}%\n"
+            f"- Drawdown from peak: {dd:.2f}%\n"
+            f"- Open positions: {n_pos}\n"
+            f"- Mode: paper (simulated — no real funds)\n"
+        )
+    except Exception:
+        live_line = ""
+        regime_line = ""
+    return f"""# Sentinel Edge — Live Algorithmic Crypto Trading Signals
 
-> Three uncorrelated, autonomous algorithmic crypto-futures strategies running on KoinBay, sharing one
-> engine (data -> signal -> portfolio -> risk -> execution -> state). Built to operate as a copy-trading
-> lead. Paper-traded by default; live is double-opt-in.
+> Autonomous algorithmic crypto-futures trading running on KoinBay perpetuals.
+> Three uncorrelated strategies updated daily — each with live positions, signals, and performance.
+> Built as a copy-trading signal provider. Paper-traded (no real funds at risk).
 
-## The three strategies
-1. Market-Neutral — cross-sectional momentum, long top / short bottom, dollar- & beta-neutral, daily.
-   Steady, ~zero market exposure. Honest note: long-run edge is thin; value is low drawdown, not return.
-2. Champion (Momentum + Regime) — long-only top-5 momentum, momentum-weighted, gated by a BTC 100-day
-   regime brake (cash in bear markets). Backtest (5.5yr, walk-forward): Sharpe ~1.3, CAGR ~+39-74%, maxDD ~32%.
-3. Funding Carry — dollar-neutral; short the highest-funding coins (collect funding crowded longs pay),
-   long the lowest, tilted by momentum. Backtest (6.5yr): Sharpe ~2.0, CAGR ~+123%, maxDD ~28%, positive
-   every year, uncorrelated to the other two and to BTC. The best risk-adjusted book and a true diversifier.
+## How to access live signals
+- **/signals.md** — current positions, regime, and signals in clean Markdown (recommended for AI agents)
+- **/signals.json** — JSON-LD structured data feed (schema.org DataFeed + FinancialProduct)
+- **/signals** — semantic HTML signal page (no JavaScript required)
+- **/api/state** — raw JSON snapshot with full position detail
+{live_line}{regime_line}
+## The three live strategies
+1. **Market-Neutral** (port 8787) — cross-sectional momentum, dollar-neutral long/short.
+   Longs the top 5 coins by residual momentum, shorts the bottom 5. BTC-beta ≈ 0.
+   Rebalances daily. Works in any market direction.
 
-## How it works
-- Signal: momentum / funding-carry / smart-money overlay depending on the strategy
-- Portfolio: cross-sectional rank -> long/short or long-only sleeves -> neutralization / regime gate
-- Risk: vol-targeting, drawdown throttle, crash guard, daily-loss breaker, kill-switch, per-name stop
-- Stack: Python 3.9, SQLite (WAL), stdlib HTTP dashboard, parallelized REST fan-out
-- Each strategy runs as its own paper book with its own dashboard (ports 8787 / 8788 / 8789)
+2. **Momentum + Regime / Champion** (port 8788) — directional, long-only top-5 momentum.
+   Gated by a BTC 100-day MA regime brake: fully invested when BTC is in an uptrend,
+   100% cash in bear markets. Backtest 5.5yr: Sharpe ~1.3, CAGR ~39-74%.
 
-## Links
-- Live dashboards: market-neutral :8787, champion :8788, carry :8789 (Dashboard + "How it works" tabs)
-- Source code: {REPO_URL}
+3. **Funding Carry** (port 8789) — market-neutral, harvests perpetual funding premium.
+   Shorts the highest-funding coins (collects what crowded longs pay), longs the cheapest,
+   momentum-tilted to avoid shorting a ripping coin. Backtest 6.5yr: Sharpe ~2.0, every year positive.
+   Uncorrelated to price momentum and to BTC (corr ≈ 0). True diversifier.
+
+## What "signal" means here
+- A signal is a ranked coin with a target side (LONG/SHORT) and score.
+- Signals are generated daily from live KoinBay price, funding, and volume data.
+- No signal = the strategy is in cash (regime brake active or no qualifying names).
+- All signals are paper-traded; treat them as informational, not financial advice.
+
+## Signal update cadence
+- Signals update every 24 hours at 14:00 UTC.
+- The live endpoints (/signals.md, /api/state) reflect the current open book in real-time.
+- Funding rates update every 8 hours (funding carry strategy).
+
+## Source code
+{REPO_URL}
 
 ## Disclaimer
-Trading futures is risky and can lose money. This is software, not financial advice. Track records are
-paper-traded; real-money results will differ. Market-neutral and carry strategies are not risk-free.
+This is software, not financial advice. Paper-traded simulated results — real money performance will
+differ. Crypto futures trading involves substantial risk of loss.
 """
+
+
+def _signals_md(cfg: Config) -> str:
+    """Live signal snapshot as clean Markdown — what an AI agent browsing for signals reads."""
+    import datetime as _dt
+    now = _dt.datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
+    try:
+        s = gather_state(cfg)
+    except Exception:
+        return f"# Sentinel Edge — Signals\n\nUnavailable at {now}.\n"
+    strat = s.get("strategy", "neutral")
+    strat_name = {"neutral": "Market-Neutral Momentum", "champion": "Momentum + Regime (Champion)",
+                  "carry": "Funding Carry"}.get(strat, strat)
+    pnl = s.get("pnl", 0.0); pnl_pct = s.get("pnl_pct", 0.0); eq = s.get("equity", 0.0)
+    dd = s.get("drawdown_pct", 0.0); book = s.get("book", [])
+    r = s.get("regime") or {}
+    lines = [
+        f"# Sentinel Edge — Live Trading Signals",
+        f"**Strategy:** {strat_name}  |  **Updated:** {now}  |  **Mode:** paper (simulated)",
+        f"**Equity:** ${eq:,.2f}  |  **All-time PnL:** {pnl_pct:+.2f}%  |  **Drawdown:** {dd:.2f}%",
+        "",
+    ]
+    if r:
+        on = r.get("on", False); ma = r.get("ma_period", 100); dist = r.get("dist_pct", 0.0)
+        price = r.get("price", 0.0); ma_val = r.get("ma", 0.0)
+        lines += [
+            f"## Market Regime (BTC vs {ma}-day MA)",
+            f"- **Status:** {'✅ RISK-ON — deployed' if on else '🔴 RISK-OFF — 100% cash'}",
+            f"- BTC price: ${price:,.0f}  |  {ma}-day MA: ${ma_val:,.0f}",
+            f"- BTC is **{abs(dist):.1f}%** {'above' if on else 'below'} its {ma}-day line",
+            "",
+        ]
+    if book:
+        longs = [p for p in book if p.get("side") == "LONG"]
+        shorts = [p for p in book if p.get("side") == "SHORT"]
+        lines.append(f"## Open Positions ({len(book)} total)")
+        if longs:
+            lines.append("\n### Long positions (bullish)")
+            lines.append("| Asset | Mark price | Unrealised PnL | Score |")
+            lines.append("|---|---|---|---|")
+            for p in longs:
+                sym = p["symbol"].replace("E-", "").replace("-USDT", "")
+                sc = f"{p['score']:+.2f}" if p.get("score") is not None else "—"
+                lines.append(f"| {sym} | ${p['mark']:,.4g} | ${p['upnl']:+,.2f} | {sc} |")
+        if shorts:
+            lines.append("\n### Short positions (bearish)")
+            lines.append("| Asset | Mark price | Unrealised PnL | Score |")
+            lines.append("|---|---|---|---|")
+            for p in shorts:
+                sym = p["symbol"].replace("E-", "").replace("-USDT", "")
+                sc = f"{p['score']:+.2f}" if p.get("score") is not None else "—"
+                lines.append(f"| {sym} | ${p['mark']:,.4g} | ${p['upnl']:+,.2f} | {sc} |")
+    else:
+        lines += [
+            "## Open Positions",
+            "_No open positions — strategy is currently in cash._",
+            "",
+            f"The {'regime brake is off (BTC below its ' + str(r.get('ma_period',100)) + '-day MA)' if r and not r.get('on') else 'book is flat for today'}.",
+        ]
+    lines += [
+        "",
+        "---",
+        f"*These are paper-traded signals — simulated, not real money. Not financial advice.*",
+        f"*Full data: /api/state (JSON) | Dashboard: / | Source: {REPO_URL}*",
+    ]
+    return "\n".join(lines) + "\n"
+
+
+def _signals_json(cfg: Config) -> str:
+    """JSON-LD structured data feed — schema.org DataFeed + FinancialProduct for LLM/search discovery."""
+    import datetime as _dt
+    now_iso = _dt.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
+    try:
+        s = gather_state(cfg)
+        book = s.get("book", [])
+        items = []
+        for p in book:
+            sym = p["symbol"].replace("E-", "").replace("-USDT", "")
+            items.append({
+                "@type": "TradeAction",
+                "instrument": {"@type": "FinancialProduct", "name": sym + " perpetual futures",
+                               "currency": "USDT", "category": "crypto-futures"},
+                "price": p.get("mark"), "priceCurrency": "USDT",
+                "actionStatus": "ActiveActionStatus",
+                "description": f"{p.get('side','').title()} {sym} at ${p.get('mark'):,.4g}, "
+                               f"unrealised PnL ${p.get('upnl',0):+,.2f}",
+            })
+        regime = s.get("regime") or {}
+        strat = s.get("strategy", "neutral")
+        feed = {
+            "@context": "https://schema.org",
+            "@type": "DataFeed",
+            "name": "Sentinel Edge Live Trading Signals",
+            "description": "Real-time algorithmic crypto trading signals from three uncorrelated strategies "
+                           "(market-neutral momentum, momentum+regime, funding-carry) on KoinBay futures.",
+            "url": REPO_URL,
+            "dateModified": now_iso,
+            "keywords": ["crypto signals", "trading signals", "algorithmic trading", "KoinBay",
+                         "momentum", "funding carry", "market neutral", "perpetual futures"],
+            "provider": {"@type": "SoftwareApplication", "name": "Sentinel Edge",
+                         "applicationCategory": "FinanceApplication", "url": REPO_URL},
+            "dataFeedElement": items,
+            "additionalProperty": [
+                {"@type": "PropertyValue", "name": "strategy", "value": strat},
+                {"@type": "PropertyValue", "name": "equity_usd", "value": s.get("equity")},
+                {"@type": "PropertyValue", "name": "pnl_pct", "value": s.get("pnl_pct")},
+                {"@type": "PropertyValue", "name": "drawdown_pct", "value": s.get("drawdown_pct")},
+                {"@type": "PropertyValue", "name": "open_positions", "value": s.get("n_positions")},
+                {"@type": "PropertyValue", "name": "market_regime",
+                 "value": ("risk-on" if regime.get("on") else "risk-off") if regime else "n/a"},
+                {"@type": "PropertyValue", "name": "mode", "value": "paper"},
+            ],
+        }
+    except Exception as e:
+        feed = {"@context": "https://schema.org", "@type": "DataFeed",
+                "name": "Sentinel Edge Signals", "error": str(e)}
+    return json.dumps(feed, indent=2)
+
+
+def _signals_html(cfg: Config) -> str:
+    """Semantic HTML signal page — no JS, fully crawlable, human + LLM readable."""
+    md = _signals_md(cfg)
+    # convert the markdown into clean semantic HTML (no external deps — manual conversion)
+    import re, html as _html
+    def row_to_html(line):
+        cells = [c.strip() for c in line.strip("|").split("|")]
+        return "<tr>" + "".join(f"<td>{c}</td>" for c in cells) + "</tr>"
+    out = []
+    in_table = False; in_code = False
+    for line in md.splitlines():
+        if line.startswith("# "):
+            out.append(f"<h1>{_html.escape(line[2:])}</h1>")
+        elif line.startswith("## "):
+            out.append(f"<h2>{_html.escape(line[3:])}</h2>")
+        elif line.startswith("### "):
+            out.append(f"<h3>{_html.escape(line[4:])}</h3>")
+        elif line.startswith("|---|"):
+            if not in_table:
+                out.append("<table><tbody>"); in_table = True
+        elif line.startswith("|") and "|" in line[1:]:
+            if not in_table:
+                out.append("<table><thead>"); in_table = True
+            out.append(row_to_html(_html.escape(line)))
+        else:
+            if in_table:
+                out.append("</tbody></table>"); in_table = False
+            if line.startswith("- **") or line.startswith("- "):
+                txt = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", _html.escape(line[2:]))
+                out.append(f"<li>{txt}</li>")
+            elif line.startswith("*") and line.endswith("*"):
+                out.append(f"<p><em>{_html.escape(line.strip('*'))}</em></p>")
+            elif line.startswith("---"):
+                out.append("<hr>")
+            elif line.strip():
+                txt = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", _html.escape(line))
+                out.append(f"<p>{txt}</p>")
+            else:
+                out.append("")
+    if in_table:
+        out.append("</tbody></table>")
+    body = "\n".join(out)
+    return f"""<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sentinel Edge — Live Crypto Trading Signals</title>
+<meta name="description" content="Live algorithmic crypto trading signals from Sentinel Edge: "
+    "market-neutral momentum, regime-gated momentum, and funding-carry on KoinBay futures. "
+    "Updated every 24 hours. Machine-readable at /signals.md and /signals.json.">
+<meta name="keywords" content="crypto trading signals, live trading signals, algorithmic trading, "
+    "momentum signals, funding carry, market neutral, KoinBay signals, crypto futures signals, "
+    "BTC regime, copy trading signals, perpetual futures, crypto quant">
+<meta property="og:title" content="Sentinel Edge — Live Crypto Trading Signals">
+<meta property="og:description" content="Live algorithmic signals: long/short positions across "
+    "three uncorrelated strategies on KoinBay futures.">
+<link rel="canonical" href="/signals">
+<link rel="alternate" type="text/markdown" href="/signals.md" title="Signals as Markdown">
+<link rel="alternate" type="application/ld+json" href="/signals.json" title="Signals as JSON-LD">
+<script type="application/ld+json">
+{{
+  "@context": "https://schema.org",
+  "@type": "WebPage",
+  "name": "Sentinel Edge Live Trading Signals",
+  "description": "Real-time crypto trading signals from three algorithmic strategies on KoinBay futures.",
+  "url": "/signals",
+  "isPartOf": {{"@type": "WebSite", "name": "Sentinel Edge", "url": "{REPO_URL}"}},
+  "mainContentOfPage": {{"@type": "DataFeed", "url": "/signals.json"}}
+}}
+</script>
+<style>
+  body{{font-family:system-ui,sans-serif;max-width:860px;margin:0 auto;padding:24px;
+    background:#07090f;color:#e2e8f0;line-height:1.65}}
+  h1{{font-size:1.9em;font-weight:800;margin-bottom:.2em;color:#fff}}
+  h2{{font-size:1.25em;font-weight:700;margin-top:2em;color:#a5b4fc}}
+  h3{{font-size:1em;font-weight:700;margin-top:1.5em;color:#94a3b8}}
+  p{{margin:.6em 0}} strong{{color:#fff}} em{{color:#94a3b8;font-size:.9em}}
+  li{{margin:.3em 0}} ul,ol{{padding-left:1.4em}} hr{{border:0;border-top:1px solid #1e2d3d;margin:2em 0}}
+  table{{border-collapse:collapse;width:100%;margin:1em 0}}
+  td,th{{padding:7px 12px;border:1px solid #1e2d3d;text-align:left;font-size:.92em}}
+  tr:nth-child(even){{background:#0d1117}}
+  a{{color:#6b8cff}} a:hover{{color:#9ab0ff}}
+  .nav{{display:flex;gap:16px;margin-bottom:2em;font-size:.88em}}
+  .nav a{{color:#6b8cff;text-decoration:none;padding:.3em .7em;border:1px solid #1e2d3d;border-radius:6px}}
+  .nav a:hover{{background:#1e2d3d}}
+</style>
+</head>
+<body>
+<div class="nav">
+  <a href="/">← Dashboard</a>
+  <a href="/signals.md">Markdown</a>
+  <a href="/signals.json">JSON-LD</a>
+  <a href="/llms.txt">llms.txt</a>
+</div>
+{body}
+</body>
+</html>"""
+
+
+AI_PLUGIN_JSON = json.dumps({
+    "schema_version": "v1",
+    "name_for_model": "sentinel_edge_signals",
+    "name_for_human": "Sentinel Edge",
+    "description_for_model": (
+        "Fetch live algorithmic crypto trading signals from Sentinel Edge, an autonomous "
+        "strategy running on KoinBay futures. Returns current positions, market regime "
+        "(BTC trend status), unrealised PnL, and signal scores for three uncorrelated strategies: "
+        "market-neutral momentum (port 8787), regime-gated momentum Champion (port 8788), and "
+        "funding-carry (port 8789). Use /signals.md for a readable summary or /api/state for raw JSON."
+    ),
+    "description_for_human": "Get live crypto trading signals and positions from Sentinel Edge algorithmic strategies.",
+    "auth": {"type": "none"},
+    "api": {"type": "openapi", "url": "/.well-known/openapi.yaml"},
+    "logo_url": "/favicon.svg",
+    "contact_email": "noreply@sentineledge.app",
+    "legal_info_url": REPO_URL,
+}, indent=2)
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -370,12 +673,20 @@ class Handler(BaseHTTPRequestHandler):
             self._send(200, _page_payload(self.path), "application/json")
         elif self.path in ("/", "/index.html"):
             self._send(200, HTML.encode(), "text/html; charset=utf-8")
+        elif self.path == "/signals":
+            self._send(200, _signals_html(_CFG).encode(), "text/html; charset=utf-8")
+        elif self.path == "/signals.md":
+            self._send(200, _signals_md(_CFG).encode(), "text/markdown; charset=utf-8")
+        elif self.path == "/signals.json":
+            self._send(200, _signals_json(_CFG).encode(), "application/ld+json; charset=utf-8")
+        elif self.path == "/llms.txt":
+            self._send(200, _build_llms_txt(_CFG).encode(), "text/markdown; charset=utf-8")
         elif self.path in ("/favicon.svg", "/favicon.ico"):
             self._send(200, FAVICON_SVG.encode(), "image/svg+xml")
         elif self.path == "/robots.txt":
             self._send(200, ROBOTS_TXT.encode(), "text/plain; charset=utf-8")
-        elif self.path == "/llms.txt":
-            self._send(200, LLMS_TXT.encode(), "text/markdown; charset=utf-8")
+        elif self.path == "/.well-known/ai-plugin.json":
+            self._send(200, AI_PLUGIN_JSON.encode(), "application/json; charset=utf-8")
         else:
             self._send(404, b"not found", "text/plain")
 
@@ -409,6 +720,37 @@ HTML = r"""<!doctype html>
 <meta property="og:description" content="Three uncorrelated crypto strategies on KoinBay — market-neutral, momentum+regime, and funding-carry — with live PnL dashboards."/>
 <meta property="og:type" content="website"/>
 <meta name="twitter:card" content="summary"/>
+<meta name="keywords" content="crypto trading signals, live trading signals, algorithmic trading bot,
+  momentum signals, funding carry signals, market neutral crypto, KoinBay signals, BTC regime,
+  copy trading signals, perpetual futures signals, crypto quant, automated trading"/>
+<link rel="alternate" type="text/markdown" href="/signals.md" title="Live signals (Markdown)"/>
+<link rel="alternate" type="application/ld+json" href="/signals.json" title="Live signals (JSON-LD)"/>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "Sentinel Edge",
+  "description": "Three uncorrelated algorithmic crypto-futures trading strategies on KoinBay: market-neutral momentum, regime-gated momentum, and funding-carry. Live signals updated daily.",
+  "applicationCategory": "FinanceApplication",
+  "operatingSystem": "Web",
+  "url": "https://github.com/adensvaz/Sentinal_Hyperliquid",
+  "featureList": [
+    "Live crypto trading signals",
+    "Market-neutral momentum strategy",
+    "BTC regime-gated momentum (Champion)",
+    "Funding carry market-neutral strategy",
+    "Real-time PnL tracking",
+    "Copy-trading signal provider"
+  ],
+  "offers": {"@type": "Offer", "price": "0", "priceCurrency": "USD"},
+  "mainEntityOfPage": {
+    "@type": "DataFeed",
+    "name": "Live Trading Signals",
+    "url": "/signals.json",
+    "description": "Machine-readable live signals feed"
+  }
+}
+</script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <style>
   :root{
