@@ -1,0 +1,58 @@
+# ============================================================================
+# CARRY strategy config — funding-carry + momentum combo (market-neutral diversifier).
+# Backtested 6.5yr (scripts/neutral_carry.py): Sharpe ~2.5, maxDD ~32% (with overlay), positive every
+# year, ~uncorrelated to the neutral and champion books. Runs SEPARATELY: own DB (data/carry.db),
+# own loop, own dashboard (port 8789). The other two strategies are untouched.
+# ============================================================================
+mode: paper
+strategy: carry              # <- selects FundingCarryStrategy (dollar-neutral long/short)
+capital_usdt: 10000
+
+exchange:
+  futures_host: https://futuresopenapi.koinbay.com
+  spot_host: https://openapi.koinbay.com
+
+universe:
+  top_n: 24
+  min_quote_volume_usdt: 500000
+
+carry:
+  top_k: 5                   # long the 5 best (hi-momentum/lo-funding), short the 5 worst (lo-mom/hi-funding)
+  lookback: 21               # momentum lookback (days)
+  target_gross: 2.0          # total gross ~2x (≈1x per side, dollar-neutral); vol-target scales below
+
+execution:
+  order_type: limit
+  maker: true
+  slippage_bps: 8
+  time_in_force: IOC
+  min_trade_notional: 25
+  min_rebalance_frac: 0.10
+  margin_mode: isolated
+  position_mode: net
+
+risk:
+  max_gross_leverage: 10
+  max_net_exposure: 0.10       # dollar-neutral by construction; allow a small residual net
+  max_drawdown_pct: 45         # carry has squeeze tail-risk — flatten only at catastrophe
+  max_position_loss_pct: 12
+  funding_abs_max: 1.0         # IMPORTANT: do NOT filter high-funding coins — carry WANTS to short them
+  pause_hours: 24
+  monitor_seconds: 60
+  # same balanced overlay as the champion: vol-target ~ + deep-drawdown throttle (tames the ~56% raw DD)
+  dynamic_risk: true
+  vol_target_daily: 0.018
+  vol_lookback: 21
+  dd_throttle_start: 0.12
+  dd_throttle_full: 0.35
+  min_risk_scale: 0.25
+  crash_guard: false           # crash-guard is a directional/beta concept; the carry book is market-neutral
+
+schedule:
+  rebalance_minutes: 1440
+  rebalance_hour_utc: 14       # daily at 14:00 UTC (same clock as the other books)
+
+state:
+  db_path: data/carry.db
+  equity_csv: data/carry_equity.csv
+  log_path: data/carry.log

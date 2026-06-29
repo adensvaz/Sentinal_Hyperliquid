@@ -27,6 +27,7 @@ from ..signal.market_proxy import MarketProxySignal
 from ..signal.technicals import ta_consensus
 from ..signal.whale_tracker import WhaleTracker, map_bias_to_symbols
 from ..state.store import Store
+from ..strategy.funding_carry import FundingCarryStrategy
 from ..strategy.momentum_regime import MomentumRegimeStrategy
 from ..strategy.portfolio import beta_scales, book_beta, compute_betas, demean_by_beta, dispersion
 from ..strategy.sentiment_edge import SentimentEdgeStrategy
@@ -65,6 +66,7 @@ class Engine:
         self.fx = KoinbayFutures(self.client)
         self.strategy = SentimentEdgeStrategy(cfg.portfolio)
         self.champion = MomentumRegimeStrategy(cfg)   # directional momentum+regime (used when cfg.strategy=='champion')
+        self.carry = FundingCarryStrategy(cfg)        # funding-carry+momentum, market-neutral (cfg.strategy=='carry')
         self.store = Store(cfg.state.db_path, cfg.state.equity_csv)
         self.registry: Optional[ContractRegistry] = None
         self.signal: Optional[MarketProxySignal] = None
@@ -152,6 +154,10 @@ class Engine:
             ch = self.cfg.champion
             self.base_interval = "1day"
             self.history_bars = min(300, max(ch.regime_ma, ch.trend_ma, ch.lookback, ch.breadth_ma) + 30)
+        elif self.cfg.strategy == "carry":
+            # carry ranks DAILY momentum + funding — force daily bars with enough lookback history.
+            self.base_interval = "1day"
+            self.history_bars = min(300, self.cfg.carry.lookback + 30)
         else:
             self.base_interval = pick_base_interval(self.fx, ref)
             itv_h = parse_duration_to_hours(self.base_interval)
@@ -267,6 +273,15 @@ class Engine:
                 # NO beta-neutralize / net-clamp / dollar-neutrality (that's the whole point of this book).
                 book = self.champion.build_book({s: d.closes for s, d in data.items()}, prices,
                                                 self.registry, equity, gross_scale=gscale)
+            elif cfg.strategy == "carry":
+                # CARRY: funding-carry + momentum, dollar-neutral long/short by construction. Rank on the
+                # TRAILING-AVERAGE funding (persistent, cleaner than a single rate); funding is kept
+                # unfiltered via risk.funding_abs_max so high-funding shorts are retained. No extra
+                # beta-hedge — the long/short legs are already balanced.
+                favg = self.store.recent_funding_avg(self.mode, cfg.carry.funding_avg_cycles)
+                fsig = {s: favg.get(s, funding.get(s)) for s in funding}   # trailing avg, fallback to current
+                book = self.carry.build_book({s: d.closes for s, d in data.items()}, fsig, prices,
+                                             self.registry, equity, gross_scale=gscale)
             else:
                 ta_scores = ({s: ta_consensus(d.closes) for s, d in data.items()}
                              if cfg.signal.ta_veto > 0 else None)

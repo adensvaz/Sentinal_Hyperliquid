@@ -151,6 +151,17 @@ class ChampionCfg(BaseModel):
     max_name_weight: float = 0.40  # cap any single name at this fraction of gross (copy-trade-safe)
 
 
+class CarryCfg(BaseModel):
+    """Funding-carry + momentum combo (market-neutral). Long hi-momentum/lo-funding, short lo-momentum/
+    hi-funding, dollar-neutral. Harvests the structural perp-funding premium; orthogonal to price."""
+    top_k: int = 5                 # names per sleeve (long K / short K)
+    lookback: int = 21             # momentum lookback (days)
+    target_gross: float = 2.0      # total gross (~1x per side); vol-target/DD-throttle may scale below
+    funding_avg_cycles: int = 5    # rank on the trailing average of this many funding snapshots
+                                   # (funding is persistent — the average is a cleaner signal than a
+                                   #  single instantaneous rate; backtest Sharpe ~1.6 -> ~2.0 with it)
+
+
 class ScheduleCfg(BaseModel):
     rebalance_minutes: int = 240
     rebalance_hour_utc: Optional[int] = None  # if 0-23, rebalance daily at this fixed UTC hour
@@ -165,12 +176,14 @@ class StateCfg(BaseModel):
 
 class Config(BaseModel):
     mode: Literal["paper", "live"] = "paper"
-    strategy: Literal["neutral", "champion"] = "neutral"   # neutral = market-neutral book; champion = momentum+regime
+    # neutral = market-neutral momentum book; champion = directional momentum+regime; carry = funding-carry+momentum
+    strategy: Literal["neutral", "champion", "carry"] = "neutral"
     exchange: ExchangeCfg = Field(default_factory=ExchangeCfg)
     capital_usdt: Optional[float] = 10_000.0
     universe: UniverseCfg = Field(default_factory=UniverseCfg)
     signal: SignalCfg = Field(default_factory=SignalCfg)
     champion: ChampionCfg = Field(default_factory=ChampionCfg)
+    carry: CarryCfg = Field(default_factory=CarryCfg)
     whales: WhalesCfg = Field(default_factory=WhalesCfg)
     portfolio: PortfolioCfg = Field(default_factory=PortfolioCfg)
     execution: ExecutionCfg = Field(default_factory=ExecutionCfg)
