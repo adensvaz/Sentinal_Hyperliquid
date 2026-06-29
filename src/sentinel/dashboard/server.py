@@ -73,6 +73,53 @@ def _funding_rates() -> dict:
         return dict(_marks["fr"])
 
 
+_regime_cache = {"ts": 0.0, "data": None}
+_regime_lock = threading.Lock()
+
+
+def _get_regime(cfg, ttl: float = 300.0):
+    """CHAMPION only: where BTC sits vs its regime-MA (the risk-on/off gate), with a daily sparkline.
+    Lets the dashboard explain *why* the book is in cash and how close it is to flipping. Cached ~5min
+    (daily data barely moves). Returns None for the neutral book or on failure."""
+    if getattr(cfg, "strategy", "neutral") != "champion":
+        return None
+    now = time.time()
+    with _regime_lock:
+        if _regime_cache["data"] is not None and now - _regime_cache["ts"] < ttl:
+            return _regime_cache["data"]
+    global _fx_client
+    try:
+        from ..exchange.client import KoinbayClient
+        from ..exchange.futures import KoinbayFutures
+        from ..engine.marketdata import _parse_klines
+        if _fx_client is None:
+            _fx_client = KoinbayFutures(KoinbayClient(cfg.exchange.futures_host, timeout_s=8))
+        ma_n = cfg.champion.regime_ma
+        spark = 90
+        rows = _fx_client.klines("E-BTC-USDT", "1day", ma_n + spark + 5)
+        _, closes, _ = _parse_klines(rows)
+        if len(closes) < ma_n + 2:
+            return _regime_cache["data"]
+        ma = sum(closes[-ma_n:]) / ma_n
+        live = _get_marks(cfg, ["E-BTC-USDT"]).get("E-BTC-USDT") or closes[-1]
+        price = float(live)
+        series = [{"c": round(closes[i], 2),
+                   "ma": round(sum(closes[i - ma_n + 1:i + 1]) / ma_n, 2)}
+                  for i in range(len(closes) - spark, len(closes)) if i >= ma_n - 1]
+        data = {
+            "on": price > ma, "price": round(price, 2), "ma": round(ma, 2), "ma_period": ma_n,
+            "dist_pct": round((price / ma - 1.0) * 100.0, 2),       # +above / -below the line
+            "to_cross_pct": round((ma / price - 1.0) * 100.0, 2),   # % BTC must move to reach the line
+            "series": series, "updated": int(now),
+        }
+    except Exception:
+        return _regime_cache["data"]
+    with _regime_lock:
+        _regime_cache["data"] = data
+        _regime_cache["ts"] = now
+    return data
+
+
 _whales_cache = {"ts": 0.0, "data": None}
 _whales_lock = threading.Lock()
 _whale_tracker = None
@@ -182,6 +229,7 @@ def gather_state(cfg: Config) -> dict:
         return {
             "mode": cfg.mode,
             "strategy": cfg.strategy,
+            "regime": _get_regime(cfg),   # champion: BTC vs its regime-MA gate (None for neutral)
             "running": _loop_running(),
             "rebalance_minutes": cfg.schedule.rebalance_minutes,
             "rebalance_hour_utc": cfg.schedule.rebalance_hour_utc,
@@ -400,6 +448,42 @@ HTML = r"""<!doctype html>
   .meta{margin-left:14px}
 
   main{padding:22px 26px;max-width:1280px;margin:0 auto}
+  /* champion market-regime module */
+  #regimeWrap{margin-bottom:18px}
+  .regime{position:relative;border-radius:var(--r);padding:20px 22px;overflow:hidden;
+    border:1px solid var(--line);background:linear-gradient(180deg,var(--surface2),var(--surface))}
+  .regime::before{content:"";position:absolute;inset:0 auto 0 0;width:3px}
+  .regime.off::before{background:linear-gradient(180deg,var(--gold),#ff7a8a)}
+  .regime.on::before{background:linear-gradient(180deg,var(--grn),var(--accent))}
+  .regime.off{box-shadow:inset 0 0 60px rgba(245,196,81,.05)}
+  .regime.on{box-shadow:inset 0 0 60px rgba(39,215,150,.06)}
+  .rg-top{display:flex;align-items:center;gap:18px}
+  .rg-head{flex:1;min-width:0}
+  .rg-state{display:flex;align-items:center;gap:9px;font-size:21px;font-weight:850;letter-spacing:.4px}
+  .regime.off .rg-state{color:var(--gold)} .regime.on .rg-state{color:var(--grn)}
+  .rg-dot{width:9px;height:9px;border-radius:50%;background:currentColor;box-shadow:0 0 0 0 currentColor;
+    animation:rgpulse 2s infinite}
+  @keyframes rgpulse{0%{box-shadow:0 0 0 0 rgba(255,255,255,.35)}70%{box-shadow:0 0 0 7px rgba(255,255,255,0)}100%{box-shadow:0 0 0 0 rgba(255,255,255,0)}}
+  .rg-sub{font-size:12.5px;color:var(--dim);margin-top:3px;text-transform:uppercase;letter-spacing:1.2px}
+  .rg-spk{width:240px;height:46px;flex:none;opacity:.95}
+  @media(max-width:560px){.rg-spk{display:none}}
+  .rg-gauge{margin:16px 0 10px}
+  .rg-track{position:relative;height:10px;border-radius:6px;background:rgba(255,255,255,.06);overflow:visible}
+  .rg-fill{position:absolute;left:0;top:0;bottom:0;border-radius:6px;opacity:.5}
+  .rg-fill.off{background:linear-gradient(90deg,rgba(245,196,81,.25),var(--gold))}
+  .rg-fill.on{background:linear-gradient(90deg,rgba(39,215,150,.25),var(--grn))}
+  .rg-trig{position:absolute;left:50%;top:-4px;bottom:-4px;width:2px;background:rgba(255,255,255,.55);transform:translateX(-1px)}
+  .rg-mk{position:absolute;top:50%;width:15px;height:15px;border-radius:50%;transform:translate(-50%,-50%);
+    border:2.5px solid var(--bg);box-shadow:0 0 10px rgba(0,0,0,.5)}
+  .rg-mk.off{background:var(--gold)} .rg-mk.on{background:var(--grn)}
+  .rg-scale{display:flex;justify-content:space-between;font-size:10.5px;color:var(--mut);margin-top:9px;letter-spacing:.4px}
+  .rg-trig-lbl{color:var(--txt);font-weight:650}
+  .rg-read{display:flex;flex-wrap:wrap;align-items:center;gap:8px 16px;font-size:14px;color:var(--dim);margin-top:6px}
+  .rg-read b{color:#fff;font-variant-numeric:tabular-nums}
+  .rg-vs{font-weight:750} .rg-vs.grn{color:var(--grn)} .rg-vs.red{color:#ff7a8a}
+  .rg-need{color:var(--gold)} .rg-need b{color:var(--gold)}
+  .rg-tip{margin-top:13px;padding-top:13px;border-top:1px solid rgba(255,255,255,.06);font-size:13px;
+    color:var(--txt);line-height:1.5}
   .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(232px,1fr));gap:14px;margin-bottom:18px}
   .card{position:relative;background:linear-gradient(180deg,var(--surface2),var(--surface));border:1px solid var(--line);
     border-radius:var(--r);padding:16px 18px;
@@ -725,10 +809,11 @@ HTML = r"""<!doctype html>
   <span id="strat" class="pill strat">—</span>
   <span id="mode" class="pill paper">paper</span>
   <span class="status"><span id="dot" class="dot off"></span><span id="run">checking…</span></span>
-  <span class="cd" id="cdwrap" title="time until the next scheduled daily rebalance"><span class="cd-ic">⟳</span> next rebalance <b id="cd">—</b></span>
+  <span class="cd" id="cdwrap" title="time until the next scheduled daily rebalance"><span class="cd-ic">⟳</span> <span id="cdlbl">next rebalance</span> <b id="cd">—</b></span>
   <span class="meta">updated <b id="upd">—</b> · <span id="cycles">0</span> cycles · rebal <span id="rebal">—</span></span>
 </header>
 <main id="pageDash">
+  <section id="regimeWrap" style="display:none"></section>
   <div class="cards" id="cards"></div>
 
   <div class="panel">
@@ -924,7 +1009,7 @@ const STRAT_INFO={
     stats:[{v:39,suf:'%',sign:'+',l:'backtest CAGR'},{v:1.12,dec:2,l:'Sharpe ratio'},{v:32,suf:'%',l:'max drawdown'},{v:5.5,dec:1,l:'years tested'}],
     ideaTitle:'Ride the strongest coins. Sit in cash when the market turns.',
     steps:stepHTML(1,'🛰️','Scan','Every day it reads daily price action on 24 KoinBay coins and measures each one&rsquo;s 30-day momentum.')
-        +stepHTML(2,'📈','Rank','It keeps the 5 strongest names that are <i>also</i> trading above their own 50-day average — strength confirmed two ways.')
+        +stepHTML(2,'📈','Rank','It ranks all 24 by 30-day momentum and holds the 5 strongest — weighted toward the leaders, capped at 40% in any one name.')
         +stepHTML(3,'🚦','Ride or Cash','It holds them while Bitcoin is above its 100-day line. The moment BTC drops below it, the whole book goes to <b>cash</b>.'),
     why:whyHTML('Why it works','Crypto&rsquo;s strongest trends keep running for weeks. Owning the current leaders captures that drift.')
        +whyHTML('Why it survives crashes','The BTC-regime brake pulls everything to cash in bear markets — where momentum&rsquo;s worst drawdowns happen.')
@@ -932,7 +1017,7 @@ const STRAT_INFO={
     arch:archHTML([
       {c:'#4a9eff',n:'Signal',d:'30-day momentum across 24 coins → one strength score per name'},
       {c:'#f5c451',n:'Regime',d:'BTC above its 100-day line → risk-on; below → everything to cash'},
-      {c:'#a78bfa',n:'Portfolio',d:'Top-5 dual-confirmed names · equal-weight · long-only'},
+      {c:'#a78bfa',n:'Portfolio',d:'Top-5 by momentum · momentum-weighted (≤40%/name) · long-only'},
       {c:'#ff5d6c',n:'Risk',d:'Vol-target · drawdown throttle · crash guard · per-name catastrophe stop'},
       {c:'#27d796',n:'Execution',d:'Reconcile → maker orders → paper or live KoinBay + this dashboard'},
     ]),
@@ -989,7 +1074,8 @@ function render(d){
   $('run').textContent=d.running?'loop running':'loop stopped'; $('run').className=d.running?'grn':'mut';
   $('upd').textContent=new Date().toLocaleTimeString(); $('cycles').textContent=d.cycles;
   $('rebal').textContent=(d.rebalance_hour_utc!=null)?('daily '+String(d.rebalance_hour_utc).padStart(2,'0')+':00 UTC'):(d.rebalance_minutes+'m');
-  NEXT_REBAL=d.next_rebalance_ts||null; PAUSED=d.paused_until||null; renderCountdown();
+  NEXT_REBAL=d.next_rebalance_ts||null; PAUSED=d.paused_until||null; REGIME=d.regime||null;
+  renderCountdown(); renderRegime(d.regime);
 
   const pc=d.pnl>=0?'grn':'red';
   const lev=d.leverage||0, levPct=Math.min(100,lev/(d.max_gross_leverage||10)*100);
@@ -1378,11 +1464,18 @@ async function tick(){try{render(await (await fetch('/api/state')).json());}catc
 tick();setInterval(tick,5000);
 
 // ---- live rebalance countdown (ticks every second) ----
-let NEXT_REBAL=null, PAUSED=null;
+let NEXT_REBAL=null, PAUSED=null, REGIME=null;
 function renderCountdown(){
-  const el=$('cd'), wrap=$('cdwrap'); if(!el) return;
+  const el=$('cd'), wrap=$('cdwrap'), lbl=$('cdlbl'); if(!el) return;
   const now=Date.now()/1000;
   wrap.classList.remove('soon','paused');
+  // champion re-checks daily but only TRADES when risk-on — relabel so the timer isn't misleading
+  if(lbl){
+    if(REGIME) { lbl.textContent = REGIME.on ? 'next rebalance' : 'next regime check';
+      wrap.title = REGIME.on ? 'time until the next daily rebalance'
+        : 'Re-checks daily, but stays in cash until BTC reclaims its '+REGIME.ma_period+'-day line (see Regime below)'; }
+    else lbl.textContent='next rebalance';
+  }
   if(PAUSED && PAUSED>now){ el.textContent='paused'; wrap.classList.add('paused'); return; }
   if(!NEXT_REBAL){ el.textContent='—'; return; }
   let s=Math.max(0,Math.floor(NEXT_REBAL-now));
@@ -1393,6 +1486,49 @@ function renderCountdown(){
   if(s<3600) wrap.classList.add('soon');   // amber in the final hour
 }
 setInterval(renderCountdown,1000);
+
+/* ---- CHAMPION: market-regime gauge (why it's in cash / how close to flipping) ---- */
+function rgMoney(n){return '$'+Number(n).toLocaleString(undefined,{maximumFractionDigits:n<100?2:0});}
+function regimeSpark(series){
+  if(!series||series.length<2) return '';
+  const W=240,H=46,n=series.length;
+  const all=series.flatMap(p=>[p.c,p.ma]); const lo=Math.min(...all),hi=Math.max(...all),rng=(hi-lo)||1;
+  const x=i=>i/(n-1)*W, y=v=>H-3-((v-lo)/rng)*(H-6);
+  const path=arr=>arr.map((v,i)=>(i?'L':'M')+x(i).toFixed(1)+' '+y(v).toFixed(1)).join(' ');
+  const last=series[n-1], above=last.c>=last.ma, col=above?'#27d796':'#ff7a8a';
+  return `<svg class="rg-spk" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">
+    <path d="${path(series.map(p=>p.ma))}" fill="none" stroke="#f5c451" stroke-width="1.1" stroke-dasharray="3 3" opacity=".75"/>
+    <path d="${path(series.map(p=>p.c))}" fill="none" stroke="${col}" stroke-width="1.8"/>
+    <circle cx="${x(n-1).toFixed(1)}" cy="${y(last.c).toFixed(1)}" r="2.8" fill="${col}"/></svg>`;
+}
+function renderRegime(r){
+  const wrap=$('regimeWrap'); if(!wrap) return;
+  if(!r){ wrap.style.display='none'; return; }
+  wrap.style.display='';
+  const on=r.on, dist=r.dist_pct, cross=r.to_cross_pct, P=r.ma_period, cls=on?'on':'off';
+  const span=0.40, pos=Math.max(3,Math.min(97,((r.price/r.ma-1)/span*0.5+0.5)*100));
+  let tip;
+  if(on) tip=`✅ BTC is ${Math.abs(dist).toFixed(1)}% above its ${P}-day line — trend intact, riding the leaders.`;
+  else if(cross<=3) tip=`👀 Knocking on the door — BTC is just ${cross.toFixed(1)}% under its ${P}-day line. A flip to risk-on could be near.`;
+  else if(cross<=10) tip=`Climbing back — BTC ${cross.toFixed(1)}% under its ${P}-day line. Getting warmer.`;
+  else tip=`Deep risk-off — BTC ${cross.toFixed(1)}% under its ${P}-day line. The cash wait is the edge; patience pays.`;
+  wrap.innerHTML=`<div class="regime ${cls}">
+    <div class="rg-top">
+      <div class="rg-head"><div class="rg-state"><span class="rg-dot"></span>${on?'RISK-ON':'RISK-OFF'}</div>
+        <div class="rg-sub">${on?'deployed · holding the strongest names':'holding 100% cash'}</div></div>
+      ${regimeSpark(r.series)}
+    </div>
+    <div class="rg-gauge">
+      <div class="rg-track"><div class="rg-fill ${cls}" style="width:${pos}%"></div>
+        <div class="rg-trig"></div><div class="rg-mk ${cls}" style="left:${pos}%"></div></div>
+      <div class="rg-scale"><span>← cash</span><span class="rg-trig-lbl">${P}-day line · ${rgMoney(r.ma)}</span><span>invested →</span></div>
+    </div>
+    <div class="rg-read"><span>BTC <b>${rgMoney(r.price)}</b></span>
+      <span class="rg-vs ${on?'grn':'red'}">${on?'+':''}${dist.toFixed(1)}% vs line</span>
+      ${on?'':`<span class="rg-need">needs <b>+${cross.toFixed(1)}%</b> to flip risk-on</span>`}</div>
+    <div class="rg-tip">${tip}</div>
+  </div>`;
+}
 
 /* ============ STRATEGY PAGE: nav, particles, reveals, counters, flow ============ */
 let stratBuilt=false, alienRaf=null, alienParts=[];
