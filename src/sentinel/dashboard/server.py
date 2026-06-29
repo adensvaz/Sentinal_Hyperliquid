@@ -756,20 +756,28 @@ HTML = r"""<!doctype html>
   .vsgrid.vs3{grid-template-columns:1fr 1fr 1fr}
   @media(max-width:980px){.vsgrid.vs3{grid-template-columns:1fr}}
   @media(max-width:720px){.vsgrid{grid-template-columns:1fr}}
+  /* strategy cards */
   .vscard{position:relative;background:linear-gradient(180deg,rgba(19,26,37,.7),rgba(15,20,29,.7));
     border:1px solid var(--line);border-radius:20px;padding:24px 22px 22px;transition:.3s}
   .vscard:hover{transform:translateY(-4px);box-shadow:0 18px 50px rgba(0,0,0,.32)}
   .vscard.cur{border-color:rgba(107,140,255,.5);box-shadow:0 0 0 1px rgba(107,140,255,.3),0 18px 54px rgba(74,158,255,.16)}
-  .vscard.cur::after{content:'You are here';position:absolute;top:14px;right:14px;font-size:9.5px;font-weight:800;
-    letter-spacing:1.3px;text-transform:uppercase;color:var(--accent);background:rgba(107,140,255,.12);
-    border:1px solid rgba(107,140,255,.3);border-radius:999px;padding:.35em .7em}
-  .vshead{font-size:19px;font-weight:800;letter-spacing:-.4px;display:flex;align-items:center;gap:9px}
-  .vsicon{font-size:20px} .vsicon.n{color:var(--accent)} .vsicon.c{color:#f5c451} .vsicon.k{color:var(--grn)}
-  .vsbadge{font-size:9.5px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;color:#0b0e14;
-    background:linear-gradient(135deg,#f5c451,#ffb24a);border-radius:999px;padding:.34em .7em;margin-left:2px}
+  #vs-carry.cur{border-color:rgba(39,215,150,.5);box-shadow:0 0 0 1px rgba(39,215,150,.3),0 18px 54px rgba(39,215,150,.16)}
+  #vs-champion.cur{border-color:rgba(245,196,81,.5);box-shadow:0 0 0 1px rgba(245,196,81,.3),0 18px 54px rgba(245,196,81,.16)}
+  /* header row: icon + name + badge(s) all on one line, no overlap */
+  .vshead{font-size:17px;font-weight:800;letter-spacing:-.3px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding-right:0}
+  .vsicon{font-size:18px;flex:none} .vsicon.n{color:var(--accent)} .vsicon.c{color:#f5c451} .vsicon.k{color:var(--grn)}
+  .vsbadge{font-size:9px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;color:#0b0e14;flex:none;
+    background:linear-gradient(135deg,#f5c451,#ffb24a);border-radius:999px;padding:.32em .65em}
   .vsbadge.cb{background:linear-gradient(135deg,#27d796,#34e0ff)}
-  .vstag{font-size:11.5px;font-weight:700;letter-spacing:1.4px;text-transform:uppercase;color:var(--dim);margin:7px 0 13px}
-  .vscard p{font-size:13.5px;line-height:1.62;color:var(--txt);margin:0 0 14px}
+  /* "you are here" — separate row, never overlaps the header */
+  .vs-here{display:none;font-size:9.5px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;
+    padding:.32em .8em;border-radius:999px;border:1px solid;margin-top:8px;align-self:flex-start}
+  .vscard.cur .vs-here{display:inline-block}
+  .vscard.cur .vs-here{color:var(--accent);background:rgba(107,140,255,.1);border-color:rgba(107,140,255,.3)}
+  #vs-carry.cur .vs-here{color:var(--grn);background:rgba(39,215,150,.1);border-color:rgba(39,215,150,.3)}
+  #vs-champion.cur .vs-here{color:#f5c451;background:rgba(245,196,81,.1);border-color:rgba(245,196,81,.3)}
+  .vstag{font-size:11px;font-weight:700;letter-spacing:1.4px;text-transform:uppercase;color:var(--dim);margin:10px 0 13px}
+  .vscard p{font-size:13px;line-height:1.62;color:var(--txt);margin:0 0 14px}
   .vsstats{list-style:none;padding:0;margin:0 0 15px;display:flex;flex-direction:column;gap:8px}
   .vsstats li{font-size:13px;color:var(--dim);padding-left:18px;position:relative}
   .vsstats li::before{content:'';position:absolute;left:0;top:7px;width:7px;height:7px;border-radius:50%;
@@ -777,18 +785,33 @@ HTML = r"""<!doctype html>
   #vs-champion .vsstats li::before{background:#f5c451;opacity:.8}
   #vs-carry .vsstats li::before{background:var(--grn);opacity:.85}
   .vsstats b{color:#fff} .vsbest{font-size:12px;color:var(--mut);font-style:italic;margin-bottom:16px}
+  /* "switch to this" button — same-tab navigate */
   .vslink{display:inline-block;font-size:13px;font-weight:700;color:var(--accent);text-decoration:none;
-    border-bottom:1px solid transparent;transition:.2s}
-  .vslink:hover{border-bottom-color:var(--accent);transform:translateX(2px)}
-  #vs-champion .vslink{color:#f5c451} #vs-champion .vslink:hover{border-bottom-color:#f5c451}
-  #vs-carry .vslink{color:var(--grn)} #vs-carry .vslink:hover{border-bottom-color:var(--grn)}
-  #vs-carry.cur{border-color:rgba(39,215,150,.5);box-shadow:0 0 0 1px rgba(39,215,150,.3),0 18px 54px rgba(39,215,150,.16)}
-  #vs-carry.cur::after{color:var(--grn);background:rgba(39,215,150,.12);border-color:rgba(39,215,150,.3)}
-  #vs-champion.cur{border-color:rgba(245,196,81,.5);box-shadow:0 0 0 1px rgba(245,196,81,.3),0 18px 54px rgba(245,196,81,.16)}
-  #vs-champion.cur::after{color:#f5c451;background:rgba(245,196,81,.12);border-color:rgba(245,196,81,.3)}
-  /* nav cross-link to the other strategy */
-  .navx{text-decoration:none;border:1px solid var(--line);color:var(--mut)!important}
-  .navx:hover{color:var(--txt)!important;border-color:rgba(107,140,255,.4);background:rgba(107,140,255,.06)}
+    padding:.42em 1em;border-radius:999px;border:1px solid rgba(107,140,255,.35);
+    background:rgba(107,140,255,.08);transition:.2s;cursor:pointer}
+  .vslink:hover{background:rgba(107,140,255,.18);border-color:rgba(107,140,255,.6)}
+  #vs-champion .vslink{color:#f5c451;border-color:rgba(245,196,81,.35);background:rgba(245,196,81,.08)}
+  #vs-champion .vslink:hover{background:rgba(245,196,81,.18);border-color:rgba(245,196,81,.6)}
+  #vs-carry .vslink{color:var(--grn);border-color:rgba(39,215,150,.35);background:rgba(39,215,150,.08)}
+  #vs-carry .vslink:hover{background:rgba(39,215,150,.18);border-color:rgba(39,215,150,.6)}
+  /* strategy switcher in nav — single pill dropdown */
+  .nav-switcher{position:relative;display:flex;align-items:center}
+  .nav-switcher-btn{display:flex;align-items:center;gap:6px;background:rgba(107,140,255,.12);border:1px solid rgba(107,140,255,.3);
+    color:#fff;font-size:12.5px;font-weight:700;padding:.38em .85em .38em .7em;border-radius:999px;cursor:pointer;transition:.2s;white-space:nowrap}
+  .nav-switcher-btn:hover{background:rgba(107,140,255,.22);border-color:rgba(107,140,255,.5)}
+  .nav-switcher-btn .sw-arrow{font-size:9px;opacity:.7;transition:transform .18s}
+  .nav-switcher.open .sw-arrow{transform:rotate(180deg)}
+  .nav-switcher-menu{display:none;position:absolute;top:calc(100% + 7px);left:0;min-width:190px;
+    background:var(--surface2);border:1px solid var(--line);border-radius:14px;padding:6px;
+    box-shadow:0 16px 44px rgba(0,0,0,.55);z-index:200}
+  .nav-switcher.open .nav-switcher-menu{display:block}
+  .sw-item{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:9px;cursor:pointer;
+    font-size:13px;font-weight:600;color:var(--txt);transition:.15s;border:0;background:0;width:100%;text-align:left}
+  .sw-item:hover{background:rgba(255,255,255,.06)}
+  .sw-item.sw-cur{background:rgba(107,140,255,.1);color:#fff;cursor:default}
+  .sw-item .sw-dot{width:8px;height:8px;border-radius:50%;flex:none}
+  .sw-item .sw-cur-tag{font-size:9px;font-weight:800;letter-spacing:.8px;text-transform:uppercase;
+    margin-left:auto;color:var(--mut)}
 
   .dfoot{display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:center;
     margin-top:26px;padding:18px 0 8px;border-top:1px solid var(--line);font-size:12.5px;color:var(--dim)}
@@ -844,8 +867,12 @@ HTML = r"""<!doctype html>
   <nav class="nav">
     <button class="navbtn on" data-page="dash" onclick="goPage('dash')">Dashboard</button>
     <button class="navbtn" data-page="strat" onclick="goPage('strat')">How it works</button>
-    <a class="navbtn navx" id="navX1" target="_blank" rel="noopener" title="open another strategy">↗&nbsp;<span id="navX1Lbl">—</span></a>
-    <a class="navbtn navx" id="navX2" target="_blank" rel="noopener" title="open another strategy">↗&nbsp;<span id="navX2Lbl">—</span></a>
+    <div class="nav-switcher" id="navSwitcher">
+      <button class="nav-switcher-btn" onclick="toggleSwitcher(event)">
+        <span id="swCurIcon">—</span><span id="swCurLbl">Strategy</span><span class="sw-arrow">▾</span>
+      </button>
+      <div class="nav-switcher-menu" id="swMenu"></div>
+    </div>
   </nav>
   <span id="strat" class="pill strat">—</span>
   <span id="mode" class="pill paper">paper</span>
@@ -936,27 +963,30 @@ HTML = r"""<!doctype html>
     <div class="vsgrid vs3">
       <div class="vscard" id="vs-neutral">
         <div class="vshead"><span class="vsicon n">⚖</span> Market-Neutral</div>
+        <span class="vs-here">You are here</span>
         <div class="vstag">Steady · market-proof</div>
         <p>Buys the strongest coins, short-sells the weakest, balanced to near-zero market exposure. Profits from <i>which coins beat which</i> — not the market's direction.</p>
         <ul class="vsstats"><li><b>~13%</b> max drawdown</li><li><b>≈0.07</b> BTC exposure</li><li>works in <b>any</b> market</li></ul>
         <div class="vsbest">Best for — capital preservation, a low-stress ride</div>
-        <a class="vslink" id="link-neutral" target="_blank" rel="noopener">Open live dashboard →</a>
+        <a class="vslink" id="link-neutral">Switch to this →</a>
       </div>
       <div class="vscard" id="vs-champion">
         <div class="vshead"><span class="vsicon c">⚡</span> Momentum <span class="vsbadge">Champion</span></div>
+        <span class="vs-here">You are here</span>
         <div class="vstag">Growth · rides the trend</div>
         <p>Holds the 5 strongest coins while Bitcoin trends up — and moves fully to <b>cash</b> when BTC drops below its 100-day line. Keeps the upside, sidesteps the crashes.</p>
         <ul class="vsstats"><li><b>+39%</b> / yr · <b>1.12</b> Sharpe</li><li><b>~32%</b> max drawdown</li><li><b>5.5-yr</b> walk-forward backtest</li></ul>
         <div class="vsbest">Best for — maximum growth, if you can stomach the swings</div>
-        <a class="vslink" id="link-champion" target="_blank" rel="noopener">Open live dashboard →</a>
+        <a class="vslink" id="link-champion">Switch to this →</a>
       </div>
       <div class="vscard" id="vs-carry">
         <div class="vshead"><span class="vsicon k">💰</span> Funding Carry <span class="vsbadge cb">New</span></div>
+        <span class="vs-here">You are here</span>
         <div class="vstag">Income · harvests funding</div>
         <p>Dollar-neutral: <b>shorts</b> the coins paying the most funding (income the crowd pays you), <b>longs</b> the cheapest — tilted by momentum so it isn't short a coin that's ripping.</p>
         <ul class="vsstats"><li><b>+123%</b> / yr · <b>2.05</b> Sharpe</li><li><b>~28%</b> max drawdown</li><li><b>6.5-yr</b> backtest, every year green</li></ul>
         <div class="vsbest">Best for — the best risk-adjusted return; a true diversifier</div>
-        <a class="vslink" id="link-carry" target="_blank" rel="noopener">Open live dashboard →</a>
+        <a class="vslink" id="link-carry">Switch to this →</a>
       </div>
     </div>
   </section>
@@ -1103,12 +1133,27 @@ const STRAT_INFO={
   }
 };
 const STRAT_PORT={neutral:8787,champion:8788,carry:8789};
+const STRAT_ICON={neutral:'⚖',champion:'⚡',carry:'💰'};
 const STRAT_LABEL={neutral:'⚖ Market-Neutral',champion:'⚡ Momentum (Champion)',carry:'💰 Funding Carry'};
 const STRAT_SHORT={neutral:'Market-Neutral',champion:'Champion',carry:'Carry'};
+const STRAT_DOT={neutral:'#6b8cff',champion:'#f5c451',carry:'#27d796'};
+function stratUrl(k){const h=location.hostname||'localhost';return 'http://'+h+':'+STRAT_PORT[k];}
+function switchTo(k){if(k!==CUR_STRAT) location.href=stratUrl(k);}
+function toggleSwitcher(e){e.stopPropagation();$('navSwitcher').classList.toggle('open');}
+document.addEventListener('click',()=>{ const s=$('navSwitcher'); if(s) s.classList.remove('open'); });
+function buildSwitcher(strat){
+  const menu=$('swMenu'); if(!menu) return;
+  menu.innerHTML=['neutral','champion','carry'].map(k=>`<button class="sw-item${k===strat?' sw-cur':''}" onclick="${k!==strat?`switchTo('${k}')`:''}">`+
+    `<span class="sw-dot" style="background:${STRAT_DOT[k]}"></span>${STRAT_SHORT[k]}`+
+    (k===strat?'<span class="sw-cur-tag">here</span>':'')+`</button>`).join('');
+  const btn=$('swCurIcon'); if(btn) btn.textContent=STRAT_ICON[strat];
+  const lbl=$('swCurLbl'); if(lbl) lbl.textContent=STRAT_SHORT[strat];
+}
 function paintStrategy(strat){
   if(!STRAT_INFO[strat]) strat='neutral';
   if(STRAT_PAINTED && CUR_STRAT===strat) return;
   CUR_STRAT=strat; STRAT_PAINTED=true;
+  buildSwitcher(strat);
   const S=STRAT_INFO[strat];
   $('heroTag').textContent=S.tag;
   $('heroTitle').innerHTML=S.title;
@@ -1123,16 +1168,14 @@ function paintStrategy(strat){
   $('numDisclaim').innerHTML=S.disclaim;
   // comparison block: label + highlight the one you're viewing
   $('curStrat').textContent=STRAT_LABEL[strat];
-  const host=location.hostname||'localhost', url=k=>'http://'+host+':'+STRAT_PORT[k];
   ['neutral','champion','carry'].forEach(k=>{
     document.getElementById('vs-'+k).classList.toggle('cur',strat===k);
-    const ln=$('link-'+k); if(ln){ ln.href=url(k);
-      ln.textContent=(strat===k)?"You're viewing this →":'Open live dashboard →'; }
+    const ln=$('link-'+k);
+    if(ln){
+      if(k===strat){ ln.style.display='none'; }   // hide "switch" on the current card
+      else{ ln.style.display=''; ln.onclick=()=>switchTo(k); ln.href='javascript:void(0)'; }
+    }
   });
-  // nav: link to the OTHER two books
-  const others=['neutral','champion','carry'].filter(k=>k!==strat);
-  $('navX1').href=url(others[0]); $('navX1Lbl').textContent=STRAT_SHORT[others[0]];
-  $('navX2').href=url(others[1]); $('navX2Lbl').textContent=STRAT_SHORT[others[1]];
   if($('pageStrat').style.display!=='none') runReveals();
   if(stratBuilt) buildStrat();
 }
