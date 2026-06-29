@@ -151,7 +151,7 @@ class Engine:
             # with enough history to compute the regime/trend MAs.
             ch = self.cfg.champion
             self.base_interval = "1day"
-            self.history_bars = min(300, max(ch.regime_ma, ch.trend_ma, ch.lookback) + 30)
+            self.history_bars = min(300, max(ch.regime_ma, ch.trend_ma, ch.lookback, ch.breadth_ma) + 30)
         else:
             self.base_interval = pick_base_interval(self.fx, ref)
             itv_h = parse_duration_to_hours(self.base_interval)

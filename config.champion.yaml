@@ -24,6 +24,14 @@ champion:
                              # over-restrictive: on 5.5yr walk-forward, OFF beats ON — Sharpe
                              # 1.16->1.20, worst-half 0.83->0.92, CAGR +68%->+74% (raw, pre-overlay).
   target_gross: 1.0          # long-only, 1x gross when fully risk-on (vol-target may scale below)
+  # Two rules validated on 5.5yr walk-forward (scripts/champion_research.py + champion_overlay_test.py).
+  # Through the live overlay they lift Sharpe 1.25->1.29, cut maxDD 35%->24%, robustness 1.10->1.20.
+  breadth_scale: true        # de-risk thin rallies: scale gross by how broad the uptrend is
+  breadth_ma: 100            # count coins above their 100d average
+  breadth_lo: 0.30           # 0% breadth-of-universe -> flat; ...
+  breadth_hi: 0.80           # ...80%+ -> full gross (linear ramp between)
+  mom_weighted: true         # lean into the strongest names instead of equal-weight...
+  max_name_weight: 0.40      # ...but never more than 40% in one coin (copy-trade-safe)
 
 execution:
   order_type: limit
