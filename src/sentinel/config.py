@@ -140,6 +140,15 @@ class ChampionCfg(BaseModel):
     regime_ma: int = 100           # only invest when BTC is above this MA (risk-on brake)
     dual_confirm: bool = True      # require both relative strength AND absolute uptrend
     target_gross: float = 1.0      # gross leverage when fully risk-on (vol-target may scale below)
+    # --- improvements validated on 5.5yr walk-forward (scripts/champion_research.py) ---
+    breadth_scale: bool = False    # scale gross by market breadth (fraction of universe above breadth_ma):
+                                   # a parallel market-health check that de-risks thin/narrow rallies.
+                                   # Backtest: maxDD 35%->24% with equal-or-better Sharpe & robustness.
+    breadth_ma: int = 100          # MA each coin is measured against for the breadth count
+    breadth_lo: float = 0.30       # gross scales to 0 at/below this breadth fraction
+    breadth_hi: float = 0.80       # gross scales to full at/above this fraction (linear in between)
+    mom_weighted: bool = False     # size by momentum strength instead of equal-weight (lean into leaders)
+    max_name_weight: float = 0.40  # cap any single name at this fraction of gross (copy-trade-safe)
 
 
 class ScheduleCfg(BaseModel):
