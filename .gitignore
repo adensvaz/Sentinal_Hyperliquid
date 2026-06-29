@@ -24,3 +24,6 @@ data/*.out
 # macOS
 .DS_Store
 **/.DS_Store
+
+# Claude Code local artifacts
+.claude/
