@@ -18,9 +18,11 @@ universe:
 champion:
   top_k: 5                   # hold the 5 strongest names
   lookback: 30               # momentum measured over 30 days
-  trend_ma: 50               # must be above its 50d average (absolute uptrend)
+  trend_ma: 50               # (only used when dual_confirm is on)
   regime_ma: 100             # only invest when BTC is above its 100d average (risk-on brake)
-  dual_confirm: true         # relative strength AND absolute uptrend
+  dual_confirm: false        # rank by relative strength only. The extra 50d-uptrend filter was
+                             # over-restrictive: on 5.5yr walk-forward, OFF beats ON — Sharpe
+                             # 1.16->1.20, worst-half 0.83->0.92, CAGR +68%->+74% (raw, pre-overlay).
   target_gross: 1.0          # long-only, 1x gross when fully risk-on (vol-target may scale below)
 
 execution:
