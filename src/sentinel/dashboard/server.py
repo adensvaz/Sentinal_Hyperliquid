@@ -946,7 +946,7 @@ HTML = r"""<!doctype html>
   tbody tr:hover{background:rgba(240,101,42,.1);cursor:default}
   tbody tr:last-child{border-bottom:0}
   td.r{text-align:right}
-  td.num{font-variant-numeric:tabular-nums;font-family:'SF Mono','Fira Code','Courier New',monospace;font-size:13.5px}
+  td.num{font-variant-numeric:tabular-nums;font-family:'SF Mono','Fira Code','Courier New',monospace;font-size:13.5px;font-weight:650}
   td.mut{color:var(--mut)}
   .fmut{color:var(--dim);font-size:10.5px;margin-left:1px}
   td.asset{font-weight:750;font-size:14.5px;letter-spacing:.4px}
@@ -1198,9 +1198,11 @@ HTML = r"""<!doctype html>
     margin-left:auto;color:var(--mut)}
 
   .dfoot{display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:center;
-    margin-top:26px;padding:18px 0 8px;border-top:1px solid var(--line);font-size:12.5px;color:var(--dim)}
-  .dfoot-mark{font-weight:700;color:var(--mut)} .dfoot-dot{color:var(--line)}
-  .dfoot-txt{letter-spacing:.2px}
+    margin-top:26px;padding:14px 22px;border:1px solid var(--line);border-radius:16px;
+    background:rgba(255,253,247,.72);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
+    font-size:13px;color:var(--mut)}
+  .dfoot-mark{font-weight:800;color:var(--txt)} .dfoot-dot{color:var(--dim)}
+  .dfoot-txt{letter-spacing:.2px;color:var(--mut);font-weight:600}
   .ghlink{display:inline-flex;align-items:center;gap:7px;margin-left:auto;color:var(--mut);text-decoration:none;
     background:rgba(255,255,253,.95);border:1px solid var(--line);border-radius:10px;padding:6px 12px;font-weight:600;transition:.18s}
   .ghlink:hover{color:#fff;border-color:var(--accent);box-shadow:0 0 0 3px rgba(255,138,92,.16);transform:translateY(-1px);text-decoration:none}
