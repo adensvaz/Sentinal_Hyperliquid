@@ -1046,20 +1046,23 @@ HTML = r"""<!doctype html>
     background:radial-gradient(circle,rgba(154,123,255,.34),rgba(75,224,176,.14) 42%,transparent 68%);
     filter:blur(28px);animation:orbFloat 9s ease-in-out infinite;z-index:-1}
   @keyframes orbFloat{0%,100%{transform:translateX(-50%) translateY(0) scale(1)}50%{transform:translateX(-50%) translateY(26px) scale(1.07)}}
-  .hero-tag{font-size:11.5px;letter-spacing:3.4px;font-weight:700;
-    background:linear-gradient(90deg,#ff8a5c,#ffd166,#9a7bff,#4be0b0);-webkit-background-clip:text;background-clip:text;color:transparent;margin-bottom:18px}
+  .hero-tag{font-size:11.5px;letter-spacing:3.4px;font-weight:800;
+    background:linear-gradient(90deg,#d8521f,#c2851a,#3f6ea8,#0f8a4a);-webkit-background-clip:text;background-clip:text;color:transparent;margin-bottom:18px}
   .hero-title{font-size:clamp(46px,8vw,92px);font-weight:850;letter-spacing:-2px;line-height:1;margin:0 0 18px;
-    background:linear-gradient(120deg,#b8431f 0%,#9a6418 42%,#356394 100%);-webkit-background-clip:text;background-clip:text;color:transparent;
-    filter:drop-shadow(0 2px 12px rgba(70,50,30,.20));position:relative}
+    background:linear-gradient(118deg,#2d2922,#574326);-webkit-background-clip:text;background-clip:text;color:transparent;
+    filter:drop-shadow(0 2px 9px rgba(70,50,30,.13));position:relative}
   .hero-sub{font-size:clamp(15px,2.4vw,20px);color:var(--mut);max-width:620px;margin:0 auto;line-height:1.55}
   .hero-sub b{color:var(--txt);font-weight:700}
   .hero-stats{display:flex;flex-wrap:wrap;gap:14px;justify-content:center;margin-top:40px}
   .hstat{flex:1;min-width:130px;max-width:200px;background:rgba(255,255,253,.95);border:1px solid var(--line);
     border-radius:16px;padding:18px 14px;backdrop-filter:blur(8px);transition:.25s}
   .hstat:hover{border-color:rgba(255,138,92,.5);transform:translateY(-3px);box-shadow:0 14px 40px rgba(75,224,176,.16)}
-  .hstat .hv{font-size:30px;font-weight:820;letter-spacing:-.5px;font-variant-numeric:tabular-nums;
-    background:linear-gradient(135deg,#4a9eff,#9a7bff);-webkit-background-clip:text;background-clip:text;color:transparent}
-  .hstat .hl{font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--dim);margin-top:6px}
+  .hstat .hv{font-size:31px;font-weight:850;letter-spacing:-.5px;font-variant-numeric:tabular-nums;color:var(--accent2)}
+  .hero-stats .hstat:nth-child(1) .hv{color:var(--grn)}
+  .hero-stats .hstat:nth-child(2) .hv{color:var(--accent2)}
+  .hero-stats .hstat:nth-child(3) .hv{color:var(--red)}
+  .hero-stats .hstat:nth-child(4) .hv{color:var(--teal)}
+  .hstat .hl{font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--mut);margin-top:6px;font-weight:600}
 
   /* section blocks */
   .sblock{margin-top:78px}
@@ -1126,35 +1129,40 @@ HTML = r"""<!doctype html>
   .tchip.cy{background:linear-gradient(135deg,#4be0b0,#4be0b0)}
   .vsgrid{display:grid;grid-template-columns:1fr 1fr;gap:18px}
   .vsgrid.vs3{grid-template-columns:1fr 1fr 1fr}
-  @media(max-width:980px){.vsgrid.vs3{grid-template-columns:1fr}}
+  @media(max-width:980px){.vsgrid.vs3{grid-template-columns:1fr} .vscard.cur,.vscard.cur:hover{transform:none}}
   @media(max-width:720px){.vsgrid{grid-template-columns:1fr}}
   /* strategy cards */
   .vscard{position:relative;background:linear-gradient(180deg,rgba(255,253,249,.93),rgba(255,255,253,.95));
     border:1px solid var(--line);border-radius:20px;padding:24px 22px 22px;transition:.3s}
-  .vscard:hover{transform:translateY(-4px);box-shadow:0 18px 50px rgba(0,0,0,.32)}
-  .vscard.cur{border-color:rgba(255,138,92,.5);box-shadow:0 0 0 1px rgba(255,138,92,.3),0 18px 54px rgba(75,224,176,.16)}
-  #vs-carry.cur{border-color:rgba(75,224,176,.5);box-shadow:0 0 0 1px rgba(75,224,176,.3),0 18px 54px rgba(75,224,176,.16)}
-  #vs-champion.cur{border-color:rgba(245,196,81,.5);box-shadow:0 0 0 1px rgba(245,196,81,.3),0 18px 54px rgba(245,196,81,.16)}
+  .vscard:hover{transform:translateY(-4px);box-shadow:0 18px 50px rgba(80,60,30,.18)}
+  .vscard.cur{transform:scale(1.05);z-index:3;border-color:transparent;
+    background:linear-gradient(180deg,rgba(255,250,239,.98),rgba(255,254,248,.98));
+    box-shadow:0 0 0 2.5px var(--accent),0 30px 74px rgba(240,101,42,.26)}
+  .vscard.cur:hover{transform:scale(1.05) translateY(-4px)}
+  #vs-carry.cur{box-shadow:0 0 0 2.5px var(--grn),0 30px 74px rgba(23,154,85,.26);
+    background:linear-gradient(180deg,rgba(236,250,241,.98),rgba(250,255,251,.98))}
+  #vs-champion.cur{box-shadow:0 0 0 2.5px var(--gold),0 30px 74px rgba(224,165,46,.28);
+    background:linear-gradient(180deg,rgba(255,249,233,.98),rgba(255,253,243,.98))}
   /* header row: icon + name + badge(s) all on one line, no overlap */
   .vshead{font-size:17px;font-weight:800;letter-spacing:-.3px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding-right:0}
-  .vsicon{font-size:18px;flex:none} .vsicon.n{color:var(--accent)} .vsicon.c{color:#ffd166} .vsicon.k{color:var(--grn)}
-  .vsbadge{font-size:9px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;color:#0b0e14;flex:none;
-    background:linear-gradient(135deg,#ffd166,#ffb24a);border-radius:999px;padding:.32em .65em}
-  .vsbadge.cb{background:linear-gradient(135deg,#4be0b0,#4be0b0)}
+  .vsicon{font-size:18px;flex:none} .vsicon.n{color:var(--accent)} .vsicon.c{color:var(--gold)} .vsicon.k{color:var(--grn)}
+  .vsbadge{font-size:9px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;color:#3a2c10;flex:none;
+    background:linear-gradient(135deg,#f3bd44,#e0a52e);border-radius:999px;padding:.32em .65em}
+  .vsbadge.cb{background:linear-gradient(135deg,#1fb866,#179a55);color:#fff}
   /* "you are here" — separate row, never overlaps the header */
   .vs-here{display:none;font-size:9.5px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;
     padding:.32em .8em;border-radius:999px;border:1px solid;margin-top:8px;align-self:flex-start}
   .vscard.cur .vs-here{display:inline-block}
   .vscard.cur .vs-here{color:var(--accent);background:rgba(255,138,92,.1);border-color:rgba(255,138,92,.3)}
   #vs-carry.cur .vs-here{color:var(--grn);background:rgba(75,224,176,.1);border-color:rgba(75,224,176,.3)}
-  #vs-champion.cur .vs-here{color:#ffd166;background:rgba(245,196,81,.1);border-color:rgba(245,196,81,.3)}
+  #vs-champion.cur .vs-here{color:#b9821c;background:rgba(224,165,46,.16);border-color:rgba(224,165,46,.42)}
   .vstag{font-size:11px;font-weight:700;letter-spacing:1.4px;text-transform:uppercase;color:var(--dim);margin:10px 0 13px}
   .vscard p{font-size:13px;line-height:1.62;color:var(--txt);margin:0 0 14px}
   .vsstats{list-style:none;padding:0;margin:0 0 15px;display:flex;flex-direction:column;gap:8px}
   .vsstats li{font-size:13px;color:var(--dim);padding-left:18px;position:relative}
   .vsstats li::before{content:'';position:absolute;left:0;top:7px;width:7px;height:7px;border-radius:50%;
     background:var(--accent);opacity:.7}
-  #vs-champion .vsstats li::before{background:#ffd166;opacity:.8}
+  #vs-champion .vsstats li::before{background:var(--gold);opacity:.9}
   #vs-carry .vsstats li::before{background:var(--grn);opacity:.85}
   .vsstats b{color:var(--txt)} .vsbest{font-size:12px;color:var(--mut);font-style:italic;margin-bottom:16px}
   /* "switch to this" button — same-tab navigate */
@@ -1162,10 +1170,16 @@ HTML = r"""<!doctype html>
     padding:.42em 1em;border-radius:999px;border:1px solid rgba(255,138,92,.35);
     background:rgba(255,138,92,.08);transition:.2s;cursor:pointer}
   .vslink:hover{background:rgba(255,138,92,.18);border-color:rgba(255,138,92,.6)}
-  #vs-champion .vslink{color:#ffd166;border-color:rgba(245,196,81,.35);background:rgba(245,196,81,.08)}
-  #vs-champion .vslink:hover{background:rgba(245,196,81,.18);border-color:rgba(245,196,81,.6)}
-  #vs-carry .vslink{color:var(--grn);border-color:rgba(75,224,176,.35);background:rgba(75,224,176,.08)}
-  #vs-carry .vslink:hover{background:rgba(75,224,176,.18);border-color:rgba(75,224,176,.6)}
+  #vs-champion .vslink{color:#b9821c;border-color:rgba(224,165,46,.4);background:rgba(224,165,46,.1)}
+  #vs-champion .vslink:hover{background:rgba(224,165,46,.2);border-color:rgba(224,165,46,.65)}
+  #vs-carry .vslink{color:var(--grn);border-color:rgba(23,154,85,.4);background:rgba(23,154,85,.1)}
+  #vs-carry .vslink:hover{background:rgba(23,154,85,.2);border-color:rgba(23,154,85,.65)}
+  /* active card's "Currently active" pill — full-width filled button (standalone class, no .vslink hover) */
+  .vslink-cur{display:block;width:100%;box-sizing:border-box;text-align:center;font-size:13px;font-weight:800;
+    padding:.62em 1em;border-radius:999px;cursor:default;color:#fff;border:0;text-decoration:none;
+    background:linear-gradient(135deg,var(--accent),#d8531f)}
+  #vs-champion .vslink-cur{color:#3a2c10;background:linear-gradient(135deg,#f3bd44,#e0a52e)}
+  #vs-carry .vslink-cur{background:linear-gradient(135deg,#1fb866,#179a55)}
   /* strategy switcher in nav — single pill dropdown */
   .nav-switcher{position:relative;display:flex;align-items:center}
   .nav-switcher-btn{display:flex;align-items:center;gap:6px;background:rgba(255,138,92,.12);border:1px solid rgba(255,138,92,.3);
@@ -1567,8 +1581,8 @@ function paintStrategy(strat){
     document.getElementById('vs-'+k).classList.toggle('cur',strat===k);
     const ln=$('link-'+k);
     if(ln){
-      if(k===strat){ ln.style.display='none'; }   // hide "switch" on the current card
-      else{ ln.style.display=''; ln.onclick=()=>switchTo(k); ln.href='javascript:void(0)'; }
+      if(k===strat){ ln.textContent='Currently active ✓'; ln.className='vslink-cur'; ln.onclick=null; ln.removeAttribute('href'); }
+      else{ ln.textContent='Switch to this →'; ln.className='vslink'; ln.onclick=()=>switchTo(k); ln.href='javascript:void(0)'; }
     }
   });
   if($('pageStrat').style.display!=='none') runReveals();
