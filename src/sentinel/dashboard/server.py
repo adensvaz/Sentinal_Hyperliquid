@@ -754,34 +754,47 @@ HTML = r"""<!doctype html>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <style>
   :root{
-    /* Tokyo Sunrise — dawn over the city: indigo -> plum -> rose, frosted glass, traditional-colour accents */
-    --bg:#16103a; --bg2:#1d1546;
-    --surface:rgba(255,255,255,.055); --surface2:rgba(255,255,255,.10); --line:rgba(255,255,255,.16);
-    --txt:#fdeef2; --mut:#cdb6dd; --dim:#9c87b4;
-    --grn:#4be0b0; --grn-d:#0c3b32; --red:#ff7a8a; --red-d:#3a1622;   /* teal = up, rose = down */
-    --accent:#ff8a5c; --accent2:#9a7bff; --gold:#ffd166;             /* coral + violet + yamabuki gold */
-    --teal:#4be0b0; --sakura:#ff7aa8;
-    --r:16px;
+    /* Ghibli daylight — soft painterly sky, lush green hills, warm sun, washi-cream cards */
+    --bg:#bfe3f2; --bg2:#d8ecd0;
+    --surface:rgba(255,252,244,.74); --surface2:rgba(255,255,250,.86); --line:rgba(108,90,60,.20);
+    --txt:#34302a; --mut:#6f6553; --dim:#938974;
+    --grn:#2f9b5e; --grn-d:#dcefe0; --red:#d8583f; --red-d:#f8ded7;   /* forest green = up · persimmon = down */
+    --accent:#e8693a; --accent2:#3f80ba; --gold:#dba032;             /* persimmon · indigo · yamabuki gold */
+    --teal:#36a39c; --sakura:#e389ab;
+    --r:18px;
   }
   *{box-sizing:border-box}
   html,body{margin:0}
   body{background:
-      radial-gradient(1100px 520px at 82% -10%, rgba(255,138,92,.20), transparent 60%),   /* sunrise glow */
-      radial-gradient(900px 480px at 6% -4%, rgba(154,123,255,.16), transparent 55%),       /* violet haze */
-      radial-gradient(700px 600px at 50% 120%, rgba(75,224,176,.07), transparent 60%),       /* teal ground */
-      linear-gradient(165deg, #1a1147 0%, #3a1d52 48%, #5e2747 78%, #6e2f48 100%);           /* indigo -> plum -> rose */
+      radial-gradient(420px 300px at 82% 9%, rgba(255,246,206,.96), rgba(255,226,150,.40) 42%, transparent 70%),  /* warm sun */
+      radial-gradient(340px 130px at 20% 16%, rgba(255,255,255,.92), transparent 72%),    /* cloud */
+      radial-gradient(300px 120px at 36% 26%, rgba(255,255,255,.78), transparent 72%),    /* cloud */
+      radial-gradient(420px 150px at 62% 12%, rgba(255,255,255,.85), transparent 72%),    /* cloud */
+      radial-gradient(260px 110px at 88% 30%, rgba(255,255,255,.66), transparent 72%),    /* cloud */
+      linear-gradient(180deg, #79bdec 0%, #9fd3ea 28%, #c4e6d8 55%, #e2eecb 78%, #f4e7c6 100%); /* blue sky -> aqua -> green -> warm cream */
     background-attachment:fixed;
-    color:var(--txt); font:14px/1.5 ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    color:var(--txt); font:14px/1.55 ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
     -webkit-font-smoothing:antialiased; min-height:100vh}
   /* frosted-glass surfaces over the dawn gradient */
   .card,.panel,.regime,.modal-box,.cd,.seg,.pill,.tblwrap{
     backdrop-filter:blur(16px) saturate(1.3); -webkit-backdrop-filter:blur(16px) saturate(1.3)}
+  /* Japanese scene: Mt Fuji + skyline + rising sun (fixed backdrop) + drifting sakura */
+  #skyline{position:fixed;left:0;right:0;bottom:0;height:min(40vh,360px);width:100vw;z-index:-1;pointer-events:none;opacity:.92}
+  .sakura{position:fixed;inset:0;z-index:-1;pointer-events:none;overflow:hidden}
+  .sakura i{position:absolute;top:-5%;width:12px;height:12px;
+    background:radial-gradient(circle at 32% 28%,#ffd9e6,#ff9ec4);
+    border-radius:92% 8% 92% 8%/8% 92% 8% 92%;opacity:.7;animation:fall linear infinite;
+    filter:drop-shadow(0 0 4px rgba(255,158,196,.35))}
+  @keyframes fall{0%{transform:translateY(-30px) translateX(0) rotate(0)}8%{opacity:.7}
+    92%{opacity:.55}100%{transform:translateY(104vh) translateX(70px) rotate(420deg);opacity:0}}
+  @media(prefers-reduced-motion:reduce){.sakura{display:none}}
   .num{font-variant-numeric:tabular-nums; font-feature-settings:"tnum" 1}
   .grn{color:var(--grn)} .red{color:var(--red)} .mut{color:var(--mut)}
   a{color:var(--accent);text-decoration:none} a:hover{text-decoration:underline}
 
   header{display:flex;align-items:center;gap:14px;padding:16px 26px;border-bottom:1px solid var(--line);
-    position:sticky;top:0;z-index:9;background:linear-gradient(180deg,rgba(8,11,17,.92),rgba(8,11,17,.72));backdrop-filter:blur(10px)}
+    position:sticky;top:0;z-index:9;background:linear-gradient(180deg,rgba(255,253,247,.9),rgba(255,253,247,.66));
+    backdrop-filter:blur(14px) saturate(1.2);-webkit-backdrop-filter:blur(14px) saturate(1.2)}
   .brand{display:flex;align-items:center;gap:9px;font-weight:700;font-size:16px;letter-spacing:.2px}
   .brand .mark{width:26px;height:26px;border-radius:8px;display:grid;place-items:center;font-size:14px;
     background:linear-gradient(135deg,var(--accent),var(--accent2));box-shadow:0 4px 16px rgba(255,138,92,.4)}
@@ -801,7 +814,7 @@ HTML = r"""<!doctype html>
   .cd{display:inline-flex;align-items:center;gap:6px;margin-left:auto;font-size:12.5px;color:var(--mut);
     background:linear-gradient(135deg,rgba(255,138,92,.1),rgba(154,123,255,.06));
     border:1px solid rgba(255,138,92,.28);padding:5px 12px;border-radius:999px;white-space:nowrap}
-  .cd b{color:#fff;font-weight:700;font-variant-numeric:tabular-nums;letter-spacing:.4px;min-width:62px;text-align:right}
+  .cd b{color:var(--txt);font-weight:700;font-variant-numeric:tabular-nums;letter-spacing:.4px;min-width:62px;text-align:right}
   .cd-ic{color:var(--accent);font-size:13px;animation:spin 7s linear infinite}
   .cd.soon{border-color:rgba(245,196,81,.5);background:rgba(245,196,81,.08)} .cd.soon b{color:var(--gold)}
   .cd.paused{border-color:rgba(255,122,138,.4);background:rgba(255,122,138,.07)} .cd.paused b{color:var(--red)}
@@ -899,7 +912,7 @@ HTML = r"""<!doctype html>
     border-radius:4px;padding:1px 4px;margin-left:5px;vertical-align:middle;font-variant-numeric:tabular-nums}
   .card .v{font-size:25px;font-weight:760;letter-spacing:-.3px}
   .card .s{font-size:12px;color:var(--mut);margin-top:6px}
-  .bar{height:7px;border-radius:5px;background:rgba(0,0,0,.22);overflow:hidden;margin-top:11px;display:flex;border:1px solid rgba(255,255,255,.12)}
+  .bar{height:7px;border-radius:5px;background:rgba(70,55,35,.1);overflow:hidden;margin-top:11px;display:flex;border:1px solid rgba(255,255,255,.12)}
   .bar>span{height:100%;display:block;transition:width .4s ease}
 
   .panel{background:linear-gradient(180deg,var(--surface2),var(--surface));border:1px solid var(--line);
@@ -908,7 +921,7 @@ HTML = r"""<!doctype html>
   .ph{display:flex;align-items:flex-end;gap:14px;margin-bottom:12px}
   .ph .lab{font-size:10.5px;text-transform:uppercase;letter-spacing:.9px;color:var(--mut)}
   .ph .big{font-size:30px;font-weight:780;letter-spacing:-.5px;margin-top:2px}
-  .seg{margin-left:auto;display:inline-flex;background:rgba(0,0,0,.22);border:1px solid var(--line);border-radius:10px;padding:3px;gap:2px}
+  .seg{margin-left:auto;display:inline-flex;background:rgba(70,55,35,.1);border:1px solid var(--line);border-radius:10px;padding:3px;gap:2px}
   .seg .t{font-size:11.5px;font-weight:600;color:var(--mut);border:0;background:transparent;border-radius:7px;padding:5px 11px;cursor:pointer;transition:.12s}
   .seg .t:hover{color:var(--txt)} .seg .t.on{color:#fff;background:linear-gradient(135deg,var(--accent),var(--accent2));box-shadow:0 2px 10px rgba(255,138,92,.35)}
   .segs{display:flex;gap:10px;margin-bottom:6px;flex-wrap:wrap}
@@ -919,8 +932,8 @@ HTML = r"""<!doctype html>
   th,td{text-align:left;padding:11px 14px;white-space:nowrap;vertical-align:middle}
   thead tr{position:sticky;top:0;z-index:2}
   thead th{
-    color:var(--dim);font-weight:700;font-size:10px;text-transform:uppercase;
-    letter-spacing:.9px;background:rgba(8,11,17,.92);backdrop-filter:blur(10px);
+    color:var(--mut);font-weight:700;font-size:10px;text-transform:uppercase;
+    letter-spacing:.9px;background:rgba(255,250,240,.92);backdrop-filter:blur(10px);
     border-bottom:1px solid var(--line);border-top:0;
   }
   thead th.r{text-align:right}
@@ -939,7 +952,7 @@ HTML = r"""<!doctype html>
 
   .wrow{display:grid;grid-template-columns:58px 1fr 64px;align-items:center;gap:10px;padding:6px 0}
   .wrow .cn{font-weight:600;font-size:12.5px}
-  .div{position:relative;height:16px;background:rgba(0,0,0,.22);border:1px solid rgba(255,255,255,.12);border-radius:6px;overflow:hidden}
+  .div{position:relative;height:16px;background:rgba(70,55,35,.1);border:1px solid rgba(255,255,255,.12);border-radius:6px;overflow:hidden}
   .div .c{position:absolute;left:50%;top:1px;bottom:1px;width:1px;background:#2a3445}
   .div .f{position:absolute;top:2px;bottom:2px;border-radius:4px}
   .div .f.l{background:linear-gradient(90deg,rgba(75,224,176,.5),var(--grn))}
@@ -1007,7 +1020,7 @@ HTML = r"""<!doctype html>
   .pager .dots{color:var(--dim);padding:0 3px;font-weight:700}
 
   /* ===================== HEADER NAV ===================== */
-  .nav{display:flex;gap:4px;background:rgba(10,14,21,.6);border:1px solid var(--line);border-radius:11px;padding:3px}
+  .nav{display:flex;gap:4px;background:rgba(255,253,247,.5);border:1px solid var(--line);border-radius:11px;padding:3px}
   .navbtn{background:transparent;border:0;color:var(--mut);font-size:12.5px;font-weight:650;
     padding:6px 14px;border-radius:8px;cursor:pointer;transition:.16s;letter-spacing:.2px}
   .navbtn:hover{color:var(--txt)}
@@ -1033,9 +1046,9 @@ HTML = r"""<!doctype html>
     background:linear-gradient(180deg,#fff,#9fb4d8);-webkit-background-clip:text;background-clip:text;color:transparent;
     text-shadow:0 0 60px rgba(255,138,92,.25);position:relative}
   .hero-sub{font-size:clamp(15px,2.4vw,20px);color:var(--mut);max-width:620px;margin:0 auto;line-height:1.55}
-  .hero-sub b{color:#fff;font-weight:700}
+  .hero-sub b{color:var(--txt);font-weight:700}
   .hero-stats{display:flex;flex-wrap:wrap;gap:14px;justify-content:center;margin-top:40px}
-  .hstat{flex:1;min-width:130px;max-width:200px;background:rgba(15,20,29,.6);border:1px solid var(--line);
+  .hstat{flex:1;min-width:130px;max-width:200px;background:rgba(255,255,250,.6);border:1px solid var(--line);
     border-radius:16px;padding:18px 14px;backdrop-filter:blur(8px);transition:.25s}
   .hstat:hover{border-color:rgba(255,138,92,.5);transform:translateY(-3px);box-shadow:0 14px 40px rgba(75,224,176,.16)}
   .hstat .hv{font-size:30px;font-weight:820;letter-spacing:-.5px;font-variant-numeric:tabular-nums;
@@ -1046,11 +1059,11 @@ HTML = r"""<!doctype html>
   .sblock{margin-top:78px}
   .seye{font-size:11px;letter-spacing:2.6px;font-weight:700;color:var(--accent);margin-bottom:12px}
   .sh2{font-size:clamp(24px,4vw,38px);font-weight:800;letter-spacing:-.8px;margin:0 0 30px;line-height:1.12;
-    background:linear-gradient(180deg,#fff,#aab8d4);-webkit-background-clip:text;background-clip:text;color:transparent}
+    background:linear-gradient(120deg,#e8693a,#dba032 45%,#3f80ba);-webkit-background-clip:text;background-clip:text;color:transparent}
 
   .steps{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}
   @media(max-width:780px){.steps{grid-template-columns:1fr}}
-  .step{position:relative;background:linear-gradient(180deg,rgba(19,26,37,.72),rgba(15,20,29,.72));
+  .step{position:relative;background:linear-gradient(180deg,rgba(255,252,244,.72),rgba(255,255,250,.72));
     border:1px solid var(--line);border-radius:20px;padding:26px 22px;overflow:hidden;transition:.3s}
   .step::after{content:"";position:absolute;inset:0;border-radius:20px;padding:1px;background:linear-gradient(135deg,rgba(75,224,176,.5),transparent 45%);
     -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude;opacity:0;transition:.3s}
@@ -1066,7 +1079,7 @@ HTML = r"""<!doctype html>
   .whyrow:last-child{border-bottom:0}
   @media(max-width:640px){.whyrow{grid-template-columns:1fr;gap:5px}}
   .wk{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--accent)}
-  .wv{font-size:14px;color:var(--mut);line-height:1.55} .wv b{color:#fff} .wv i{color:#9a7bff;font-style:normal;font-weight:600}
+  .wv{font-size:14px;color:var(--mut);line-height:1.55} .wv b{color:var(--txt)} .wv i{color:#9a7bff;font-style:normal;font-weight:600}
 
   /* flow svg */
   .flowwrap{background:radial-gradient(circle at 50% 40%,rgba(20,28,44,.7),rgba(10,14,21,.7));
@@ -1075,10 +1088,10 @@ HTML = r"""<!doctype html>
 
   /* architecture */
   .arch{display:flex;flex-direction:column;align-items:center;gap:6px}
-  .alayer{width:100%;max-width:680px;background:linear-gradient(135deg,rgba(19,26,37,.8),rgba(15,20,29,.8));
+  .alayer{width:100%;max-width:680px;background:linear-gradient(135deg,rgba(255,252,244,.8),rgba(255,255,250,.8));
     border:1px solid var(--line);border-left:3px solid var(--ac);border-radius:14px;padding:18px 24px;transition:.28s}
   .alayer:hover{transform:scale(1.02);box-shadow:0 0 0 1px var(--ac),0 16px 44px rgba(0,0,0,.5)}
-  .aname{font-size:16px;font-weight:760;color:#fff;margin-bottom:4px}
+  .aname{font-size:16px;font-weight:760;color:var(--txt);margin-bottom:4px}
   .alayer .adesc{font-size:13px;color:var(--mut);line-height:1.5}
   .aflow{color:var(--accent);font-size:15px;opacity:.5;animation:aPulse 2s ease-in-out infinite}
   @keyframes aPulse{0%,100%{opacity:.3;transform:translateY(0)}50%{opacity:.8;transform:translateY(3px)}}
@@ -1087,10 +1100,10 @@ HTML = r"""<!doctype html>
   .sp-note{font-size:13px;color:var(--dim);margin:-18px 0 26px}
   .perfgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
   @media(max-width:680px){.perfgrid{grid-template-columns:repeat(2,1fr)}}
-  .pcard{background:linear-gradient(180deg,rgba(19,26,37,.75),rgba(15,20,29,.75));border:1px solid var(--line);
+  .pcard{background:linear-gradient(180deg,rgba(255,252,244,.75),rgba(255,255,250,.75));border:1px solid var(--line);
     border-radius:18px;padding:26px 18px;text-align:center;transition:.28s}
   .pcard:hover{transform:translateY(-4px);border-color:rgba(255,138,92,.45);box-shadow:0 18px 50px rgba(75,224,176,.14)}
-  .pcard .pv{font-size:36px;font-weight:840;letter-spacing:-1px;font-variant-numeric:tabular-nums;color:#fff}
+  .pcard .pv{font-size:36px;font-weight:840;letter-spacing:-1px;font-variant-numeric:tabular-nums;color:var(--txt)}
   .pcard .pv.grn{color:var(--grn)} .pcard .pv.red{color:var(--red)}
   .pcard .pl{font-size:11.5px;text-transform:uppercase;letter-spacing:1px;color:var(--dim);margin-top:9px}
   .disclaim{margin-top:24px;font-size:12.5px;color:var(--dim);line-height:1.65;background:rgba(245,196,81,.05);
@@ -1107,7 +1120,7 @@ HTML = r"""<!doctype html>
   @media(max-width:980px){.vsgrid.vs3{grid-template-columns:1fr}}
   @media(max-width:720px){.vsgrid{grid-template-columns:1fr}}
   /* strategy cards */
-  .vscard{position:relative;background:linear-gradient(180deg,rgba(19,26,37,.7),rgba(15,20,29,.7));
+  .vscard{position:relative;background:linear-gradient(180deg,rgba(255,252,244,.7),rgba(255,255,250,.7));
     border:1px solid var(--line);border-radius:20px;padding:24px 22px 22px;transition:.3s}
   .vscard:hover{transform:translateY(-4px);box-shadow:0 18px 50px rgba(0,0,0,.32)}
   .vscard.cur{border-color:rgba(255,138,92,.5);box-shadow:0 0 0 1px rgba(255,138,92,.3),0 18px 54px rgba(75,224,176,.16)}
@@ -1134,7 +1147,7 @@ HTML = r"""<!doctype html>
     background:var(--accent);opacity:.7}
   #vs-champion .vsstats li::before{background:#ffd166;opacity:.8}
   #vs-carry .vsstats li::before{background:var(--grn);opacity:.85}
-  .vsstats b{color:#fff} .vsbest{font-size:12px;color:var(--mut);font-style:italic;margin-bottom:16px}
+  .vsstats b{color:var(--txt)} .vsbest{font-size:12px;color:var(--mut);font-style:italic;margin-bottom:16px}
   /* "switch to this" button — same-tab navigate */
   .vslink{display:inline-block;font-size:13px;font-weight:700;color:var(--accent);text-decoration:none;
     padding:.42em 1em;border-radius:999px;border:1px solid rgba(255,138,92,.35);
@@ -1151,9 +1164,9 @@ HTML = r"""<!doctype html>
   .nav-switcher-btn:hover{background:rgba(255,138,92,.22);border-color:rgba(255,138,92,.5)}
   .nav-switcher-btn .sw-arrow{font-size:9px;opacity:.7;transition:transform .18s}
   .nav-switcher.open .sw-arrow{transform:rotate(180deg)}
-  .nav-switcher-menu{display:none;position:absolute;top:calc(100% + 7px);left:0;min-width:190px;
-    background:var(--surface2);border:1px solid var(--line);border-radius:14px;padding:6px;
-    box-shadow:0 16px 44px rgba(0,0,0,.55);z-index:200}
+  .nav-switcher-menu{display:none;position:absolute;top:calc(100% + 7px);left:0;min-width:200px;
+    background:#1f1550;border:1px solid rgba(255,200,150,.22);border-radius:14px;padding:6px;
+    box-shadow:0 18px 50px rgba(0,0,0,.7);z-index:300}
   .nav-switcher.open .nav-switcher-menu{display:block}
   .sw-item{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:9px;cursor:pointer;
     font-size:13px;font-weight:600;color:var(--txt);transition:.15s;border:0;background:0;width:100%;text-align:left}
@@ -1168,7 +1181,7 @@ HTML = r"""<!doctype html>
   .dfoot-mark{font-weight:700;color:var(--mut)} .dfoot-dot{color:var(--line)}
   .dfoot-txt{letter-spacing:.2px}
   .ghlink{display:inline-flex;align-items:center;gap:7px;margin-left:auto;color:var(--mut);text-decoration:none;
-    background:rgba(15,20,29,.7);border:1px solid var(--line);border-radius:10px;padding:6px 12px;font-weight:600;transition:.18s}
+    background:rgba(255,255,250,.7);border:1px solid var(--line);border-radius:10px;padding:6px 12px;font-weight:600;transition:.18s}
   .ghlink:hover{color:#fff;border-color:var(--accent);box-shadow:0 0 0 3px rgba(255,138,92,.16);transform:translateY(-1px);text-decoration:none}
   @media(max-width:560px){.ghlink{margin-left:0}}
 
@@ -1212,6 +1225,28 @@ HTML = r"""<!doctype html>
 </style>
 </head>
 <body>
+<svg id="skyline" viewBox="0 0 1440 340" preserveAspectRatio="xMidYMax slice" aria-hidden="true">
+  <!-- soft Mt Fuji in the haze -->
+  <polygon points="700,300 960,78 1220,300" fill="#a9c2e0" opacity=".55"/>
+  <polygon points="918,128 960,78 1002,128 984,141 968,131 952,142 936,131" fill="#fcfeff" opacity=".85"/>
+  <!-- a couple of soft Tokyo silhouettes, warm and faint -->
+  <g fill="#cdbf9e" opacity=".45">
+    <rect x="250" y="196" width="30" height="120"/><rect x="292" y="172" width="22" height="144"/>
+    <polygon points="320,316 334,150 348,316"/></g>
+  <!-- lush rolling green hills, layered front-to-back (Ghibli) -->
+  <path d="M0,236 Q300,196 620,232 T1440,226 V340 H0 Z" fill="#9fce93" opacity=".7"/>
+  <path d="M0,272 Q360,236 780,272 T1440,266 V340 H0 Z" fill="#7cbd76" opacity=".82"/>
+  <path d="M0,306 Q440,282 920,306 T1440,302 V340 H0 Z" fill="#5fa861" opacity=".92"/>
+</svg>
+<div class="sakura" aria-hidden="true">
+  <i style="left:6%;animation-duration:14s;animation-delay:0s"></i>
+  <i style="left:20%;animation-duration:18s;animation-delay:-4s"></i>
+  <i style="left:38%;animation-duration:12s;animation-delay:-8s"></i>
+  <i style="left:55%;animation-duration:20s;animation-delay:-2s"></i>
+  <i style="left:71%;animation-duration:15s;animation-delay:-11s"></i>
+  <i style="left:86%;animation-duration:17s;animation-delay:-6s"></i>
+  <i style="left:94%;animation-duration:13s;animation-delay:-14s"></i>
+</div>
 <header>
   <div class="brand"><span class="mark">⚡</span> Sentinel&nbsp;Edge</div>
   <nav class="nav">
@@ -1657,8 +1692,8 @@ function drawChart(){
         interaction:{mode:'index',intersect:false},
         plugins:{legend:{display:false},
           tooltip:{enabled:false,external:externalTip}},
-        scales:{x:{ticks:{color:'rgba(253,238,242,.45)',maxTicksLimit:8,font:{size:11}},grid:{color:'rgba(255,255,255,.07)'}},
-                y:{ticks:{color:'rgba(253,238,242,.45)',font:{size:11}},grid:{color:'rgba(255,255,255,.07)'}}}}});
+        scales:{x:{ticks:{color:'rgba(52,46,36,.5)',maxTicksLimit:8,font:{size:11}},grid:{color:'rgba(60,50,30,.1)'}},
+                y:{ticks:{color:'rgba(52,46,36,.5)',font:{size:11}},grid:{color:'rgba(60,50,30,.1)'}}}}});
   }else{chart.data.labels=labels;chart.data.datasets[0]=ds;chart.update('none');}
 }
 
@@ -2129,7 +2164,7 @@ function buildStrat(){
   });
   nodes.forEach((n)=>{
     boxes+=`<g transform="translate(${n.x-58},${n.y-26})">
-      <rect width="116" height="52" rx="12" fill="rgba(15,20,29,.92)" stroke="${n.c}" stroke-width="1.3"/>
+      <rect width="116" height="52" rx="12" fill="rgba(255,255,250,.92)" stroke="${n.c}" stroke-width="1.3"/>
       <rect width="116" height="52" rx="12" fill="${n.c}" opacity=".08"/>
       <text x="58" y="22" text-anchor="middle" fill="#fff" font-size="13" font-weight="700" font-family="ui-sans-serif,system-ui">${n.t}</text>
       <text x="58" y="38" text-anchor="middle" fill="#8a94a6" font-size="10" font-family="ui-sans-serif,system-ui">${n.s}</text>
