@@ -1926,15 +1926,14 @@ function drawCardFrame(ts){
   const pnlA=Math.min(1,Math.max(0,(elapsed-.25)/.65));
   const pnlVal=pnl*easeSpring(pnlA);  // count up with spring
   const pnlS=(pnlVal>=0?'+$':'−$')+Math.abs(pnlVal).toLocaleString(undefined,{maximumFractionDigits:2,minimumFractionDigits:2});
-  // glow intensity: ramp in then idle pulse
-  const glowBase=pnlA*.9,glowPulse=elapsed>1?Math.sin(elapsed*2.2)*.15:0;
-  c.shadowColor=pc;c.shadowBlur=(22+glowPulse*12)*glowBase;
+  // subtle soft drop-shadow for depth (classy — not a neon glow)
+  c.shadowColor='rgba(55,42,28,.2)';c.shadowBlur=5;c.shadowOffsetY=2;
   c.fillStyle=pc;c.globalAlpha=Math.min(1,pnlA+.05);
   c.font='800 80px ui-sans-serif,system-ui,Arial';c.fillText(pnlS,58,322);
   const bigW=c.measureText(pnlS).width;
   c.font='800 36px ui-sans-serif,system-ui,Arial';
   const roiS=`(${roi>=0?'+':''}${roi.toFixed(2)}%)`;c.fillText(roiS,58+bigW+20,322);
-  c.shadowBlur=0;c.globalAlpha=1;
+  c.shadowBlur=0;c.shadowOffsetY=0;c.globalAlpha=1;
 
   // ---- bottom rows (fade in 0.55-0.85s) ----
   const rowA=Math.min(1,Math.max(0,(elapsed-.5)/.35));
@@ -1981,9 +1980,10 @@ function downloadCard(){
   c.fillText(`${p.side} ${p.leverage||1}X`,58+aw+24,216);
   const pnl=p.upnl||0,roi=roiPct(p),pc=pnl>=0?'#179a55':'#e1512c';
   const pnlS=(pnl>=0?'+$':'−$')+Math.abs(pnl).toLocaleString(undefined,{maximumFractionDigits:2,minimumFractionDigits:2});
-  c.shadowColor=pc;c.shadowBlur=22;c.fillStyle=pc;c.font='800 80px ui-sans-serif,system-ui,Arial';c.fillText(pnlS,58,322);
-  const bigW=c.measureText(pnlS).width;c.font='800 36px ui-sans-serif,system-ui,Arial';c.shadowBlur=0;
+  c.shadowColor='rgba(55,42,28,.2)';c.shadowBlur=5;c.shadowOffsetY=2;c.fillStyle=pc;c.font='800 80px ui-sans-serif,system-ui,Arial';c.fillText(pnlS,58,322);
+  const bigW=c.measureText(pnlS).width;c.font='800 36px ui-sans-serif,system-ui,Arial';
   c.fillText(`(${roi>=0?'+':''}${roi.toFixed(2)}%)`,58+bigW+20,322);
+  c.shadowBlur=0;c.shadowOffsetY=0;
   const rows=[['SIZE',sizeStr(p)],['ENTRY','$'+sig6(p.entry)],['MARK','$'+sig6(p.mark)]];
   c.font='600 22px ui-sans-serif,system-ui,Arial';let y=H-120;
   rows.forEach(([k,v])=>{c.fillStyle='rgba(45,41,34,.55)';c.textAlign='left';c.fillText(k,58,y);
