@@ -792,16 +792,22 @@ HTML = r"""<!doctype html>
   .grn{color:var(--grn)} .red{color:var(--red)} .mut{color:var(--mut)}
   a{color:var(--accent);text-decoration:none} a:hover{text-decoration:underline}
 
-  header{display:flex;align-items:center;gap:14px;padding:16px 26px;border-bottom:1px solid var(--line);
-    position:sticky;top:0;z-index:9;background:linear-gradient(180deg,rgba(255,254,250,.94),rgba(255,254,250,.94));
-    backdrop-filter:blur(14px) saturate(1.2);-webkit-backdrop-filter:blur(14px) saturate(1.2)}
-  .brand{display:flex;align-items:center;gap:9px;font-weight:700;font-size:16px;letter-spacing:.2px}
-  .brand .mark{width:26px;height:26px;border-radius:8px;display:grid;place-items:center;font-size:14px;
-    background:linear-gradient(135deg,var(--accent),var(--accent2));box-shadow:0 4px 16px rgba(255,138,92,.4)}
-  .pill{font-size:11px;font-weight:700;padding:4px 10px;border-radius:999px;letter-spacing:.6px;text-transform:uppercase}
-  .pill.paper{background:rgba(255,138,92,.14);color:#ffd1bd;border:1px solid rgba(255,138,92,.28)}
-  .pill.live{background:var(--red-d);color:var(--red);border:1px solid rgba(255,122,138,.35)}
-  .pill.strat{background:rgba(154,123,255,.12);color:#c7b3ff;border:1px solid rgba(154,123,255,.3)}
+  header{display:flex;align-items:center;gap:14px;padding:11px 22px;
+    position:sticky;top:12px;z-index:9;max-width:1340px;width:calc(100% - 28px);margin:14px auto 2px;
+    border:1px solid var(--line);border-radius:22px;
+    background:linear-gradient(180deg,rgba(255,254,250,.97),rgba(255,253,247,.85));
+    box-shadow:0 10px 34px rgba(80,60,30,.14);
+    backdrop-filter:blur(16px) saturate(1.3);-webkit-backdrop-filter:blur(16px) saturate(1.3)}
+  .brand{display:flex;align-items:center;gap:11px}
+  .brand .mark{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;font-size:15px;flex:none;
+    background:linear-gradient(135deg,var(--accent),var(--gold));box-shadow:0 4px 16px rgba(240,101,42,.4)}
+  .brand-tx{display:flex;flex-direction:column;line-height:1}
+  .brand-name{font-weight:850;font-size:16.5px;letter-spacing:.1px;color:var(--txt)}
+  .brand-sub{font-size:8.5px;font-weight:800;letter-spacing:2.4px;color:var(--accent);text-transform:uppercase;margin-top:3px}
+  .pill{font-size:11px;font-weight:750;padding:4px 11px;border-radius:999px;letter-spacing:.6px;text-transform:uppercase}
+  .pill.paper{background:rgba(240,101,42,.16);color:#bf441a;border:1px solid rgba(240,101,42,.38)}
+  .pill.live{background:var(--red-d);color:var(--red);border:1px solid rgba(255,122,138,.45)}
+  .pill.strat{background:rgba(63,127,190,.16);color:#2f6aa8;border:1px solid rgba(63,127,190,.4)}
   .pill.strat.champ{background:rgba(245,196,81,.14);color:#ffdf8a;border:1px solid rgba(245,196,81,.32)}
   .pill.strat.carry{background:rgba(75,224,176,.14);color:#7dffc4;border:1px solid rgba(75,224,176,.32)}
   .status{display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--mut);
@@ -811,9 +817,10 @@ HTML = r"""<!doctype html>
   .dot.off{background:#4b5563}
   @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(75,224,176,.5)}70%{box-shadow:0 0 0 7px rgba(75,224,176,0)}100%{box-shadow:0 0 0 0 rgba(75,224,176,0)}}
   .meta{font-size:12px;color:var(--dim)}
-  .cd{display:inline-flex;align-items:center;gap:6px;margin-left:auto;font-size:12.5px;color:var(--mut);
-    background:linear-gradient(135deg,rgba(255,138,92,.1),rgba(154,123,255,.06));
-    border:1px solid rgba(255,138,92,.28);padding:5px 12px;border-radius:999px;white-space:nowrap}
+  #strat{margin-left:auto}
+  .cd{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;color:var(--mut);
+    background:linear-gradient(135deg,rgba(240,101,42,.1),rgba(63,127,190,.06));
+    border:1px solid rgba(240,101,42,.28);padding:5px 12px;border-radius:999px;white-space:nowrap}
   .cd b{color:var(--txt);font-weight:700;font-variant-numeric:tabular-nums;letter-spacing:.4px;min-width:62px;text-align:right}
   .cd-ic{color:var(--accent);font-size:13px;animation:spin 7s linear infinite}
   .cd.soon{border-color:rgba(245,196,81,.5);background:rgba(245,196,81,.08)} .cd.soon b{color:var(--gold)}
@@ -1021,10 +1028,10 @@ HTML = r"""<!doctype html>
 
   /* ===================== HEADER NAV ===================== */
   .nav{display:flex;gap:4px;background:rgba(255,254,250,.94);border:1px solid var(--line);border-radius:11px;padding:3px}
-  .navbtn{background:transparent;border:0;color:var(--mut);font-size:12.5px;font-weight:650;
+  .navbtn{background:transparent;border:0;color:#4a4233;font-size:12.5px;font-weight:750;
     padding:6px 14px;border-radius:8px;cursor:pointer;transition:.16s;letter-spacing:.2px}
-  .navbtn:hover{color:var(--txt)}
-  .navbtn.on{color:#fff;background:linear-gradient(135deg,var(--accent),var(--accent2));box-shadow:0 2px 12px rgba(255,138,92,.4)}
+  .navbtn:hover{color:var(--accent)}
+  .navbtn.on{color:#fff;background:linear-gradient(135deg,var(--accent),var(--gold));box-shadow:0 3px 13px rgba(240,101,42,.42)}
 
   /* ===================== ALIEN STRATEGY PAGE ===================== */
   #alienBg{display:none}
@@ -1197,9 +1204,10 @@ HTML = r"""<!doctype html>
   @media(max-width:720px){
     main{padding:14px 12px}
     header{padding:11px 13px;gap:9px 10px;flex-wrap:wrap}
-    .brand{font-size:14.5px;flex:1 1 auto}
+    .brand{flex:1 1 auto} .brand-name{font-size:14.5px} .brand-sub{font-size:8px;letter-spacing:2px}
     .nav{order:5;width:100%;justify-content:center}
     .meta{display:none}
+    #strat{margin-left:0}
     .cd{margin-left:0;font-size:11.5px;padding:4px 10px}
     .cards{grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:14px}
     .card{padding:13px 14px} .card .v{font-size:21px} .card .k{margin-bottom:7px}
@@ -1250,7 +1258,7 @@ HTML = r"""<!doctype html>
   <i style="left:94%;animation-duration:13s;animation-delay:-14s"></i>
 </div>
 <header>
-  <div class="brand"><span class="mark">⚡</span> Sentinel&nbsp;Edge</div>
+  <div class="brand"><span class="mark">⚡</span><span class="brand-tx"><span class="brand-name">Sentinel&nbsp;Edge</span><span class="brand-sub">Autonomous&nbsp;Desk</span></span></div>
   <nav class="nav">
     <button class="navbtn on" data-page="dash" onclick="goPage('dash')">Dashboard</button>
     <button class="navbtn" data-page="strat" onclick="goPage('strat')">How it works</button>
