@@ -1119,7 +1119,12 @@ HTML = r"""<!doctype html>
   .pcard .pl{font-size:11.5px;text-transform:uppercase;letter-spacing:1px;color:var(--dim);margin-top:9px}
   .disclaim{margin-top:24px;font-size:12.5px;color:var(--dim);line-height:1.65;background:rgba(245,196,81,.05);
     border:1px solid rgba(245,196,81,.18);border-radius:14px;padding:16px 20px}
-  .sfoot{text-align:center;margin-top:70px;font-size:13px;color:var(--dim);letter-spacing:.3px}
+  .sfoot{display:flex;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap;
+    margin:70px auto 0;padding:14px 22px;border:1px solid var(--line);border-radius:16px;
+    background:rgba(255,253,247,.72);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
+    font-size:13px;color:var(--mut);letter-spacing:.2px}
+  .sfoot-mark{font-weight:800;color:var(--txt)} .sfoot-txt{color:var(--mut);font-weight:600}
+  .sfoot .ghlink{margin-left:0}
 
   /* two-strategy comparison */
   .tchip{display:inline-block;vertical-align:middle;font-size:.42em;font-weight:800;letter-spacing:1.4px;
@@ -1431,7 +1436,14 @@ HTML = r"""<!doctype html>
     <div class="disclaim reveal" id="numDisclaim">—</div>
   </section>
 
-  <div class="sfoot reveal" id="sfoot">⚡ Sentinel Edge · three strategies, one clean engine</div>
+  <div class="sfoot reveal" id="sfoot">
+    <span class="sfoot-mark">⚡ Sentinel&nbsp;Edge</span>
+    <span class="sfoot-txt">· three strategies, one clean engine</span>
+    <a class="ghlink" href="https://github.com/adensvaz/Sentinal_Hyperliquid" target="_blank" rel="noopener" title="View source on GitHub">
+      <svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.6 7.6 0 012-.27c.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+      <span>GitHub</span>
+    </a>
+  </div>
 </main>
 
 <div id="cardModal" class="modal">
