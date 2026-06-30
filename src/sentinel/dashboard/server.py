@@ -1027,8 +1027,7 @@ HTML = r"""<!doctype html>
   .navbtn.on{color:#fff;background:linear-gradient(135deg,var(--accent),var(--accent2));box-shadow:0 2px 12px rgba(255,138,92,.4)}
 
   /* ===================== ALIEN STRATEGY PAGE ===================== */
-  #alienBg{position:fixed;inset:0;z-index:0;pointer-events:none;opacity:0;transition:opacity .6s ease}
-  #alienBg.on{opacity:1}
+  #alienBg{display:none}
   .spage{position:relative;z-index:1;max-width:1080px;margin:0 auto;padding:10px 26px 80px}
   @keyframes revUp{from{opacity:0;transform:translateY(34px)}to{opacity:1;transform:translateY(0)}}
   .reveal{opacity:0}
@@ -1043,8 +1042,8 @@ HTML = r"""<!doctype html>
   .hero-tag{font-size:11.5px;letter-spacing:3.4px;font-weight:700;
     background:linear-gradient(90deg,#ff8a5c,#ffd166,#9a7bff,#4be0b0);-webkit-background-clip:text;background-clip:text;color:transparent;margin-bottom:18px}
   .hero-title{font-size:clamp(46px,8vw,92px);font-weight:850;letter-spacing:-2px;line-height:1;margin:0 0 18px;
-    background:linear-gradient(180deg,#fff,#9fb4d8);-webkit-background-clip:text;background-clip:text;color:transparent;
-    text-shadow:0 0 60px rgba(255,138,92,.25);position:relative}
+    background:linear-gradient(120deg,#b8431f 0%,#9a6418 42%,#356394 100%);-webkit-background-clip:text;background-clip:text;color:transparent;
+    filter:drop-shadow(0 2px 12px rgba(70,50,30,.20));position:relative}
   .hero-sub{font-size:clamp(15px,2.4vw,20px);color:var(--mut);max-width:620px;margin:0 auto;line-height:1.55}
   .hero-sub b{color:var(--txt);font-weight:700}
   .hero-stats{display:flex;flex-wrap:wrap;gap:14px;justify-content:center;margin-top:40px}
@@ -2077,6 +2076,7 @@ function goPage(p){
 
 /* --- alien particle field (canvas) --- */
 function startAlien(){
+  return;   // particle field removed by request
   const cv=$('alienBg'); function size(){cv.width=innerWidth;cv.height=innerHeight;}
   size(); if(!alienParts.length){for(let i=0;i<70;i++)alienParts.push({
     x:Math.random()*cv.width,y:Math.random()*cv.height,vx:(Math.random()-.5)*.25,vy:(Math.random()-.5)*.25,r:Math.random()*1.6+.4});}
