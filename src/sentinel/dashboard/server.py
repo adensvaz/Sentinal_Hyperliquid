@@ -1045,7 +1045,7 @@ HTML = r"""<!doctype html>
   @keyframes orbFloat{0%,100%{transform:translateX(-50%) translateY(0) scale(1)}50%{transform:translateX(-50%) translateY(26px) scale(1.07)}}
   .hero-tag{font-size:11.5px;letter-spacing:3.4px;font-weight:800;
     background:linear-gradient(90deg,#d8521f,#c2851a,#3f6ea8,#0f8a4a);-webkit-background-clip:text;background-clip:text;color:transparent;margin-bottom:18px}
-  .hero-title{font-size:clamp(46px,8vw,92px);font-weight:850;letter-spacing:-2px;line-height:1;margin:0 0 18px;
+  .hero-title{font-size:clamp(46px,8vw,92px);font-weight:850;letter-spacing:-2px;line-height:1.1;margin:0 0 14px;padding-bottom:.12em;
     background:linear-gradient(118deg,#2d2922,#574326);-webkit-background-clip:text;background-clip:text;color:transparent;
     filter:drop-shadow(0 2px 9px rgba(70,50,30,.13));position:relative}
   .hero-sub{font-size:clamp(15px,2.4vw,20px);color:var(--mut);max-width:620px;margin:0 auto;line-height:1.55}
