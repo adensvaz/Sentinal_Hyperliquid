@@ -779,7 +779,7 @@ HTML = r"""<!doctype html>
   .card,.panel,.regime,.modal-box,.cd,.seg,.pill,.tblwrap{
     backdrop-filter:blur(16px) saturate(1.3); -webkit-backdrop-filter:blur(16px) saturate(1.3)}
   /* Japanese scene: Mt Fuji + skyline + rising sun (fixed backdrop) + drifting sakura */
-  #skyline{position:fixed;left:0;right:0;bottom:0;height:min(40vh,360px);width:100vw;z-index:-1;pointer-events:none;opacity:.92}
+  #skyline{position:fixed;left:0;right:0;bottom:0;height:min(42vh,380px);width:100vw;z-index:-1;pointer-events:none;opacity:.92}
   .sakura{position:fixed;inset:0;z-index:-1;pointer-events:none;overflow:hidden}
   .sakura i{position:absolute;top:-5%;width:12px;height:12px;
     background:radial-gradient(circle at 32% 28%,#ffd9e6,#ff9ec4);
@@ -1247,9 +1247,9 @@ HTML = r"""<!doctype html>
 </head>
 <body>
 <svg id="skyline" viewBox="0 0 1440 340" preserveAspectRatio="xMidYMax slice" aria-hidden="true">
-  <!-- soft Mt Fuji in the haze -->
-  <polygon points="700,300 960,78 1220,300" fill="#a9c2e0" opacity=".55"/>
-  <polygon points="918,128 960,78 1002,128 984,141 968,131 952,142 936,131" fill="#fcfeff" opacity=".85"/>
+  <!-- soft Mt Fuji in the haze (peak lowered + base widened so the summit never slices off on wide/short windows) -->
+  <polygon points="640,300 960,150 1280,300" fill="#a9c2e0" opacity=".55"/>
+  <polygon points="928,188 960,150 992,188 981,196 969,189 957,197 945,189" fill="#fcfeff" opacity=".85"/>
   <!-- a couple of soft Tokyo silhouettes, warm and faint -->
   <g fill="#cdbf9e" opacity=".45">
     <rect x="250" y="196" width="30" height="120"/><rect x="292" y="172" width="22" height="144"/>
