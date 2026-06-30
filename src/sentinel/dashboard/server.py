@@ -268,6 +268,7 @@ def gather_state(cfg: Config) -> dict:
             "dispersion": store.get_meta("dispersion"),
             "book": book,
             "whales": whales,
+            "whales_enabled": bool(cfg.whales.enabled),   # carry/champion don't use the whale overlay -> hide the tab
             "trade_stats": store.trade_stats(mode),   # tables are paginated via /api/trades & /api/fills
             "equity_series": live_series,
             "cycles": len(series),
@@ -1650,6 +1651,7 @@ function render(d){
   }).join('')||'<tr><td colspan="11" class="empty">no open positions</td></tr>';
 
   const w=d.whales||{}, cons=w.consensus||[];
+  setWhaleTab(d.whales_enabled!==false);   // hide Smart Money on books that don't use whales (carry/champion)
   $('nw').textContent=w.n_wallets||0;
   $('consensus').innerHTML=cons.slice(0,12).map(c=>{
     const v=Math.max(-1,Math.min(1,c.bias)), mag=Math.abs(v)*50;
@@ -1799,6 +1801,17 @@ document.querySelectorAll('#tabs .tab').forEach(t=>t.onclick=()=>{
   document.querySelectorAll('#tabs .tab').forEach(x=>x.classList.toggle('on',x===t));
   document.querySelectorAll('.pane').forEach(p=>p.classList.toggle('on',p.id==='pane-'+id));
   if(id==='trades') pagerTrades.ensure(); else if(id==='fills') pagerFills.ensure();});
+
+// Smart Money tab is only meaningful on books that run the whale overlay (neutral).
+// Hide it where whales are disabled (carry / champion); fall back to Positions if it was active.
+function setWhaleTab(enabled){
+  const tab=document.querySelector('#tabs .tab[data-t="smart"]'), pane=$('pane-smart');
+  if(!tab||!pane) return;
+  tab.style.display=enabled?'':'none';
+  if(!enabled && tab.classList.contains('on')){
+    const pos=document.querySelector('#tabs .tab[data-t="positions"]'); if(pos) pos.click();
+  }
+}
 
 // ---- shareable trade card — cinematic animated canvas ----
 let cardIdx=0,cardVar=0,cardRaf=null,cardT0=null,cardStars=[];
