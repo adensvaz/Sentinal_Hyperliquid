@@ -807,17 +807,14 @@ HTML = r"""<!doctype html>
   .pill{font-size:11px;font-weight:750;padding:4px 11px;border-radius:999px;letter-spacing:.6px;text-transform:uppercase}
   .pill.paper{background:rgba(240,101,42,.16);color:#bf441a;border:1px solid rgba(240,101,42,.38)}
   .pill.live{background:var(--red-d);color:var(--red);border:1px solid rgba(255,122,138,.45)}
-  .pill.strat{background:rgba(63,127,190,.16);color:#2f6aa8;border:1px solid rgba(63,127,190,.4)}
-  .pill.strat.champ{background:rgba(245,196,81,.14);color:#ffdf8a;border:1px solid rgba(245,196,81,.32)}
-  .pill.strat.carry{background:rgba(75,224,176,.14);color:#7dffc4;border:1px solid rgba(75,224,176,.32)}
-  .status{display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--mut);
+  .status{display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--mut);white-space:nowrap;
     background:var(--surface);border:1px solid var(--line);padding:5px 11px;border-radius:999px}
   .dot{width:8px;height:8px;border-radius:50%}
   .dot.on{background:var(--grn);box-shadow:0 0 0 0 rgba(75,224,176,.6);animation:pulse 1.8s infinite}
   .dot.off{background:#4b5563}
   @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(75,224,176,.5)}70%{box-shadow:0 0 0 7px rgba(75,224,176,0)}100%{box-shadow:0 0 0 0 rgba(75,224,176,0)}}
   .meta{font-size:12px;color:var(--dim)}
-  #strat{margin-left:auto}
+  #mode{margin-left:auto}
   .cd{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;color:var(--mut);
     background:linear-gradient(135deg,rgba(240,101,42,.1),rgba(63,127,190,.06));
     border:1px solid rgba(240,101,42,.28);padding:5px 12px;border-radius:999px;white-space:nowrap}
@@ -1028,7 +1025,7 @@ HTML = r"""<!doctype html>
 
   /* ===================== HEADER NAV ===================== */
   .nav{display:flex;gap:4px;background:rgba(255,254,250,.94);border:1px solid var(--line);border-radius:11px;padding:3px}
-  .navbtn{background:transparent;border:0;color:#4a4233;font-size:12.5px;font-weight:750;
+  .navbtn{background:transparent;border:0;color:#4a4233;font-size:12.5px;font-weight:750;white-space:nowrap;
     padding:6px 14px;border-radius:8px;cursor:pointer;transition:.16s;letter-spacing:.2px}
   .navbtn:hover{color:var(--accent)}
   .navbtn.on{color:#fff;background:linear-gradient(135deg,var(--accent),var(--gold));box-shadow:0 3px 13px rgba(240,101,42,.42)}
@@ -1221,7 +1218,7 @@ HTML = r"""<!doctype html>
     .brand{flex:1 1 auto} .brand-name{font-size:14.5px} .brand-sub{font-size:8px;letter-spacing:2px}
     .nav{order:5;width:100%;justify-content:center}
     .meta{display:none}
-    #strat{margin-left:0}
+    #mode{margin-left:0}
     .cd{margin-left:0;font-size:11.5px;padding:4px 10px}
     .cards{grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:14px}
     .card{padding:13px 14px} .card .v{font-size:21px} .card .k{margin-bottom:7px}
@@ -1283,11 +1280,10 @@ HTML = r"""<!doctype html>
       <div class="nav-switcher-menu" id="swMenu"></div>
     </div>
   </nav>
-  <span id="strat" class="pill strat">—</span>
   <span id="mode" class="pill paper">paper</span>
   <span class="status"><span id="dot" class="dot off"></span><span id="run">checking…</span></span>
   <span class="cd" id="cdwrap" title="time until the next scheduled daily rebalance"><span class="cd-ic">⟳</span> <span id="cdlbl">next rebalance</span> <b id="cd">—</b></span>
-  <span class="meta">updated <b id="upd">—</b> · <span id="cycles">0</span> cycles · rebal <span id="rebal">—</span></span>
+  <span class="meta">updated <b id="upd">—</b></span>
 </header>
 <main id="pageDash">
   <section id="regimeWrap" style="display:none"></section>
@@ -1597,13 +1593,10 @@ function render(d){
   if(d.error){$('run').textContent='error: '+d.error;return;}
   DATA=d;
   $('mode').textContent=d.mode; $('mode').className='pill '+d.mode;
-  if(d.strategy){const s=$('strat');
-    s.textContent={champion:'⚡ momentum',carry:'💰 carry'}[d.strategy]||'⚖ market-neutral';
-    s.className='pill strat '+({champion:'champ',carry:'carry'}[d.strategy]||''); paintStrategy(d.strategy);}
+  if(d.strategy){ paintStrategy(d.strategy); }
   $('dot').className='dot '+(d.running?'on':'off');
-  $('run').textContent=d.running?'loop running':'loop stopped'; $('run').className=d.running?'grn':'mut';
-  $('upd').textContent=new Date().toLocaleTimeString(); $('cycles').textContent=d.cycles;
-  $('rebal').textContent=(d.rebalance_hour_utc!=null)?('daily '+String(d.rebalance_hour_utc).padStart(2,'0')+':00 UTC'):(d.rebalance_minutes+'m');
+  $('run').textContent=d.running?'running':'stopped'; $('run').className=d.running?'grn':'mut';
+  $('upd').textContent=new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit',hour12:false});
   NEXT_REBAL=d.next_rebalance_ts||null; PAUSED=d.paused_until||null; REGIME=d.regime||null;
   renderCountdown(); renderRegime(d.regime);
 
@@ -2001,10 +1994,10 @@ function renderCountdown(){
   wrap.classList.remove('soon','paused');
   // champion re-checks daily but only TRADES when risk-on — relabel so the timer isn't misleading
   if(lbl){
-    if(REGIME) { lbl.textContent = REGIME.on ? 'next rebalance' : 'next regime check';
+    if(REGIME) { lbl.textContent = REGIME.on ? 'next rebal' : 'next check';
       wrap.title = REGIME.on ? 'time until the next daily rebalance'
         : 'Re-checks daily, but stays in cash until BTC reclaims its '+REGIME.ma_period+'-day line (see Regime below)'; }
-    else lbl.textContent='next rebalance';
+    else lbl.textContent='next rebal';
   }
   if(PAUSED && PAUSED>now){ el.textContent='paused'; wrap.classList.add('paused'); return; }
   if(!NEXT_REBAL){ el.textContent='—'; return; }
