@@ -1,0 +1,70 @@
+# ============================================================================
+# HL FUNDING-ALPHA — delta-neutral funding harvest, engineered for MINIMAL drawdown.
+# Runs on Hyperliquid (real market-clearing funding). Harvests the funding premium and hedges the price
+# risk: heavy funding tilt + momentum guard + funding-weighted sizing + BTC-beta hedge + funding-
+# dispersion regime filter. vol-target + drawdown-throttle come from the risk block (via gross_scale).
+# Phase 1 = PAPER (no keys). Live is Phase 2 (agent wallet, testnet-first). See deploy/HYPERLIQUID.md.
+#
+# HONEST: validated on Hyperliquid's OWN ~2yr history (all that exists). In-sample the profile is
+# institutional (Sharpe ~2, maxDD ~15%), but the funding edge fades as the venue matures — treat as
+# best-case and prove it in live paper. See scripts/hl_funding_alpha_bt.py.
+# ============================================================================
+mode: paper
+strategy: funding_alpha
+capital_usdt: 10000
+
+exchange:
+  venue: hyperliquid
+  hyperliquid_info_url: https://api.hyperliquid.xyz/info
+
+universe:
+  top_n: 30                    # need a broad pool: K=7 per side + the funding spread lives in the alts
+  min_quote_volume_usdt: 200000
+
+funding_alpha:
+  top_k: 7
+  lookback: 21
+  alpha: 0.9                   # heavy funding tilt (1.0 = pure funding)
+  momentum_guard: 0.12
+  fund_weighted: true
+  beta_hedge: true
+  beta_lookback: 30
+  regime_filter: true
+  regime_lookback: 60
+  target_gross: 2.0
+
+execution:
+  order_type: limit
+  maker: true                  # HL maker ~1.5bps
+  slippage_bps: 5
+  time_in_force: IOC
+  min_trade_notional: 15
+  min_rebalance_frac: 0.10
+  margin_mode: isolated
+  position_mode: net
+
+risk:
+  max_gross_leverage: 10
+  max_net_exposure: 0.10       # dollar- + beta-neutral by construction; small residual allowed
+  max_drawdown_pct: 25
+  max_position_loss_pct: 8
+  funding_abs_max: 1.0
+  pause_hours: 24
+  monitor_seconds: 60
+  # vol-target + drawdown-throttle: this is what delivers the minimal-drawdown profile (feeds gross_scale)
+  dynamic_risk: true
+  vol_target_daily: 0.006
+  vol_lookback: 20
+  dd_throttle_start: 0.04
+  dd_throttle_full: 0.12
+  min_risk_scale: 0.30
+  crash_guard: false
+
+schedule:
+  rebalance_minutes: 1440
+  rebalance_hour_utc: 14
+
+state:
+  db_path: data/hl_funding_alpha.db
+  equity_csv: data/hl_funding_alpha_equity.csv
+  log_path: data/hl_funding_alpha.log

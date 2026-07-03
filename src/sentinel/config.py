@@ -164,6 +164,22 @@ class CarryCfg(BaseModel):
                                    #  single instantaneous rate; backtest Sharpe ~1.6 -> ~2.0 with it)
 
 
+class FundingAlphaCfg(BaseModel):
+    """Delta-neutral FUNDING-ALPHA book (best on a real-funding venue e.g. Hyperliquid). Harvests the
+    funding premium and hedges the price risk for minimal drawdown: heavy funding tilt + momentum guard
+    + funding-weighted sizing + BTC-beta hedge + funding-dispersion regime filter."""
+    top_k: int = 7                 # names per sleeve (diversify to suppress idiosyncratic drawdown)
+    lookback: int = 21             # momentum lookback (days), for the guard + small tilt
+    alpha: float = 0.9             # funding-vs-momentum weight (1.0 = pure funding harvest)
+    momentum_guard: float = 0.12   # skip shorts with momentum > +guard / longs with momentum < -guard
+    fund_weighted: bool = True     # size by |funding| (harvest more where the premium is richest)
+    beta_hedge: bool = True        # neutralize net BTC-beta -> market-neutral
+    beta_lookback: int = 30
+    regime_filter: bool = True     # scale gross by cross-sectional funding dispersion vs its rolling median
+    regime_lookback: int = 60
+    target_gross: float = 2.0
+
+
 class ScheduleCfg(BaseModel):
     rebalance_minutes: int = 240
     rebalance_hour_utc: Optional[int] = None  # if 0-23, rebalance daily at this fixed UTC hour
@@ -179,13 +195,14 @@ class StateCfg(BaseModel):
 class Config(BaseModel):
     mode: Literal["paper", "live"] = "paper"
     # neutral = market-neutral momentum book; champion = directional momentum+regime; carry = funding-carry+momentum
-    strategy: Literal["neutral", "champion", "carry"] = "neutral"
+    strategy: Literal["neutral", "champion", "carry", "funding_alpha"] = "neutral"
     exchange: ExchangeCfg = Field(default_factory=ExchangeCfg)
     capital_usdt: Optional[float] = 10_000.0
     universe: UniverseCfg = Field(default_factory=UniverseCfg)
     signal: SignalCfg = Field(default_factory=SignalCfg)
     champion: ChampionCfg = Field(default_factory=ChampionCfg)
     carry: CarryCfg = Field(default_factory=CarryCfg)
+    funding_alpha: FundingAlphaCfg = Field(default_factory=FundingAlphaCfg)
     whales: WhalesCfg = Field(default_factory=WhalesCfg)
     portfolio: PortfolioCfg = Field(default_factory=PortfolioCfg)
     execution: ExecutionCfg = Field(default_factory=ExecutionCfg)

@@ -28,6 +28,7 @@ from ..signal.market_proxy import MarketProxySignal
 from ..signal.technicals import ta_consensus
 from ..signal.whale_tracker import WhaleTracker, map_bias_to_symbols
 from ..state.store import Store
+from ..strategy.funding_alpha import FundingAlphaStrategy
 from ..strategy.funding_carry import FundingCarryStrategy
 from ..strategy.momentum_regime import MomentumRegimeStrategy
 from ..strategy.portfolio import beta_scales, book_beta, compute_betas, demean_by_beta, dispersion
@@ -67,6 +68,7 @@ class Engine:
         self.strategy = SentimentEdgeStrategy(cfg.portfolio)
         self.champion = MomentumRegimeStrategy(cfg)   # directional momentum+regime (used when cfg.strategy=='champion')
         self.carry = FundingCarryStrategy(cfg)        # funding-carry+momentum, market-neutral (cfg.strategy=='carry')
+        self.funding_alpha = FundingAlphaStrategy(cfg) # delta-neutral funding-alpha (cfg.strategy=='funding_alpha')
         self.store = Store(cfg.state.db_path, cfg.state.equity_csv)
         self.registry: Optional[ContractRegistry] = None
         self.signal: Optional[MarketProxySignal] = None
@@ -154,10 +156,14 @@ class Engine:
             ch = self.cfg.champion
             self.base_interval = "1day"
             self.history_bars = min(300, max(ch.regime_ma, ch.trend_ma, ch.lookback, ch.breadth_ma) + 30)
-        elif self.cfg.strategy == "carry":
-            # carry ranks DAILY momentum + funding — force daily bars with enough lookback history.
+        elif self.cfg.strategy in ("carry", "funding_alpha"):
+            # carry / funding-alpha rank DAILY momentum + funding — force daily bars with enough history.
             self.base_interval = "1day"
-            self.history_bars = min(300, self.cfg.carry.lookback + 30)
+            if self.cfg.strategy == "carry":
+                self.history_bars = min(300, self.cfg.carry.lookback + 30)
+            else:
+                fa = self.cfg.funding_alpha
+                self.history_bars = min(300, max(fa.lookback, fa.beta_lookback) + 35)
         else:
             self.base_interval = pick_base_interval(self.fx, ref)
             itv_h = parse_duration_to_hours(self.base_interval)
@@ -282,6 +288,13 @@ class Engine:
                 fsig = {s: favg.get(s, funding.get(s)) for s in funding}   # trailing avg, fallback to current
                 book = self.carry.build_book({s: d.closes for s, d in data.items()}, fsig, prices,
                                              self.registry, equity, gross_scale=gscale)
+            elif cfg.strategy == "funding_alpha":
+                # FUNDING-ALPHA: delta-neutral funding harvest (funding tilt + guard + beta-hedge +
+                # regime filter). Best on a real-funding venue (Hyperliquid). Rank on trailing-avg funding.
+                favg = self.store.recent_funding_avg(self.mode, 5)
+                fsig = {s: favg.get(s, funding.get(s)) for s in funding}
+                book = self.funding_alpha.build_book({s: d.closes for s, d in data.items()}, fsig, prices,
+                                                     self.registry, equity, gross_scale=gscale)
             else:
                 ta_scores = ({s: ta_consensus(d.closes) for s, d in data.items()}
                              if cfg.signal.ta_veto > 0 else None)

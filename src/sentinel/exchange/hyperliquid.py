@@ -53,11 +53,22 @@ class HyperliquidFutures:
         self._ctx_ts = 0.0
         self._ctx: dict[str, dict] = {}      # coin -> {"meta": {...}, "ctx": {...}}
 
-    # -- low-level info POST (public, unsigned) ------------------------------
-    def _post(self, body: dict) -> Any:
-        r = self._http.post(self.info_url, json=body)
-        r.raise_for_status()
-        return r.json()
+    # -- low-level info POST (public, unsigned) — retries on 429 / transient errors ------------
+    def _post(self, body: dict, tries: int = 5) -> Any:
+        last = None
+        for k in range(tries):
+            try:
+                r = self._http.post(self.info_url, json=body)
+                if r.status_code == 429:                    # rate limited -> back off and retry
+                    time.sleep(0.4 * (k + 1)); continue
+                r.raise_for_status()
+                return r.json()
+            except Exception as e:                          # transient network/5xx -> retry
+                last = e
+                time.sleep(0.3 * (k + 1))
+        if last:
+            raise last
+        raise RuntimeError("hyperliquid info: rate-limited, retries exhausted")
 
     def _universe(self) -> dict[str, dict]:
         """metaAndAssetCtxs -> {coin: {meta, ctx}}, cached for ttl_s (thread-safe)."""
