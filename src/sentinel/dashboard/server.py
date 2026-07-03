@@ -51,10 +51,9 @@ def _get_marks(cfg, symbols, ttl: float = 12.0) -> dict:
     with _marks_lock:
         if now - _marks["ts"] < ttl and all(s in _marks["px"] for s in symbols):
             return dict(_marks["px"])
-    from ..exchange.client import KoinbayClient
-    from ..exchange.futures import KoinbayFutures
+    from ..exchange.factory import make_futures
     if _fx_client is None:
-        _fx_client = KoinbayFutures(KoinbayClient(cfg.exchange.futures_host, timeout_s=8))
+        _fx_client = make_futures(cfg)   # venue-aware (KoinBay | Hyperliquid)
     from ..util.concurrency import pmap
 
     def _one(s):
@@ -99,11 +98,10 @@ def _get_regime(cfg, ttl: float = 300.0):
     if not fresh:
         global _fx_client
         try:
-            from ..exchange.client import KoinbayClient
-            from ..exchange.futures import KoinbayFutures
+            from ..exchange.factory import make_futures
             from ..engine.marketdata import _parse_klines
             if _fx_client is None:
-                _fx_client = KoinbayFutures(KoinbayClient(cfg.exchange.futures_host, timeout_s=8))
+                _fx_client = make_futures(cfg)   # venue-aware (KoinBay | Hyperliquid)
             spark = 90
             _, closes, _ = _parse_klines(_fx_client.klines("E-BTC-USDT", "1day", ma_n + spark + 5))
             if len(closes) >= ma_n + 2:

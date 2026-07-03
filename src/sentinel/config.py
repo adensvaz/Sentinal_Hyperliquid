@@ -11,8 +11,10 @@ from pydantic import BaseModel, Field, model_validator
 
 
 class ExchangeCfg(BaseModel):
+    venue: Literal["koinbay", "hyperliquid"] = "koinbay"   # which exchange to read/trade
     futures_host: str = "https://futuresopenapi.koinbay.com"
     spot_host: str = "https://openapi.koinbay.com"
+    hyperliquid_info_url: str = "https://api.hyperliquid.xyz/info"   # HL public data (Phase 1, no keys)
     recv_window_ms: int = 5000
     timeout_s: float = 15.0
 
@@ -194,6 +196,10 @@ class Config(BaseModel):
     # secrets (from .env, never config.yaml)
     api_key: Optional[str] = None
     api_secret: Optional[str] = None
+    # Hyperliquid execution (Phase 2) — use an AGENT/API wallet (trade-only, cannot withdraw).
+    # Read-only data + PAPER need neither of these.
+    hl_account_address: Optional[str] = None   # your main account address (public)
+    hl_agent_key: Optional[str] = None         # agent wallet private key — .env ONLY, never commit
 
     @model_validator(mode="after")
     def _check(self) -> "Config":
@@ -228,4 +234,6 @@ def load_config(path: str | Path = "config.yaml") -> Config:
     cfg = Config(**data)
     cfg.api_key = os.getenv("KOINBAY_API_KEY") or None
     cfg.api_secret = os.getenv("KOINBAY_API_SECRET") or None
+    cfg.hl_account_address = os.getenv("HL_ACCOUNT_ADDRESS") or None
+    cfg.hl_agent_key = os.getenv("HL_AGENT_KEY") or None
     return cfg

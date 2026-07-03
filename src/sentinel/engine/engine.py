@@ -18,6 +18,7 @@ from ..config import Config
 from ..exchange.client import KoinbayClient
 from ..exchange.contracts import ContractRegistry
 from ..exchange.futures import KoinbayFutures
+from ..exchange.factory import make_futures
 from ..execution.live_broker import LiveBroker
 from ..execution.paper_broker import PaperBroker, PaperPosition
 from ..execution.reconciler import reconcile
@@ -61,9 +62,8 @@ class Engine:
         self.cfg = cfg
         self.live = live
         self.mode = "live" if live else "paper"
-        self.client = KoinbayClient(cfg.exchange.futures_host, cfg.api_key, cfg.api_secret,
-                                    timeout_s=cfg.exchange.timeout_s)
-        self.fx = KoinbayFutures(self.client)
+        self.fx = make_futures(cfg)                      # KoinbayFutures | HyperliquidFutures per cfg.exchange.venue
+        self.client = getattr(self.fx, "c", None)        # underlying KoinBay client (None on Hyperliquid)
         self.strategy = SentimentEdgeStrategy(cfg.portfolio)
         self.champion = MomentumRegimeStrategy(cfg)   # directional momentum+regime (used when cfg.strategy=='champion')
         self.carry = FundingCarryStrategy(cfg)        # funding-carry+momentum, market-neutral (cfg.strategy=='carry')
@@ -592,4 +592,7 @@ class Engine:
         if self.whales:
             self.whales.close()
         self.store.close()
-        self.client.close()
+        if self.client is not None:
+            self.client.close()
+        elif hasattr(self.fx, "close"):
+            self.fx.close()
