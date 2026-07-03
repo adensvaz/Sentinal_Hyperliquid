@@ -1,4 +1,4 @@
-# Sentinel Edge — KoinBay Copy-Trading Bot
+# Sentinel Edge — Hyperliquid Copy-Trading Bot
 
 [![tests](https://github.com/adensvaz/Sentinal_Hyperliquid/actions/workflows/ci.yml/badge.svg)](https://github.com/adensvaz/Sentinal_Hyperliquid/actions/workflows/ci.yml)
 [![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
@@ -6,7 +6,7 @@
 [![strategies](https://img.shields.io/badge/strategies-3%20uncorrelated-6b8cff.svg)](#)
 [![mode](https://img.shields.io/badge/mode-paper%20trading-27d796.svg)](#)
 
-> **Three** uncorrelated algorithmic crypto-futures strategies on **KoinBay**, sharing one engine.
+> **Three** uncorrelated algorithmic crypto-futures strategies on **Hyperliquid**, sharing one engine.
 > Modeled on Gamma's **Sentiment Edge** vault. Goal: become a **copy-trading lead** (signal provider).
 
 | | ⚖ **Market-Neutral** | ⚡ **Momentum + Regime** *(Champion)* | 💰 **Funding Carry** |
@@ -19,6 +19,8 @@
 
 All three run **side-by-side in paper**, each with its own database, rebalance loop, and dashboard — and they are **mutually uncorrelated** (carry vs the others ≈ 0), so the combined book is smoother than any one alone. The same data feed, execution path, and risk rails serve all three.
 
+> 🛡️ **New — Funding-Alpha (experimental, Hyperliquid-only).** A delta-neutral funding-harvest book engineered for *minimal drawdown*: funding-weighted, BTC-beta-hedged, momentum-guarded, with a funding-dispersion regime filter. On Hyperliquid's own ~1.5 yr of data it shows an institutional in-sample profile (**Sharpe ~2.3 · Calmar ~3 · ~17% maxDD**) — but the funding edge fades as the venue matures (rolling-quarter Sharpe swings from +4 to −1.4), so it is **paper-only until it proves out live.**
+
 ## 🔴 Live Dashboards
 
 | Strategy | Dashboard | The book |
@@ -26,6 +28,7 @@ All three run **side-by-side in paper**, each with its own database, rebalance l
 | ⚖ Market-Neutral | **▶ [136.113.89.123:8787](http://136.113.89.123:8787)** | steady, market-proof |
 | ⚡ Momentum *(Champion)* | **▶ [136.113.89.123:8788](http://136.113.89.123:8788)** | directional, regime-gated growth |
 | 💰 Funding Carry | **▶ [136.113.89.123:8789](http://136.113.89.123:8789)** | market-neutral funding income |
+| 🛡️ Funding-Alpha *(experimental)* | **▶ [136.113.89.123:8790](http://136.113.89.123:8790)** | delta-neutral funding harvest, Hyperliquid |
 
 Each has a **Dashboard** tab (live PnL, equity curve, open positions) and a **How it works** tab (animated, strategy-aware walkthrough). Running 24/7 on Google Cloud.
 
@@ -50,7 +53,7 @@ flowchart TD
     classDef good fill:#14532d,stroke:#22c55e,color:#dcfce7,font-weight:bold
     classDef warn fill:#7c2d12,stroke:#f97316,color:#ffedd5,font-weight:bold
 
-    KB[("🏦 KoinBay Futures\nLive Market Data")]:::data
+    KB[("🏦 Hyperliquid Futures\nLive Market Data")]:::data
     HL[("🔗 Hyperliquid\nLeaderboard")]:::data
 
     KB --> MOM["📈 Momentum\n4h · 1d · 7d horizons\nweight 0.4"]:::signal
@@ -78,11 +81,11 @@ flowchart TD
     DRISK & CRASH & DAILY & KILL & PSTOP --> RECON["🔄 Reconcile\ntarget vs live → minimal delta orders\nmaker POST_ONLY · anti-churn band"]:::exec
 
     RECON --> PAPER["📄 PAPER MODE\ndefault · zero risk\nreal signals · simulated fills\nbuilds real track record"]:::good
-    RECON --> LIVE["🔴 LIVE MODE\nmode: live + --live flag\nreal KoinBay futures orders\npreflight auth check"]:::warn
+    RECON --> LIVE["🔴 LIVE MODE\nmode: live + --live flag\nreal Hyperliquid futures orders\npreflight auth check"]:::warn
 
     PAPER & LIVE --> DB[("💾 SQLite WAL Store\nequity curve · trades\nfills · scores · funding")]:::state
     DB --> DASH["🖥️ Dashboard :8787\nPnL · Positions · Smart Money\nequity chart · trade history"]:::state
-    DB --> COPY["📡 Copy-trading Lead\nfollowable book ≤10×\nKoinBay signal provider"]:::good
+    DB --> COPY["📡 Copy-trading Lead\nfollowable book ≤10×\nHyperliquid signal provider"]:::good
 ```
 
 ### Strategy 2 — ⚡ Momentum + Regime (Champion · long-only, directional)
@@ -101,7 +104,7 @@ flowchart TD
     classDef good fill:#14532d,stroke:#22c55e,color:#dcfce7,font-weight:bold
     classDef cash fill:#1f2937,stroke:#9ca3af,color:#f3f4f6,font-weight:bold
 
-    KB[("🏦 KoinBay Futures\nDaily candles · 24 coins")]:::data
+    KB[("🏦 Hyperliquid Futures\nDaily candles · 24 coins")]:::data
 
     KB --> MOM["📈 30-day Momentum\nrank every coin by strength"]:::signal
     KB --> TREND["📐 50-day Trend Filter\nname must be in its own uptrend"]:::signal
@@ -137,7 +140,7 @@ flowchart TD
     classDef good fill:#14532d,stroke:#22c55e,color:#dcfce7,font-weight:bold
     classDef warn fill:#7c2d12,stroke:#f97316,color:#ffedd5,font-weight:bold
 
-    KB[("🏦 KoinBay Futures\nDaily price + funding")]:::data
+    KB[("🏦 Hyperliquid Futures\nDaily price + funding")]:::data
 
     KB --> FUND["💸 Funding Rate\ntrailing-average per coin"]:::signal
     KB --> MOM["📈 21-day Momentum\nper coin"]:::signal
@@ -189,7 +192,7 @@ flowchart TD
 
 ### ⚖ Market-Neutral — steady, but a thin long-run edge
 
-| Metric | Jan → Jun 2026 (KoinBay) | 5.5yr clean (Binance) |
+| Metric | Jan → Jun 2026 (Hyperliquid) | 5.5yr clean (Binance) |
 |---|---|---|
 | Net return | +48.4% | **−18%** |
 | Sharpe ratio | ~5.0 | **0.06** |
@@ -203,7 +206,7 @@ flowchart TD
 ## Signal Stack — Market-Neutral book
 
 ```
-Raw KoinBay data
+Raw Hyperliquid data
       │
       ├─ Momentum (40%)   risk-adjusted cross-sectional, horizons: 1d / 3d / 7d / 14d
       ├─ Funding  (20%)   z(-currentFundRate) — fade crowded longs (contrarian)
@@ -243,7 +246,7 @@ python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 
 # 2. Configure
-cp .env.example .env      # add KOINBAY_API_KEY + KOINBAY_API_SECRET
+cp .env.example .env      # add HYPERLIQUID_API_KEY + HYPERLIQUID_API_SECRET
 
 # 3. Run the MARKET-NEUTRAL book (paper mode — safe; uses config.yaml)
 python run.py selftest    # verify connection + print proposed book
@@ -280,7 +283,7 @@ GAMMA_SENTIMENTEDGE/
 ├── sentinel                       # shell helper (start/stop/status)
 ├── src/sentinel/
 │   ├── config.py                  # pydantic config (+ ChampionCfg, CarryCfg) + .env overlay
-│   ├── exchange/                  # KoinBay client, signing, contract specs
+│   ├── exchange/                  # Hyperliquid client, signing, contract specs
 │   ├── signal/
 │   │   ├── market_proxy.py        # momentum + funding + volume + whale scorer
 │   │   ├── whale_tracker.py       # Hyperliquid top-wallet consensus
@@ -303,7 +306,7 @@ GAMMA_SENTIMENTEDGE/
 │   ├── neutral_carry.py           # 6.5yr funding-carry research (the carry edge)
 │   └── carry_integration_bt.py    # production-code carry backtest (build_book through the overlay)
 ├── tests/                         # 135 tests
-└── docs/KOINBAY_API.md            # live-verified KoinBay API reference
+└── docs/HYPERLIQUID_API.md            # live-verified Hyperliquid API reference
 ```
 
 ---

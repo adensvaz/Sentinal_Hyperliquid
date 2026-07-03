@@ -53,7 +53,7 @@ def _get_marks(cfg, symbols, ttl: float = 12.0) -> dict:
             return dict(_marks["px"])
     from ..exchange.factory import make_futures
     if _fx_client is None:
-        _fx_client = make_futures(cfg)   # venue-aware (KoinBay | Hyperliquid)
+        _fx_client = make_futures(cfg)   # venue-aware (Hyperliquid | KoinBay)
     from ..util.concurrency import pmap
 
     def _one(s):
@@ -101,7 +101,7 @@ def _get_regime(cfg, ttl: float = 300.0):
             from ..exchange.factory import make_futures
             from ..engine.marketdata import _parse_klines
             if _fx_client is None:
-                _fx_client = make_futures(cfg)   # venue-aware (KoinBay | Hyperliquid)
+                _fx_client = make_futures(cfg)   # venue-aware (Hyperliquid | KoinBay)
             spark = 90
             _, closes, _ = _parse_klines(_fx_client.klines("E-BTC-USDT", "1day", ma_n + spark + 5))
             if len(closes) >= ma_n + 2:
@@ -313,7 +313,7 @@ FAVICON_SVG = (
 )
 
 ROBOTS_TXT = (
-    "# Sentinel Edge — live algorithmic crypto trading signals (KoinBay futures)\n"
+    "# Sentinel Edge — live algorithmic crypto trading signals (Hyperliquid futures)\n"
     "# Three strategies: market-neutral momentum, regime-gated momentum, funding-carry\n"
     "\n"
     "User-agent: *\n"
@@ -369,7 +369,7 @@ def _build_llms_txt(cfg: Config) -> str:
         regime_line = ""
     return f"""# Sentinel Edge — Live Algorithmic Crypto Trading Signals
 
-> Autonomous algorithmic crypto-futures trading running on KoinBay perpetuals.
+> Autonomous algorithmic crypto-futures trading running on Hyperliquid perpetuals.
 > Three uncorrelated strategies updated daily — each with live positions, signals, and performance.
 > Built as a copy-trading signal provider. Paper-traded (no real funds at risk).
 
@@ -395,7 +395,7 @@ def _build_llms_txt(cfg: Config) -> str:
 
 ## What "signal" means here
 - A signal is a ranked coin with a target side (LONG/SHORT) and score.
-- Signals are generated daily from live KoinBay price, funding, and volume data.
+- Signals are generated daily from live Hyperliquid price, funding, and volume data.
 - No signal = the strategy is in cash (regime brake active or no qualifying names).
 - All signals are paper-traded; treat them as informational, not financial advice.
 
@@ -505,10 +505,10 @@ def _signals_json(cfg: Config) -> str:
             "@type": "DataFeed",
             "name": "Sentinel Edge Live Trading Signals",
             "description": "Real-time algorithmic crypto trading signals from three uncorrelated strategies "
-                           "(market-neutral momentum, momentum+regime, funding-carry) on KoinBay futures.",
+                           "(market-neutral momentum, momentum+regime, funding-carry) on Hyperliquid futures.",
             "url": REPO_URL,
             "dateModified": now_iso,
-            "keywords": ["crypto signals", "trading signals", "algorithmic trading", "KoinBay",
+            "keywords": ["crypto signals", "trading signals", "algorithmic trading", "Hyperliquid",
                          "momentum", "funding carry", "market neutral", "perpetual futures"],
             "provider": {"@type": "SoftwareApplication", "name": "Sentinel Edge",
                          "applicationCategory": "FinanceApplication", "url": REPO_URL},
@@ -579,14 +579,14 @@ def _signals_html(cfg: Config) -> str:
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Sentinel Edge — Live Crypto Trading Signals</title>
 <meta name="description" content="Live algorithmic crypto trading signals from Sentinel Edge: "
-    "market-neutral momentum, regime-gated momentum, and funding-carry on KoinBay futures. "
+    "market-neutral momentum, regime-gated momentum, and funding-carry on Hyperliquid futures. "
     "Updated every 24 hours. Machine-readable at /signals.md and /signals.json.">
 <meta name="keywords" content="crypto trading signals, live trading signals, algorithmic trading, "
-    "momentum signals, funding carry, market neutral, KoinBay signals, crypto futures signals, "
+    "momentum signals, funding carry, market neutral, Hyperliquid signals, crypto futures signals, "
     "BTC regime, copy trading signals, perpetual futures, crypto quant">
 <meta property="og:title" content="Sentinel Edge — Live Crypto Trading Signals">
 <meta property="og:description" content="Live algorithmic signals: long/short positions across "
-    "three uncorrelated strategies on KoinBay futures.">
+    "three uncorrelated strategies on Hyperliquid futures.">
 <link rel="canonical" href="/signals">
 <link rel="alternate" type="text/markdown" href="/signals.md" title="Signals as Markdown">
 <link rel="alternate" type="application/ld+json" href="/signals.json" title="Signals as JSON-LD">
@@ -595,7 +595,7 @@ def _signals_html(cfg: Config) -> str:
   "@context": "https://schema.org",
   "@type": "WebPage",
   "name": "Sentinel Edge Live Trading Signals",
-  "description": "Real-time crypto trading signals from three algorithmic strategies on KoinBay futures.",
+  "description": "Real-time crypto trading signals from three algorithmic strategies on Hyperliquid futures.",
   "url": "/signals",
   "isPartOf": {{"@type": "WebSite", "name": "Sentinel Edge", "url": "{REPO_URL}"}},
   "mainContentOfPage": {{"@type": "DataFeed", "url": "/signals.json"}}
@@ -636,7 +636,7 @@ AI_PLUGIN_JSON = json.dumps({
     "name_for_human": "Sentinel Edge",
     "description_for_model": (
         "Fetch live algorithmic crypto trading signals from Sentinel Edge, an autonomous "
-        "strategy running on KoinBay futures. Returns current positions, market regime "
+        "strategy running on Hyperliquid futures. Returns current positions, market regime "
         "(BTC trend status), unrealised PnL, and signal scores for three uncorrelated strategies: "
         "market-neutral momentum (port 8787), regime-gated momentum Champion (port 8788), and "
         "funding-carry (port 8789). Use /signals.md for a readable summary or /api/state for raw JSON."
@@ -713,14 +713,14 @@ HTML = r"""<!doctype html>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
 <title>Sentinel Edge — Algorithmic Crypto Trading Bot (3 strategies)</title>
 <link rel="icon" type="image/svg+xml" href="/favicon.svg"/>
-<meta name="description" content="Sentinel Edge — three uncorrelated algorithmic crypto-futures strategies on KoinBay sharing one engine: market-neutral momentum, regime-gated momentum (champion), and funding-carry. Live paper-trading dashboards with real PnL, equity curves and backtests."/>
+<meta name="description" content="Sentinel Edge — three uncorrelated algorithmic crypto-futures strategies on Hyperliquid sharing one engine: market-neutral momentum, regime-gated momentum (champion), and funding-carry. Live paper-trading dashboards with real PnL, equity curves and backtests."/>
 <meta name="theme-color" content="#ff8a5c"/>
 <meta property="og:title" content="Sentinel Edge — Algorithmic Crypto Trading Bot"/>
-<meta property="og:description" content="Three uncorrelated crypto strategies on KoinBay — market-neutral, momentum+regime, and funding-carry — with live PnL dashboards."/>
+<meta property="og:description" content="Three uncorrelated crypto strategies on Hyperliquid — market-neutral, momentum+regime, and funding-carry — with live PnL dashboards."/>
 <meta property="og:type" content="website"/>
 <meta name="twitter:card" content="summary"/>
 <meta name="keywords" content="crypto trading signals, live trading signals, algorithmic trading bot,
-  momentum signals, funding carry signals, market neutral crypto, KoinBay signals, BTC regime,
+  momentum signals, funding carry signals, market neutral crypto, Hyperliquid signals, BTC regime,
   copy trading signals, perpetual futures signals, crypto quant, automated trading"/>
 <link rel="alternate" type="text/markdown" href="/signals.md" title="Live signals (Markdown)"/>
 <link rel="alternate" type="application/ld+json" href="/signals.json" title="Live signals (JSON-LD)"/>
@@ -729,7 +729,7 @@ HTML = r"""<!doctype html>
   "@context": "https://schema.org",
   "@type": "SoftwareApplication",
   "name": "Sentinel Edge",
-  "description": "Three uncorrelated algorithmic crypto-futures trading strategies on KoinBay: market-neutral momentum, regime-gated momentum, and funding-carry. Live signals updated daily.",
+  "description": "Three uncorrelated algorithmic crypto-futures trading strategies on Hyperliquid: market-neutral momentum, regime-gated momentum, and funding-carry. Live signals updated daily.",
   "applicationCategory": "FinanceApplication",
   "operatingSystem": "Web",
   "url": "https://github.com/adensvaz/Sentinal_Hyperliquid",
@@ -1347,7 +1347,7 @@ HTML = r"""<!doctype html>
   <footer class="dfoot">
     <span class="dfoot-mark">⚡ Sentinel&nbsp;Edge</span>
     <span class="dfoot-dot">·</span>
-    <span class="dfoot-txt">market-neutral · residual-momentum · KoinBay futures</span>
+    <span class="dfoot-txt">market-neutral · residual-momentum · Hyperliquid futures</span>
     <a class="ghlink" href="https://github.com/adensvaz/Sentinal_Hyperliquid" target="_blank" rel="noopener" title="View source on GitHub">
       <svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.6 7.6 0 012-.27c.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
       <span>GitHub</span>
@@ -1361,7 +1361,7 @@ HTML = r"""<!doctype html>
   <!-- HERO (populated per strategy by paintStrategy) -->
   <section class="hero reveal">
     <div class="orb"></div>
-    <div class="hero-tag" id="heroTag">KOINBAY FUTURES</div>
+    <div class="hero-tag" id="heroTag">HYPERLIQUID FUTURES</div>
     <h1 class="hero-title" id="heroTitle">Sentinel&nbsp;Edge</h1>
     <p class="hero-sub" id="heroSub">Two strategies, one engine.</p>
     <div class="hero-stats" id="heroStats"></div>
@@ -1476,12 +1476,12 @@ const pcardHTML=(v,l,cls,o={})=>`<div class="pcard reveal"><div class="pv ${cls|
 const archHTML=layers=>layers.map(L=>`<div class="alayer reveal" style="--ac:${L.c}"><div class="aname">⬡ ${L.n}</div><div class="adesc">${L.d}</div></div>`).join('<div class="aflow">▼</div>');
 const STRAT_INFO={
   neutral:{
-    tag:'MARKET-NEUTRAL · LONG / SHORT · KOINBAY FUTURES',
+    tag:'MARKET-NEUTRAL · LONG / SHORT · HYPERLIQUID FUTURES',
     title:'Sentinel&nbsp;Edge',
     sub:'The steady book. It profits from <b>which coins beat which</b> — and barely flinches when the whole market moves up or down.',
     stats:[{v:0.07,dec:2,l:'BTC exposure'},{v:13,suf:'%',l:'max drawdown'},{v:24,l:'coins scanned'},{v:10,l:'positions (5 + 5)'}],
     ideaTitle:'Long the strong, short the weak. Stay neutral.',
-    steps:stepHTML(1,'🛰️','Scan','Every day it reads live KoinBay data on 24 coins — price momentum, funding, volume, and what the top crypto whales are doing.')
+    steps:stepHTML(1,'🛰️','Scan','Every day it reads live Hyperliquid data on 24 coins — price momentum, funding, volume, and what the top crypto whales are doing.')
         +stepHTML(2,'🧮','Score &amp; Rank','Each coin gets one number. It strips out Bitcoin&rsquo;s pull so the score is pure <i>independent</i> strength — then ranks all 24.')
         +stepHTML(3,'⚖️','Trade Neutral','Buys the top 5, short-sells the bottom 5, balanced equally. If the whole market crashes, longs and shorts cancel out.'),
     why:whyHTML('Why it&rsquo;s safe','Long $ &asymp; Short $ &rarr; market direction barely matters. The bet is purely <b>relative</b>.')
@@ -1491,22 +1491,22 @@ const STRAT_INFO={
       {c:'#4a9eff',n:'Signal',d:'Momentum · Funding · Volume · Whale overlay → one residual score'},
       {c:'#a78bfa',n:'Portfolio',d:'Rank → long 5 / short 5 → beta-neutralize → liquidity caps'},
       {c:'#ff7a8a',n:'Risk',d:'Vol-target · crash guard · daily-loss breaker · kill-switch · per-name stop'},
-      {c:'#4be0b0',n:'Execution',d:'Reconcile → minimal maker orders → paper or live KoinBay futures'},
+      {c:'#4be0b0',n:'Execution',d:'Reconcile → minimal maker orders → paper or live Hyperliquid futures'},
       {c:'#ffd166',n:'State &amp; Dashboard',d:'SQLite · equity curve · trades · this live dashboard · copy-trade signal'},
     ]),
-    numNote:'Jan → Jun 2026 · real KoinBay daily data · the full neutral stack',
+    numNote:'Jan → Jun 2026 · real daily market data · the full neutral stack',
     perf:pcardHTML(48.4,'Net return','grn',{suf:'%',sign:'+'})+pcardHTML(5.0,'Sharpe ratio','',{dec:1})
         +pcardHTML(12.6,'Max drawdown','red',{suf:'%'})+pcardHTML(503,'Trades taken','',{int:1})
         +pcardHTML(44,'Win rate','',{suf:'%'})+pcardHTML(1.37,'Profit factor','',{dec:2}),
     disclaim:'⚠ This is a short, favorable window. On 5+ years of clean data a pure market-neutral book earns far less — its real value is the <b>steadiness</b> (low drawdown, near-zero market exposure), not the headline return. Paper track, not a guarantee.'
   },
   champion:{
-    tag:'DIRECTIONAL MOMENTUM · REGIME-FILTERED · KOINBAY FUTURES',
+    tag:'DIRECTIONAL MOMENTUM · REGIME-FILTERED · HYPERLIQUID FUTURES',
     title:'Sentinel&nbsp;Edge <span class="tchip">Champion</span>',
     sub:'The growth book. It rides the <b>strongest coins</b> while the market trends up — and steps fully to cash the moment Bitcoin turns down.',
     stats:[{v:39,suf:'%',sign:'+',l:'backtest CAGR'},{v:1.12,dec:2,l:'Sharpe ratio'},{v:32,suf:'%',l:'max drawdown'},{v:5.5,dec:1,l:'years tested'}],
     ideaTitle:'Ride the strongest coins. Sit in cash when the market turns.',
-    steps:stepHTML(1,'🛰️','Scan','Every day it reads daily price action on 24 KoinBay coins and measures each one&rsquo;s 30-day momentum.')
+    steps:stepHTML(1,'🛰️','Scan','Every day it reads daily price action on 24 Hyperliquid coins and measures each one&rsquo;s 30-day momentum.')
         +stepHTML(2,'📈','Rank','It ranks all 24 by 30-day momentum and holds the 5 strongest — weighted toward the leaders, capped at 40% in any one name.')
         +stepHTML(3,'🚦','Ride or Cash','It holds them while Bitcoin is above its 100-day line. The moment BTC drops below it, the whole book goes to <b>cash</b>.'),
     why:whyHTML('Why it works','Crypto&rsquo;s strongest trends keep running for weeks. Owning the current leaders captures that drift.')
@@ -1517,7 +1517,7 @@ const STRAT_INFO={
       {c:'#ffd166',n:'Regime',d:'BTC above its 100-day line → risk-on; below → everything to cash'},
       {c:'#a78bfa',n:'Portfolio',d:'Top-5 by momentum · momentum-weighted (≤40%/name) · long-only'},
       {c:'#ff7a8a',n:'Risk',d:'Vol-target · drawdown throttle · crash guard · per-name catastrophe stop'},
-      {c:'#4be0b0',n:'Execution',d:'Reconcile → maker orders → paper or live KoinBay + this dashboard'},
+      {c:'#4be0b0',n:'Execution',d:'Reconcile → maker orders → paper or live Hyperliquid + this dashboard'},
     ]),
     numNote:'5.5 years · survivorship-free Binance daily data · walk-forward validated',
     perf:pcardHTML(39,'CAGR (per year)','grn',{suf:'%',sign:'+'})+pcardHTML(1.12,'Sharpe ratio','',{dec:2})
@@ -1526,7 +1526,7 @@ const STRAT_INFO={
     disclaim:'⚠ Tested on clean, survivorship-free data with walk-forward validation — but it still assumes ideal fills and excludes funding/slippage. Live paper results will be lower, and the ~32% drawdowns are real. Not a guarantee.'
   },
   carry:{
-    tag:'FUNDING CARRY · MARKET-NEUTRAL · KOINBAY FUTURES',
+    tag:'FUNDING CARRY · MARKET-NEUTRAL · HYPERLIQUID FUTURES',
     title:'Sentinel&nbsp;Edge <span class="tchip cy">Carry</span>',
     sub:'The income book. It <b>collects the funding</b> that crowded longs pay — shorting the priciest coins, longing the cheapest — and stays market-neutral.',
     stats:[{v:123,suf:'%',sign:'+',l:'backtest CAGR'},{v:2.05,dec:2,l:'Sharpe ratio'},{v:28,suf:'%',l:'max drawdown'},{v:6.5,dec:1,l:'years tested'}],
@@ -1541,7 +1541,7 @@ const STRAT_INFO={
       {c:'#4a9eff',n:'Signal',d:'Trailing-average funding rate + 21-day momentum, per coin'},
       {c:'#a78bfa',n:'Portfolio',d:'Short top-5 funding / long bottom-5 · momentum-tilted · dollar-neutral'},
       {c:'#ff7a8a',n:'Risk',d:'Vol-target · drawdown throttle · per-name catastrophe stop'},
-      {c:'#4be0b0',n:'Execution',d:'Reconcile → maker orders → paper or live KoinBay + this dashboard'},
+      {c:'#4be0b0',n:'Execution',d:'Reconcile → maker orders → paper or live Hyperliquid + this dashboard'},
       {c:'#ffd166',n:'State &amp; Dashboard',d:'SQLite · funding history · equity curve · trades · copy-trade signal'},
     ]),
     numNote:'6.5 years · Binance funding history + daily prices · look-ahead-free, fee-tested',
@@ -1549,20 +1549,45 @@ const STRAT_INFO={
         +pcardHTML(28,'Max drawdown','red',{suf:'%'})+pcardHTML(1.56,'Worst-half Sharpe','',{dec:2})
         +pcardHTML(96,'Universe-robust','',{suf:'%'})+pcardHTML(0,'BTC correlation','',{dec:2}),
     disclaim:'⚠ Backtest uses real funding rates but today&rsquo;s surviving coins (delisted names absent), and carry carries squeeze tail-risk (the ~28% is with the risk overlay; raw is ~56%). Live paper is the real test. Not a guarantee.'
+  },
+  funding_alpha:{
+    tag:'FUNDING-ALPHA · DELTA-NEUTRAL · HYPERLIQUID',
+    title:'Sentinel&nbsp;Edge <span class="tchip cy">Funding-Alpha</span>',
+    sub:'The <b>delta-neutral funding harvest</b>, engineered for minimal drawdown — collects Hyperliquid&rsquo;s real funding premium while hedging the price risk away.',
+    stats:[{v:54.7,dec:1,suf:'%',sign:'+',l:'CAGR (in-sample)'},{v:2.26,dec:2,l:'Sharpe'},{v:17,suf:'%',l:'max drawdown'},{v:3.2,dec:1,l:'Calmar'}],
+    ideaTitle:'Harvest the funding. Hedge the price. Minimize drawdown.',
+    steps:stepHTML(1,'🛰️','Rank funding','Reads every Hyperliquid coin&rsquo;s funding rate — the fee crowded traders pay — and ranks the richest premiums.')
+        +stepHTML(2,'🎯','Harvest &amp; guard','Shorts the highest-funding coins, longs the lowest, funding-weighted — but a momentum guard skips any coin that&rsquo;s ripping.')
+        +stepHTML(3,'🛡️','Neutralize','BTC-beta hedged and diversified, with a funding-dispersion regime filter that eases off when the premium compresses.'),
+    why:whyHTML('Why minimal drawdown','On a real-funding venue the funding leg is near-riskless (isolated Sharpe 10-22, ~0 DD). This book keeps that income and hedges the price exposure that drives the drawdowns.')
+       +whyHTML('The unique angle','Not a directional bet — a market-neutral income engine: beta-hedged, momentum-guarded, regime-aware, funding-weighted.')
+       +whyHTML('Honest status','<b>New &amp; experimental.</b> Institutional in-sample (Sharpe ~2, Calmar ~3), but on Hyperliquid&rsquo;s short ~2yr history it&rsquo;s unstable quarter-to-quarter — being proven in live paper.'),
+    arch:archHTML([
+      {c:'#4a9eff',n:'Signal',d:'Cross-sectional funding rank + momentum guard, per coin'},
+      {c:'#a78bfa',n:'Portfolio',d:'Funding-weighted short-rich / long-cheap · BTC-beta hedged · regime-scaled'},
+      {c:'#ff7a8a',n:'Risk',d:'Vol-target · drawdown throttle · funding-dispersion regime filter'},
+      {c:'#4be0b0',n:'Execution',d:'Reconcile → maker orders → paper or live Hyperliquid + this dashboard'},
+      {c:'#ffd166',n:'State &amp; Dashboard',d:'SQLite · funding history · equity curve · trades · copy-trade signal'},
+    ]),
+    numNote:'~1.5yr · Hyperliquid&rsquo;s OWN funding + price · HL maker fees · all the on-venue history that exists',
+    perf:pcardHTML(54.7,'CAGR (in-sample)','grn',{suf:'%',sign:'+'})+pcardHTML(2.26,'Sharpe','',{dec:2})
+        +pcardHTML(17,'Max drawdown','red',{suf:'%'})+pcardHTML(3.23,'Calmar','',{dec:2})
+        +pcardHTML(4.17,'Sortino','',{dec:2})+pcardHTML(0,'BTC correlation','',{dec:2}),
+    disclaim:'⚠ NEW / EXPERIMENTAL. Validated only on Hyperliquid&rsquo;s ~1.5yr of history (all that exists), where the funding edge fades as the venue matures — rolling-quarter Sharpe swings from +4 to -1.4, split-half 3.6 → 0.5. In-sample institutional, NOT proven forward. Paper-only until a live track record exists. Not a guarantee.'
   }
 };
-const STRAT_PORT={neutral:8787,champion:8788,carry:8789};
-const STRAT_ICON={neutral:'⚖',champion:'⚡',carry:'💰'};
-const STRAT_LABEL={neutral:'⚖ Market-Neutral',champion:'⚡ Momentum (Champion)',carry:'💰 Funding Carry'};
-const STRAT_SHORT={neutral:'Market-Neutral',champion:'Champion',carry:'Carry'};
-const STRAT_DOT={neutral:'#ff8a5c',champion:'#ffd166',carry:'#4be0b0'};
+const STRAT_PORT={neutral:8787,champion:8788,carry:8789,funding_alpha:8790};
+const STRAT_ICON={neutral:'⚖',champion:'⚡',carry:'💰',funding_alpha:'🛡️'};
+const STRAT_LABEL={neutral:'⚖ Market-Neutral',champion:'⚡ Momentum (Champion)',carry:'💰 Funding Carry',funding_alpha:'🛡️ Funding-Alpha'};
+const STRAT_SHORT={neutral:'Market-Neutral',champion:'Champion',carry:'Carry',funding_alpha:'Funding-Alpha'};
+const STRAT_DOT={neutral:'#ff8a5c',champion:'#ffd166',carry:'#4be0b0',funding_alpha:'#3f80ba'};
 function stratUrl(k){const h=location.hostname||'localhost';return 'http://'+h+':'+STRAT_PORT[k];}
 function switchTo(k){if(k!==CUR_STRAT) location.href=stratUrl(k);}
 function toggleSwitcher(e){e.stopPropagation();$('navSwitcher').classList.toggle('open');}
 document.addEventListener('click',()=>{ const s=$('navSwitcher'); if(s) s.classList.remove('open'); });
 function buildSwitcher(strat){
   const menu=$('swMenu'); if(!menu) return;
-  menu.innerHTML=['neutral','champion','carry'].map(k=>`<button class="sw-item${k===strat?' sw-cur':''}" onclick="${k!==strat?`switchTo('${k}')`:''}">`+
+  menu.innerHTML=['neutral','champion','carry','funding_alpha'].map(k=>`<button class="sw-item${k===strat?' sw-cur':''}" onclick="${k!==strat?`switchTo('${k}')`:''}">`+
     `<span class="sw-dot" style="background:${STRAT_DOT[k]}"></span>${STRAT_SHORT[k]}`+
     (k===strat?'<span class="sw-cur-tag">here</span>':'')+`</button>`).join('');
   const btn=$('swCurIcon'); if(btn) btn.textContent=STRAT_ICON[strat];
@@ -2179,7 +2204,7 @@ function buildStrat(){
   let nodes,links;
   if(CUR_STRAT==='champion'){
     nodes=[
-      {x:90,y:110,t:'KoinBay',s:'daily data',c:'#4a9eff'},
+      {x:90,y:110,t:'Hyperliquid',s:'daily data',c:'#4a9eff'},
       {x:90,y:270,t:'BTC Regime',s:'above 100d MA?',c:'#ffd166'},
       {x:360,y:110,t:'Momentum',s:'rank 30d',c:'#9a7bff'},
       {x:620,y:180,t:'Top-5 or Cash',s:'dual-confirmed',c:'#a78bfa'},
@@ -2198,7 +2223,7 @@ function buildStrat(){
     links=[[0,2],[1,2],[2,3],[2,4],[3,5],[4,5]];
   }else{
     nodes=[
-      {x:90,y:60,t:'KoinBay',s:'live data',c:'#4a9eff'},
+      {x:90,y:60,t:'Hyperliquid',s:'live data',c:'#4a9eff'},
       {x:90,y:180,t:'Whales',s:'10 wallets',c:'#4a9eff'},
       {x:90,y:300,t:'Funding',s:'crowding',c:'#4a9eff'},
       {x:340,y:180,t:'Residual Score',s:'beta-stripped',c:'#9a7bff'},
