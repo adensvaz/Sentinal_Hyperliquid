@@ -89,7 +89,7 @@ risk:
   max_drawdown_pct: 15         # kill-switch: flatten + pause if equity falls this % from its peak
   funding_abs_max: 0.003       # drop names whose |currentFundRate| exceeds this (per-interval)
   monitor_seconds: 60          # SAFETY RAIL: check kill-switch + position losses every 60s (between rebalances)
-  max_position_loss_pct: 6     # close a single position if its loss exceeds this % of equity
+  max_position_loss_pct: 6     # close a single position if its loss exceeds this % of equity (backtest-confirmed: tighter stops whipsaw this volatile alt book and HURT returns + deepen drawdown)
   pause_hours: 12              # after a drawdown kill-switch, stay flat (no new trades) this long
   stop_loss_pct: 0             # LIVE only: rest a protective stop this % away from entry (0 = off)
   # DYNAMIC DE-RISKING — smooths drawdowns & negative months by cutting gross in bad regimes
