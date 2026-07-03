@@ -314,7 +314,7 @@ FAVICON_SVG = (
 
 ROBOTS_TXT = (
     "# Sentinel Edge — live algorithmic crypto trading signals (Hyperliquid futures)\n"
-    "# Three strategies: market-neutral momentum, regime-gated momentum, funding-carry\n"
+    "# Four strategies: market-neutral momentum, regime-gated momentum, funding-carry, delta-neutral funding-harvest\n"
     "\n"
     "User-agent: *\n"
     "Allow: /\n"
@@ -370,7 +370,7 @@ def _build_llms_txt(cfg: Config) -> str:
     return f"""# Sentinel Edge — Live Algorithmic Crypto Trading Signals
 
 > Autonomous algorithmic crypto-futures trading running on Hyperliquid perpetuals.
-> Three uncorrelated strategies updated daily — each with live positions, signals, and performance.
+> Four uncorrelated strategies updated daily — each with live positions, signals, and performance.
 > Built as a copy-trading signal provider. Paper-traded (no real funds at risk).
 
 ## How to access live signals
@@ -379,7 +379,7 @@ def _build_llms_txt(cfg: Config) -> str:
 - **/signals** — semantic HTML signal page (no JavaScript required)
 - **/api/state** — raw JSON snapshot with full position detail
 {live_line}{regime_line}
-## The three live strategies
+## The four live strategies
 1. **Market-Neutral** (port 8787) — cross-sectional momentum, dollar-neutral long/short.
    Longs the top 5 coins by residual momentum, shorts the bottom 5. BTC-beta ≈ 0.
    Rebalances daily. Works in any market direction.
@@ -392,6 +392,11 @@ def _build_llms_txt(cfg: Config) -> str:
    Shorts the highest-funding coins (collects what crowded longs pay), longs the cheapest,
    momentum-tilted to avoid shorting a ripping coin. Backtest 6.5yr: Sharpe ~2.0, every year positive.
    Uncorrelated to price momentum and to BTC (corr ≈ 0). True diversifier.
+
+4. **Funding-Alpha** (port 8790, experimental) — delta-neutral funding harvest.
+   Earns the funding premium on both sides while hedging out price and market risk (BTC-beta ≈ 0),
+   funding-weighted and dispersion-regime-scaled for the smallest drawdown of the four.
+   In-sample Sharpe ~2.3, maxDD ~17% on ~1.5yr Hyperliquid data — **paper-only** while it proves out.
 
 ## What "signal" means here
 - A signal is a ranked coin with a target side (LONG/SHORT) and score.
@@ -504,7 +509,7 @@ def _signals_json(cfg: Config) -> str:
             "@context": "https://schema.org",
             "@type": "DataFeed",
             "name": "Sentinel Edge Live Trading Signals",
-            "description": "Real-time algorithmic crypto trading signals from three uncorrelated strategies "
+            "description": "Real-time algorithmic crypto trading signals from four uncorrelated strategies "
                            "(market-neutral momentum, momentum+regime, funding-carry) on Hyperliquid futures.",
             "url": REPO_URL,
             "dateModified": now_iso,
@@ -586,7 +591,7 @@ def _signals_html(cfg: Config) -> str:
     "BTC regime, copy trading signals, perpetual futures, crypto quant">
 <meta property="og:title" content="Sentinel Edge — Live Crypto Trading Signals">
 <meta property="og:description" content="Live algorithmic signals: long/short positions across "
-    "three uncorrelated strategies on Hyperliquid futures.">
+    "four uncorrelated strategies on Hyperliquid futures.">
 <link rel="canonical" href="/signals">
 <link rel="alternate" type="text/markdown" href="/signals.md" title="Signals as Markdown">
 <link rel="alternate" type="application/ld+json" href="/signals.json" title="Signals as JSON-LD">
@@ -595,7 +600,7 @@ def _signals_html(cfg: Config) -> str:
   "@context": "https://schema.org",
   "@type": "WebPage",
   "name": "Sentinel Edge Live Trading Signals",
-  "description": "Real-time crypto trading signals from three algorithmic strategies on Hyperliquid futures.",
+  "description": "Real-time crypto trading signals from four algorithmic strategies on Hyperliquid futures.",
   "url": "/signals",
   "isPartOf": {{"@type": "WebSite", "name": "Sentinel Edge", "url": "{REPO_URL}"}},
   "mainContentOfPage": {{"@type": "DataFeed", "url": "/signals.json"}}
@@ -637,9 +642,10 @@ AI_PLUGIN_JSON = json.dumps({
     "description_for_model": (
         "Fetch live algorithmic crypto trading signals from Sentinel Edge, an autonomous "
         "strategy running on Hyperliquid futures. Returns current positions, market regime "
-        "(BTC trend status), unrealised PnL, and signal scores for three uncorrelated strategies: "
-        "market-neutral momentum (port 8787), regime-gated momentum Champion (port 8788), and "
-        "funding-carry (port 8789). Use /signals.md for a readable summary or /api/state for raw JSON."
+        "(BTC trend status), unrealised PnL, and signal scores for four uncorrelated strategies: "
+        "market-neutral momentum (port 8787), regime-gated momentum Champion (port 8788), "
+        "funding-carry (port 8789), and delta-neutral funding-harvest (port 8790, experimental). "
+        "Use /signals.md for a readable summary or /api/state for raw JSON."
     ),
     "description_for_human": "Get live crypto trading signals and positions from Sentinel Edge algorithmic strategies.",
     "auth": {"type": "none"},
@@ -713,10 +719,10 @@ HTML = r"""<!doctype html>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
 <title>Sentinel Edge — Algorithmic Crypto Trading Bot (3 strategies)</title>
 <link rel="icon" type="image/svg+xml" href="/favicon.svg"/>
-<meta name="description" content="Sentinel Edge — three uncorrelated algorithmic crypto-futures strategies on Hyperliquid sharing one engine: market-neutral momentum, regime-gated momentum (champion), and funding-carry. Live paper-trading dashboards with real PnL, equity curves and backtests."/>
+<meta name="description" content="Sentinel Edge — four uncorrelated algorithmic crypto-futures strategies on Hyperliquid sharing one engine: market-neutral momentum, regime-gated momentum (champion), funding-carry, and a delta-neutral funding-harvest (experimental). Live paper-trading dashboards with real PnL, equity curves and backtests."/>
 <meta name="theme-color" content="#ff8a5c"/>
 <meta property="og:title" content="Sentinel Edge — Algorithmic Crypto Trading Bot"/>
-<meta property="og:description" content="Three uncorrelated crypto strategies on Hyperliquid — market-neutral, momentum+regime, and funding-carry — with live PnL dashboards."/>
+<meta property="og:description" content="Four uncorrelated crypto strategies on Hyperliquid — market-neutral, momentum+regime, funding-carry, and delta-neutral funding-harvest — with live PnL dashboards."/>
 <meta property="og:type" content="website"/>
 <meta name="twitter:card" content="summary"/>
 <meta name="keywords" content="crypto trading signals, live trading signals, algorithmic trading bot,
@@ -729,7 +735,7 @@ HTML = r"""<!doctype html>
   "@context": "https://schema.org",
   "@type": "SoftwareApplication",
   "name": "Sentinel Edge",
-  "description": "Three uncorrelated algorithmic crypto-futures trading strategies on Hyperliquid: market-neutral momentum, regime-gated momentum, and funding-carry. Live signals updated daily.",
+  "description": "Four uncorrelated algorithmic crypto-futures trading strategies on Hyperliquid: market-neutral momentum, regime-gated momentum, funding-carry, and delta-neutral funding-harvest. Live signals updated daily.",
   "applicationCategory": "FinanceApplication",
   "operatingSystem": "Web",
   "url": "https://github.com/adensvaz/Sentinal_Hyperliquid",
@@ -1131,7 +1137,10 @@ HTML = r"""<!doctype html>
   .tchip.cy{background:linear-gradient(135deg,#4be0b0,#4be0b0)}
   .vsgrid{display:grid;grid-template-columns:1fr 1fr;gap:18px}
   .vsgrid.vs3{grid-template-columns:1fr 1fr 1fr}
+  .vsgrid.vs4{grid-template-columns:repeat(4,1fr);gap:14px}
+  @media(max-width:1200px){.vsgrid.vs4{grid-template-columns:1fr 1fr}}
   @media(max-width:980px){.vsgrid.vs3{grid-template-columns:1fr} .vscard.cur,.vscard.cur:hover{transform:none}}
+  @media(max-width:640px){.vsgrid.vs4{grid-template-columns:1fr}}
   @media(max-width:720px){.vsgrid{grid-template-columns:1fr}}
   /* strategy cards */
   .vscard{position:relative;background:linear-gradient(180deg,rgba(255,253,249,.93),rgba(255,255,253,.95));
@@ -1145,9 +1154,11 @@ HTML = r"""<!doctype html>
     background:linear-gradient(180deg,rgba(236,250,241,.98),rgba(250,255,251,.98))}
   #vs-champion.cur{box-shadow:0 0 0 2.5px var(--gold),0 30px 74px rgba(224,165,46,.28);
     background:linear-gradient(180deg,rgba(255,249,233,.98),rgba(255,253,243,.98))}
+  #vs-funding_alpha.cur{box-shadow:0 0 0 2.5px #3f80ba,0 30px 74px rgba(63,128,186,.26);
+    background:linear-gradient(180deg,rgba(233,242,250,.98),rgba(249,252,255,.98))}
   /* header row: icon + name + badge(s) all on one line, no overlap */
   .vshead{font-size:17px;font-weight:800;letter-spacing:-.3px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding-right:0}
-  .vsicon{font-size:18px;flex:none} .vsicon.n{color:var(--accent)} .vsicon.c{color:var(--gold)} .vsicon.k{color:var(--grn)}
+  .vsicon{font-size:18px;flex:none} .vsicon.n{color:var(--accent)} .vsicon.c{color:var(--gold)} .vsicon.k{color:var(--grn)} .vsicon.f{color:#3f80ba}
   .vsbadge{font-size:9px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;color:#3a2c10;flex:none;
     background:linear-gradient(135deg,#f3bd44,#e0a52e);border-radius:999px;padding:.32em .65em}
   .vsbadge.cb{background:linear-gradient(135deg,#1fb866,#179a55);color:#fff}
@@ -1158,6 +1169,8 @@ HTML = r"""<!doctype html>
   .vscard.cur .vs-here{color:var(--accent);background:rgba(255,138,92,.1);border-color:rgba(255,138,92,.3)}
   #vs-carry.cur .vs-here{color:var(--grn);background:rgba(75,224,176,.1);border-color:rgba(75,224,176,.3)}
   #vs-champion.cur .vs-here{color:#b9821c;background:rgba(224,165,46,.16);border-color:rgba(224,165,46,.42)}
+  #vs-funding_alpha.cur .vs-here{color:#3f80ba;background:rgba(63,128,186,.1);border-color:rgba(63,128,186,.32)}
+  .vsq{font-size:10.5px;font-weight:600;color:var(--dim);opacity:.75}
   .vstag{font-size:11px;font-weight:700;letter-spacing:1.4px;text-transform:uppercase;color:var(--dim);margin:10px 0 13px}
   .vscard p{font-size:13px;line-height:1.62;color:var(--txt);margin:0 0 14px}
   .vsstats{list-style:none;padding:0;margin:0 0 15px;display:flex;flex-direction:column;gap:8px}
@@ -1363,16 +1376,16 @@ HTML = r"""<!doctype html>
     <div class="orb"></div>
     <div class="hero-tag" id="heroTag">HYPERLIQUID FUTURES</div>
     <h1 class="hero-title" id="heroTitle">Sentinel&nbsp;Edge</h1>
-    <p class="hero-sub" id="heroSub">Two strategies, one engine.</p>
+    <p class="hero-sub" id="heroSub">Four strategies, one engine.</p>
     <div class="hero-stats" id="heroStats"></div>
   </section>
 
   <!-- THREE STRATEGIES -->
   <section class="sblock reveal">
     <div class="seye">THE SYSTEM</div>
-    <h2 class="sh2">Three strategies, one engine</h2>
-    <p class="sp-note">Same data, same execution, same risk rails — three uncorrelated ways to trade. You're viewing <b id="curStrat">—</b>.</p>
-    <div class="vsgrid vs3">
+    <h2 class="sh2">Four strategies, one engine</h2>
+    <p class="sp-note">Same data, same execution, same risk rails — four uncorrelated ways to trade. You're viewing <b id="curStrat">—</b>.</p>
+    <div class="vsgrid vs4">
       <div class="vscard" id="vs-neutral">
         <div class="vshead"><span class="vsicon n">⚖</span> Market-Neutral</div>
         <span class="vs-here">You are here</span>
@@ -1399,6 +1412,15 @@ HTML = r"""<!doctype html>
         <ul class="vsstats"><li><b>+123%</b> / yr · <b>2.05</b> Sharpe</li><li><b>~28%</b> max drawdown</li><li><b>6.5-yr</b> backtest, every year green</li></ul>
         <div class="vsbest">Best for — the best risk-adjusted return; a true diversifier</div>
         <a class="vslink" id="link-carry">Switch to this →</a>
+      </div>
+      <div class="vscard" id="vs-funding_alpha">
+        <div class="vshead"><span class="vsicon f">🛡️</span> Funding-Alpha <span class="vsbadge">Experimental</span></div>
+        <span class="vs-here">You are here</span>
+        <div class="vstag">Hedged · minimal drawdown</div>
+        <p>Pure funding harvest — earns the funding premium on both sides while <b>hedging out price &amp; market risk</b>. Engineered for the smallest drawdown of the four; <b>paper-only</b> while it proves the edge forward.</p>
+        <ul class="vsstats"><li><b>2.3</b> Sharpe <span class="vsq">in-sample</span></li><li><b>~17%</b> max drawdown — lowest here</li><li><b>paper-only</b> · ~1.5-yr data</li></ul>
+        <div class="vsbest">Best for — lowest-volatility income; still being proven</div>
+        <a class="vslink" id="link-funding_alpha">Switch to this →</a>
       </div>
     </div>
   </section>
@@ -1436,7 +1458,7 @@ HTML = r"""<!doctype html>
 
   <div class="sfoot reveal" id="sfoot">
     <span class="sfoot-mark">⚡ Sentinel&nbsp;Edge</span>
-    <span class="sfoot-txt">· three strategies, one clean engine</span>
+    <span class="sfoot-txt">· four strategies, one clean engine</span>
     <a class="ghlink" href="https://github.com/adensvaz/Sentinal_Hyperliquid" target="_blank" rel="noopener" title="View source on GitHub">
       <svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.6 7.6 0 012-.27c.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
       <span>GitHub</span>
@@ -1535,7 +1557,7 @@ const STRAT_INFO={
         +stepHTML(2,'💰','Short pricey, long cheap','It <b>shorts</b> the 5 coins paying the highest funding (it collects that fee) and <b>longs</b> the 5 paying the lowest/negative.')
         +stepHTML(3,'⚖️','Balance &amp; tilt','Equal dollars long and short (market-neutral), tilted by momentum so it&rsquo;s never short a coin that&rsquo;s ripping.'),
     why:whyHTML('Where the income comes from','Perp funding is a structural payment from crowded longs to shorts. Being on the paid side harvests it.')
-       +whyHTML('Why it&rsquo;s a diversifier','Its returns are <b>uncorrelated</b> to the other two books (corr ~0) and to Bitcoin — it earns in regimes where they stall.')
+       +whyHTML('Why it&rsquo;s a diversifier','Its returns are <b>uncorrelated</b> to the other books (corr ~0) and to Bitcoin — it earns in regimes where they stall.')
        +whyHTML('The edge word','<b>Funding carry</b> — positive every year 2020-2026 in backtest; the momentum tilt tames the classic short-squeeze tail.'),
     arch:archHTML([
       {c:'#4a9eff',n:'Signal',d:'Trailing-average funding rate + 21-day momentum, per coin'},
@@ -1612,7 +1634,7 @@ function paintStrategy(strat){
   $('numDisclaim').innerHTML=S.disclaim;
   // comparison block: label + highlight the one you're viewing
   $('curStrat').textContent=STRAT_LABEL[strat];
-  ['neutral','champion','carry'].forEach(k=>{
+  ['neutral','champion','carry','funding_alpha'].forEach(k=>{
     document.getElementById('vs-'+k).classList.toggle('cur',strat===k);
     const ln=$('link-'+k);
     if(ln){
