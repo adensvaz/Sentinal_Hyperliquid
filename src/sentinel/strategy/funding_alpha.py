@@ -104,7 +104,7 @@ class FundingAlphaStrategy:
         def sleeve(names: list, sign: int) -> dict:
             raw = {s: (abs(fnd[s]) if c.fund_weighted else 1.0) for s in names}
             tot = sum(raw.values()) or 1.0
-            wt = {s: min(raw[s] / tot, 0.5) for s in names}                    # cap any single name at 50%
+            wt = {s: min(raw[s] / tot, 0.30) for s in names}                   # cap any single name at 30% (diversify)
             t2 = sum(wt.values()) or 1.0
             return {s: sign * wt[s] / t2 for s in names}                       # sleeve sums to +/-1.0
 

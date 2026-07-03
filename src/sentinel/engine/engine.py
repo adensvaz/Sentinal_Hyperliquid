@@ -295,6 +295,9 @@ class Engine:
                 fsig = {s: favg.get(s, funding.get(s)) for s in funding}
                 book = self.funding_alpha.build_book({s: d.closes for s, d in data.items()}, fsig, prices,
                                                      self.registry, equity, gross_scale=gscale)
+                # HARD dollar-neutral clamp — the BTC-beta hedge can leave a small net; keep it delta-neutral.
+                self._apply_scales(book, net_scales({s: p.target_notional for s, p in book.positions.items()},
+                                                    equity, cfg.risk.max_net_exposure))
             else:
                 ta_scores = ({s: ta_consensus(d.closes) for s, d in data.items()}
                              if cfg.signal.ta_veto > 0 else None)
