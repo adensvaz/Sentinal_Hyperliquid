@@ -1143,7 +1143,7 @@ HTML = r"""<!doctype html>
   @media(max-width:640px){.vsgrid.vs4{grid-template-columns:1fr}}
   @media(max-width:720px){.vsgrid{grid-template-columns:1fr}}
   /* strategy cards */
-  .vscard{position:relative;background:linear-gradient(180deg,rgba(255,253,249,.93),rgba(255,255,253,.95));
+  .vscard{position:relative;display:flex;flex-direction:column;background:linear-gradient(180deg,rgba(255,253,249,.93),rgba(255,255,253,.95));
     border:1px solid var(--line);border-radius:20px;padding:24px 22px 22px;transition:.3s}
   .vscard:hover{transform:translateY(-4px);box-shadow:0 18px 50px rgba(80,60,30,.18)}
   .vscard.cur{transform:scale(1.05);z-index:3;border-color:transparent;
@@ -1179,9 +1179,10 @@ HTML = r"""<!doctype html>
     background:var(--accent);opacity:.7}
   #vs-champion .vsstats li::before{background:var(--gold);opacity:.9}
   #vs-carry .vsstats li::before{background:var(--grn);opacity:.85}
-  .vsstats b{color:var(--txt)} .vsbest{font-size:12px;color:var(--mut);font-style:italic;margin-bottom:16px}
+  #vs-funding_alpha .vsstats li::before{background:#3f80ba;opacity:.85}
+  .vsstats b{color:var(--txt)} .vsbest{font-size:12px;color:var(--mut);font-style:italic;margin:auto 0 16px}
   /* "switch to this" button — same-tab navigate */
-  .vslink{display:inline-block;font-size:13px;font-weight:700;color:var(--accent);text-decoration:none;
+  .vslink{display:inline-block;align-self:flex-start;font-size:13px;font-weight:700;color:var(--accent);text-decoration:none;
     padding:.42em 1em;border-radius:999px;border:1px solid rgba(255,138,92,.35);
     background:rgba(255,138,92,.08);transition:.2s;cursor:pointer}
   .vslink:hover{background:rgba(255,138,92,.18);border-color:rgba(255,138,92,.6)}
@@ -1189,12 +1190,15 @@ HTML = r"""<!doctype html>
   #vs-champion .vslink:hover{background:rgba(224,165,46,.2);border-color:rgba(224,165,46,.65)}
   #vs-carry .vslink{color:var(--grn);border-color:rgba(23,154,85,.4);background:rgba(23,154,85,.1)}
   #vs-carry .vslink:hover{background:rgba(23,154,85,.2);border-color:rgba(23,154,85,.65)}
+  #vs-funding_alpha .vslink{color:#2f6a9e;border-color:rgba(63,128,186,.4);background:rgba(63,128,186,.1)}
+  #vs-funding_alpha .vslink:hover{background:rgba(63,128,186,.2);border-color:rgba(63,128,186,.65)}
   /* active card's "Currently active" pill — full-width filled button (standalone class, no .vslink hover) */
   .vslink-cur{display:block;width:100%;box-sizing:border-box;text-align:center;font-size:13px;font-weight:800;
     padding:.62em 1em;border-radius:999px;cursor:default;color:#fff;border:0;text-decoration:none;
     background:linear-gradient(135deg,var(--accent),#d8531f)}
   #vs-champion .vslink-cur{color:#3a2c10;background:linear-gradient(135deg,#f3bd44,#e0a52e)}
   #vs-carry .vslink-cur{background:linear-gradient(135deg,#1fb866,#179a55)}
+  #vs-funding_alpha .vslink-cur{background:linear-gradient(135deg,#3f80ba,#2f6a9e)}
   /* strategy switcher in nav — single pill dropdown */
   .nav-switcher{position:relative;display:flex;align-items:center}
   .nav-switcher-btn{display:flex;align-items:center;gap:6px;background:rgba(255,138,92,.12);border:1px solid rgba(255,138,92,.3);
