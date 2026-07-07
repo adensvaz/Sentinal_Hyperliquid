@@ -66,6 +66,12 @@ def zof(d):
     v = np.array(list(d.values()))
     if len(v)==0 or v.std()<1e-12: return {k:0.0 for k in d}
     z=(v-v.mean())/v.std(); return {k:z[i] for i,k in enumerate(d)}
+def winsor_mad(d, k=3.0):
+    """Robustly clip funding outliers to median +/- k*MAD so one dislocating name (extreme funding =
+    price dislocation = adverse selection) can't hijack the z-score ranking or the fund-weighting."""
+    v=np.array(list(d.values())); med=float(np.median(v)); mad=float(np.median(np.abs(v-med))) or 1e-12
+    lo,hi=med-k*1.4826*mad, med+k*1.4826*mad
+    return {c:float(np.clip(x,lo,hi)) for c,x in d.items()}
 def betas(i):
     b=Rr["BTC"][max(0,i-BETALB+1):i+1]; out={}
     for c in coins:
@@ -74,7 +80,7 @@ def betas(i):
     return out
 
 def run(alpha=0.9, guard=0.12, K=7, vol_target=0.004, ddthrottle=True, betahedge=True,
-        fundweight=True, regime=False):
+        fundweight=True, regime=False, winsor=0.0, fee=FEE):
     eq,peak,rets,rv,wp,disp_hist = 1.0,1.0,[],[],{c:0.0 for c in coins},[]
     for i in range(max(MOMLB,BETALB), n-1):
         elig=[c for c in coins if not np.isnan(C[c][i]) and not np.isnan(C[c][i+1]) and not np.isnan(C[c][i-MOMLB]) and C[c][i-MOMLB]>0 and not np.isnan(avgF(c,i))]
@@ -82,7 +88,8 @@ def run(alpha=0.9, guard=0.12, K=7, vol_target=0.004, ddthrottle=True, betahedge
         disp=np.nan
         if len(elig)>=2*K:
             fnd={c:avgF(c,i) for c in elig}; mom={c:C[c][i]/C[c][i-MOMLB]-1 for c in elig}
-            disp=np.std(list(fnd.values()))
+            disp=np.std(list(fnd.values()))                 # raw dispersion for the regime filter
+            if winsor: fnd=winsor_mad(fnd, winsor)          # tame outliers BEFORE selection/sizing
             fz,mz=zof(fnd),zof(mom)
             score={c:-alpha*fz[c]+(1-alpha)*mz[c] for c in elig}
             rank=sorted(elig,key=lambda c:score[c]); longs,shorts=rank[-K:],rank[:K]
@@ -109,7 +116,7 @@ def run(alpha=0.9, guard=0.12, K=7, vol_target=0.004, ddthrottle=True, betahedge
         to=sum(abs(g*w[c]-wp[c]) for c in coins)
         pr=sum(g*w[c]*(C[c][i+1]/C[c][i]-1) for c in coins if w[c])
         fn=sum(-g*w[c]*F[c][i+1] for c in coins if w[c] and not np.isnan(F[c][i+1]))
-        r=pr+fn-to*FEE; eq*=(1+r); peak=max(peak,eq); rets.append(r); rv.append(r); wp={c:g*w[c] for c in coins}
+        r=pr+fn-to*fee; eq*=(1+r); peak=max(peak,eq); rets.append(r); rv.append(r); wp={c:g*w[c] for c in coins}
     return np.array(rets), eq
 
 def stats(rets, eq):
@@ -119,14 +126,17 @@ def stats(rets, eq):
                 sortino=rets.mean()/down.std()*np.sqrt(365) if len(down)>1 and down.std()>0 else 0,
                 maxdd=dd.max(), calmar=(eq**(1/yrs)-1)/dd.max() if dd.max()>1e-6 else 0)
 
-print(f"{'variant':<26}{'CAGR':>8}{'Sharpe':>7}{'Sortino':>8}{'maxDD':>7}{'Calmar':>7}")
-for label, rg in [("Funding-Alpha (no regime)", False), ("Funding-Alpha + REGIME filter", True)]:
-    rets, eq = run(regime=rg); s = stats(rets, eq)
-    print(f"{label:<26}{s['cagr']*100:>+7.1f}%{s['sharpe']:>7.2f}{s['sortino']:>8.2f}{s['maxdd']*100:>7.1f}%{s['calmar']:>7.2f}")
-# robustness of the regime-filtered version
-rets, eq = run(regime=True)
-q = len(rets)//4
+print(f"{'variant':<30}{'CAGR':>8}{'Sharpe':>7}{'Sortino':>8}{'maxDD':>7}{'Calmar':>7}")
+VARIANTS=[("baseline @maker 1.5bps",    dict(regime=True)),
+          ("REALISTIC @blended 3.0bps", dict(regime=True, fee=0.00030)),
+          ("stress @taker 4.5bps",      dict(regime=True, fee=0.00045)),
+          ("winsor k=3 (TESTED->REJECT)", dict(regime=True, winsor=3.0))]
+for label, kw in VARIANTS:
+    rets, eq = run(**kw); s = stats(rets, eq)
+    print(f"{label:<30}{s['cagr']*100:>+7.1f}%{s['sharpe']:>7.2f}{s['sortino']:>8.2f}{s['maxdd']*100:>7.1f}%{s['calmar']:>7.2f}")
+# robustness: does winsor help the OUT-OF-SAMPLE stability (the thing that faded)?
 sh = lambda x: x.mean()/x.std()*np.sqrt(365) if len(x)>5 and x.std()>0 else 0
-print("\nrolling-quarter Sharpe (regime-filtered):", [round(sh(rets[i*q:(i+1)*q]),2) for i in range(4)])
-h=len(rets)//2
-print(f"split-half Sharpe: 1st {sh(rets[:h]):.2f} | 2nd {sh(rets[h:]):.2f}")
+for lbl, kw in [("baseline", dict(regime=True)), ("winsor k=3", dict(regime=True, winsor=3.0))]:
+    rets, eq = run(**kw); q=len(rets)//4; h=len(rets)//2
+    print(f"\n[{lbl}] rolling-quarter Sharpe:", [round(sh(rets[i*q:(i+1)*q]),2) for i in range(4)],
+          f"| split-half: 1st {sh(rets[:h]):.2f} 2nd {sh(rets[h:]):.2f}")

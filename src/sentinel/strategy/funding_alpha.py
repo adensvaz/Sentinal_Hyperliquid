@@ -87,6 +87,10 @@ class FundingAlphaStrategy:
                 regime_scale = float(np.clip(disp / base, 0.4, 1.3))
 
         # --- selection: funding tilt + small momentum term, then guard ----------------------------
+        # NB: winsorizing the funding z-score to tame extreme-funding outliers was TESTED and REJECTED
+        # (scripts/hl_funding_alpha_bt.py: Sharpe 2.26->1.94, deeper DD, worse 2nd-half OOS). The
+        # fat-tailed funding IS the edge; the momentum guard below already handles price-side adverse
+        # selection, and the strategy survives realistic blended fees (Sharpe 2.13 @ 3.0bps). Leave raw.
         fz, mz = _zscore(fnd), _zscore(mom)
         score = {s: -c.alpha * fz[s] + (1.0 - c.alpha) * mz[s] for s in mom}   # higher = better LONG
         ranked = sorted(score, key=lambda s: score[s])                         # ascending: best-short .. best-long
