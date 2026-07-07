@@ -1,19 +1,19 @@
 # ============================================================================
 # CHAMPION strategy config — directional momentum + BTC-regime (the 5.5yr backtest winner).
-# Runs SEPARATELY from the neutral book: own database (data/champion.db), own loop, own dashboard.
-# The neutral strategy (config.yaml -> data/sentinel.db) is untouched.
+# Runs on Hyperliquid, SEPARATELY from the neutral book: own database (data/hl_champion.db), own loop,
+# own dashboard. The neutral strategy (config.yaml -> data/hl_sentinel.db) is untouched.
 # ============================================================================
 mode: paper
 strategy: champion           # <- selects MomentumRegimeStrategy (long-only top-K momentum, regime-gated)
 capital_usdt: 10000
 
 exchange:
-  futures_host: https://futuresopenapi.koinbay.com
-  spot_host: https://openapi.koinbay.com
+  venue: hyperliquid                              # migrated KoinBay -> Hyperliquid
+  hyperliquid_info_url: https://api.hyperliquid.xyz/info
 
 universe:
   top_n: 24
-  min_quote_volume_usdt: 500000
+  min_quote_volume_usdt: 200000                   # liquidity floor (HL volume scale)
 
 champion:
   top_k: 5                   # hold the 5 strongest names
@@ -37,9 +37,9 @@ champion:
 execution:
   order_type: limit
   maker: true
-  slippage_bps: 8
+  slippage_bps: 5
   time_in_force: IOC
-  min_trade_notional: 25
+  min_trade_notional: 15
   min_rebalance_frac: 0.10
   margin_mode: isolated
   position_mode: net
@@ -70,6 +70,6 @@ schedule:
   rebalance_hour_utc: 14       # daily at 14:00 UTC (same clock as the neutral book)
 
 state:
-  db_path: data/champion.db
-  equity_csv: data/champion_equity.csv
-  log_path: data/champion.log
+  db_path: data/hl_champion.db      # fresh HL track record (KoinBay history kept in data/champion.db)
+  equity_csv: data/hl_champion_equity.csv
+  log_path: data/hl_champion.log

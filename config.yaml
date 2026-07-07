@@ -1,31 +1,29 @@
 # ============================================================================
 # Sentinel Edge — configuration
-# A market-neutral long/short strategy (Sentiment Edge-style) on KoinBay futures.
+# A market-neutral long/short strategy (Sentiment Edge-style) on Hyperliquid perps.
 # Secrets live in .env, NOT here.
 # ============================================================================
 
 # paper  -> simulate fills against live prices (DEFAULT, no funds at risk)
-# live   -> place real orders on KoinBay futures (also requires the --live CLI flag)
+# live   -> place real orders on Hyperliquid (Phase-2 agent wallet; also requires the --live CLI flag)
 mode: paper
 
 exchange:
-  futures_host: https://futuresopenapi.koinbay.com
-  spot_host: https://openapi.koinbay.com
-  recv_window_ms: 5000
-  timeout_s: 15
+  venue: hyperliquid                              # migrated KoinBay -> Hyperliquid (real funding, cheaper fees)
+  hyperliquid_info_url: https://api.hyperliquid.xyz/info
 
-# null  -> read account equity from KoinBay (USDT margin coin)
+# null  -> read account equity from the venue (USDT margin coin)
 # number -> use this fixed notional as the strategy's capital base (always used in paper mode)
 capital_usdt: 10000
 
 universe:
   top_n: 24            # rank active USDT-margined perps by 24h quote volume, keep top N
-  allowlist: []        # if non-empty, ONLY these contractNames are considered (e.g. ["E-BTC-USDT"])
-  denylist: []         # always excluded (e.g. ["E-BTC-USDT", "E-ETH-USDT"])
-  min_quote_volume_usdt: 500000   # liquidity floor; names below are dropped
+  allowlist: []        # if non-empty, ONLY these coins are considered (e.g. ["BTC"])
+  denylist: []         # always excluded (e.g. ["BTC", "ETH"])
+  min_quote_volume_usdt: 200000   # liquidity floor (HL volume scale); names below are dropped
 
 signal:
-  # multi-horizon momentum; horizons are derived from 1h + 1day klines (KoinBay futures has no 4h)
+  # multi-horizon momentum; horizons are derived from 1h + 1day klines (HL adapter serves both)
   momentum_horizons: [4h, 24h, 7d]
   weights:
     momentum: 0.4      # risk-adjusted cross-sectional momentum
@@ -76,9 +74,9 @@ portfolio:
 execution:
   order_type: limit            # "limit" (marketable, recommended) or "market"
   maker: true                  # rest POST_ONLY at touch -> maker fee ~1/3 of taker (backtest: big net lift)
-  slippage_bps: 8              # marketable-limit crosses the spread by this many bps (taker path only)
+  slippage_bps: 5              # HL spreads tighter than KoinBay (taker path only)
   time_in_force: IOC           # IOC / FOK / POST_ONLY (limit orders)
-  min_trade_notional: 25       # skip rebalance deltas smaller than this (fee/churn guard)
+  min_trade_notional: 15       # HL min order ~$10 notional (fee/churn guard)
   min_rebalance_frac: 0.10     # also skip same-side adjustments < 10% of the current position (anti-churn)
   margin_mode: isolated        # isolated or cross
   position_mode: net           # net (one direction per contract) or two_way
@@ -118,6 +116,6 @@ schedule:
                                # predictable + restart-proof). set to null to use the interval instead.
 
 state:
-  db_path: data/sentinel.db
-  equity_csv: data/equity.csv
-  log_path: data/sentinel.log
+  db_path: data/hl_sentinel.db      # fresh HL track record (KoinBay history kept in data/sentinel.db)
+  equity_csv: data/hl_equity.csv
+  log_path: data/hl_sentinel.log
