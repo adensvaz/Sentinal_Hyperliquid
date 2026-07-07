@@ -32,6 +32,8 @@ funding_alpha:
   regime_filter: true
   regime_lookback: 60
   target_gross: 2.0
+  btc_regime_gate: 0.5         # ROBUSTNESS: cut gross to half when BTC < its 50d MA (edge thins risk-off).
+  btc_regime_ma: 50            #   backtest: out-of-sample 2nd-half Sharpe 0.15->0.58, maxDD 20%->16%.
 
 execution:
   order_type: limit

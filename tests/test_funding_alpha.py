@@ -64,6 +64,22 @@ def test_too_few_candidates_returns_empty():
     assert len(book.positions) == 0
 
 
+def test_btc_regime_gate_cuts_gross_below_trend():
+    """BTC-trend derisk gate: cut gross when BTC < its MA (risk-off), full size when above."""
+    names = NAMES + ["BTC"]
+    closes = {n: _flat() for n in NAMES}
+    prices = {n: 100.0 for n in names}
+    funding = dict(_funding_spread()); funding["BTC"] = 0.0
+    reg = _reg(names)
+    closes["BTC"] = [120.0] * 30 + [100.0] * 10            # last 100 < 20d MA (110) -> risk-off
+    gated = _strat(btc_regime_gate=0.5, btc_regime_ma=20).build_book(closes, funding, prices, reg, 10000.0, 1.0)
+    off   = _strat(btc_regime_gate=0.0, btc_regime_ma=20).build_book(closes, funding, prices, reg, 10000.0, 1.0)
+    assert gated.target_gross == off.target_gross * 0.5   # cut to half in a BTC downtrend
+    closes["BTC"] = [100.0] * 30 + [120.0] * 10            # last 120 > MA -> risk-on
+    up = _strat(btc_regime_gate=0.5, btc_regime_ma=20).build_book(closes, funding, prices, reg, 10000.0, 1.0)
+    assert up.target_gross == off.target_gross            # full size when BTC is trending up
+
+
 def test_regime_filter_scales_gross():
     """With regime_filter on, a compressed-dispersion snapshot should not exceed base gross."""
     fa = FundingAlphaCfg(beta_hedge=False, regime_filter=True)
