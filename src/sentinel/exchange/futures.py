@@ -13,6 +13,8 @@ from .client import KoinbayClient
 
 
 class KoinbayFutures:
+    funding_interval_hours = 8.0             # KoinBay perp funding settles every 8h
+
     def __init__(self, client: KoinbayClient):
         self.c = client
 

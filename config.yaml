@@ -74,6 +74,7 @@ portfolio:
 execution:
   order_type: limit            # "limit" (marketable, recommended) or "market"
   maker: true                  # rest POST_ONLY at touch -> maker fee ~1/3 of taker (backtest: big net lift)
+  maker_fill_ratio: 0.5        # REALISM: assume ~half of POST_ONLY orders fill as maker; the rest chase as taker
   slippage_bps: 5              # HL spreads tighter than KoinBay (taker path only)
   time_in_force: IOC           # IOC / FOK / POST_ONLY (limit orders)
   min_trade_notional: 15       # HL min order ~$10 notional (fee/churn guard)

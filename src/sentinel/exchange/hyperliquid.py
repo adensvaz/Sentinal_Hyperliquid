@@ -44,6 +44,8 @@ HL_MAKER = 0.00015
 class HyperliquidFutures:
     """Drop-in for KoinbayFutures against Hyperliquid's info API (read) + a gated exec stub."""
 
+    funding_interval_hours = 1.0             # Hyperliquid funding settles HOURLY (KoinBay = 8h)
+
     def __init__(self, info_url: str = "https://api.hyperliquid.xyz/info",
                  timeout_s: float = 15.0, ttl_s: float = 8.0):
         self.info_url = info_url.rstrip("/")

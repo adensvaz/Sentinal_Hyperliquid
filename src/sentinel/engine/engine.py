@@ -65,6 +65,7 @@ class Engine:
         self.mode = "live" if live else "paper"
         self.fx = make_futures(cfg)                      # KoinbayFutures | HyperliquidFutures per cfg.exchange.venue
         self.client = getattr(self.fx, "c", None)        # underlying KoinBay client (None on Hyperliquid)
+        self._funding_interval_h = getattr(self.fx, "funding_interval_hours", 8.0)  # HL=1h, KoinBay=8h
         self.strategy = SentimentEdgeStrategy(cfg.portfolio)
         self.champion = MomentumRegimeStrategy(cfg)   # directional momentum+regime (used when cfg.strategy=='champion')
         self.carry = FundingCarryStrategy(cfg)        # funding-carry+momentum, market-neutral (cfg.strategy=='carry')
@@ -453,7 +454,7 @@ class Engine:
         if self.live:
             return  # live funding is settled by the exchange itself
         marks, funding = self._index_data(positions) if positions else ({}, {})
-        self.broker.accrue_funding(funding, marks)
+        self.broker.accrue_funding(funding, marks, interval_hours=self._funding_interval_h)
 
     def _live_equity(self, marks: dict) -> float:
         if not self.live:
@@ -512,7 +513,7 @@ class Engine:
         cur = self.broker.positions()
         marks, funding = self._index_data(cur) if cur else ({}, {})
         if not self.live:
-            self.broker.accrue_funding(funding, marks)
+            self.broker.accrue_funding(funding, marks, interval_hours=self._funding_interval_h)
         eq = self._live_equity(marks)
         peak = self.store.update_peak_equity(self.mode, eq)
         dd = drawdown_pct(peak, eq)

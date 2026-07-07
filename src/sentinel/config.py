@@ -77,6 +77,9 @@ class PortfolioCfg(BaseModel):
 class ExecutionCfg(BaseModel):
     order_type: Literal["limit", "market"] = "limit"
     maker: bool = False          # rest POST_ONLY at the touch (maker fee ~1/3 of taker; fills not guaranteed)
+    maker_fill_ratio: float = Field(default=1.0, ge=0.0, le=1.0)   # fraction of POST_ONLY orders that
+                                 # actually rest-and-fill as maker; the rest chase across the spread as
+                                 # taker (higher fee + slippage). 1.0 = optimistic, ~0.5 = realistic.
     slippage_bps: float = 8.0
     time_in_force: Literal["IOC", "FOK", "POST_ONLY"] = "IOC"
     min_trade_notional: float = 25.0

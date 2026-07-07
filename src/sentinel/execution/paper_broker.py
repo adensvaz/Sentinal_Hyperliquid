@@ -73,8 +73,19 @@ class PaperBroker(Broker):
         for o in orders:
             spec = registry.get(o.symbol)
             if maker:
-                fill_price = spec.round_price(o.ref_price)   # resting maker fill, no spread-crossing
-                fee_rate = spec.open_maker_fee if o.open == "OPEN" else spec.close_maker_fee
+                # realism: only maker_fill_ratio of POST_ONLY orders rest-and-fill as maker; the rest
+                # chase across the spread as taker (higher fee + slippage). Deterministic cost blend.
+                mr = min(1.0, max(0.0, getattr(exec_cfg, "maker_fill_ratio", 1.0)))
+                mk = spec.open_maker_fee if o.open == "OPEN" else spec.close_maker_fee
+                if mr >= 1.0:
+                    fill_price = spec.round_price(o.ref_price)   # all maker, resting at touch
+                    fee_rate = mk
+                else:
+                    touch = spec.round_price(o.ref_price)
+                    taker_px = marketable_price(o.side, o.ref_price, exec_cfg.slippage_bps, spec)
+                    fill_price = spec.round_price(mr * touch + (1.0 - mr) * taker_px)
+                    tk = spec.open_taker_fee if o.open == "OPEN" else spec.close_taker_fee
+                    fee_rate = mr * mk + (1.0 - mr) * tk
             elif exec_cfg.order_type == "limit":
                 fill_price = marketable_price(o.side, o.ref_price, exec_cfg.slippage_bps, spec)
                 fee_rate = spec.open_taker_fee if o.open == "OPEN" else spec.close_taker_fee

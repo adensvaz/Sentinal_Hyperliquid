@@ -36,6 +36,7 @@ funding_alpha:
 execution:
   order_type: limit
   maker: true                  # HL maker ~1.5bps
+  maker_fill_ratio: 0.5        # REALISM: assume ~half of POST_ONLY orders fill as maker; the rest chase as taker
   slippage_bps: 5
   time_in_force: IOC
   min_trade_notional: 15
