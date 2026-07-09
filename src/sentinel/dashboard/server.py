@@ -93,6 +93,7 @@ def _get_regime(cfg, ttl: float = 300.0):
         return None
     now = time.time()
     ma_n = cfg.champion.regime_ma
+    btc_sym = "BTC" if getattr(cfg.exchange, "venue", "koinbay") == "hyperliquid" else "E-BTC-USDT"
     with _regime_lock:
         fresh = _regime_cache["ma"] is not None and now - _regime_cache["ts"] < ttl
     if not fresh:
@@ -103,7 +104,7 @@ def _get_regime(cfg, ttl: float = 300.0):
             if _fx_client is None:
                 _fx_client = make_futures(cfg)   # venue-aware (Hyperliquid | KoinBay)
             spark = 90
-            _, closes, _ = _parse_klines(_fx_client.klines("E-BTC-USDT", "1day", ma_n + spark + 5))
+            _, closes, _ = _parse_klines(_fx_client.klines(btc_sym, "1day", ma_n + spark + 5))
             if len(closes) >= ma_n + 2:
                 series = [{"c": round(closes[i], 2),
                            "ma": round(sum(closes[i - ma_n + 1:i + 1]) / ma_n, 2)}
@@ -117,7 +118,7 @@ def _get_regime(cfg, ttl: float = 300.0):
     if ma is None:
         return None
     try:
-        live = _get_marks(cfg, ["E-BTC-USDT"]).get("E-BTC-USDT")
+        live = _get_marks(cfg, [btc_sym]).get(btc_sym)
     except Exception:
         live = None
     price = float(live) if live else float(_regime_cache["last_close"] or ma)
