@@ -85,7 +85,9 @@ class MomentumRegimeStrategy:
 
     def __init__(self, cfg):
         self.c = cfg.champion           # ChampionCfg
-        self.ref = "E-BTC-USDT"
+        # venue-aware BTC reference for the regime brake: Hyperliquid names it "BTC", KoinBay "E-BTC-USDT".
+        # (Hardcoding the KoinBay symbol left Champion's regime gate dead on HL — always cash.)
+        self.ref = "BTC" if cfg.exchange.venue == "hyperliquid" else "E-BTC-USDT"
 
     def build_book(self, closes_by_symbol: dict, prices: dict, registry: ContractRegistry,
                    equity: float, gross_scale: float = 1.0) -> TargetBook:

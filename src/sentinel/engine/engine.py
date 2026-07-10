@@ -66,6 +66,7 @@ class Engine:
         self.fx = make_futures(cfg)                      # KoinbayFutures | HyperliquidFutures per cfg.exchange.venue
         self.client = getattr(self.fx, "c", None)        # underlying KoinBay client (None on Hyperliquid)
         self._funding_interval_h = getattr(self.fx, "funding_interval_hours", 8.0)  # HL=1h, KoinBay=8h
+        self.btc_sym = "BTC" if cfg.exchange.venue == "hyperliquid" else "E-BTC-USDT"  # venue-aware BTC reference
         self.strategy = SentimentEdgeStrategy(cfg.portfolio)
         self.champion = MomentumRegimeStrategy(cfg)   # directional momentum+regime (used when cfg.strategy=='champion')
         self.carry = FundingCarryStrategy(cfg)        # funding-carry+momentum, market-neutral (cfg.strategy=='carry')
@@ -149,7 +150,7 @@ class Engine:
         self.registry = ContractRegistry.from_futures(self.fx)
         active = self.registry.active_usdt()
         self.coin_to_symbol = {s.multiplier_coin.upper(): s.name for s in active}
-        ref = "E-BTC-USDT" if self.registry.has("E-BTC-USDT") else (active[0].name if active else "E-BTC-USDT")
+        ref = self.btc_sym if self.registry.has(self.btc_sym) else (active[0].name if active else self.btc_sym)
         horizons = [parse_duration_to_hours(h) for h in self.cfg.signal.momentum_horizons]
         if self.cfg.strategy == "champion":
             # the champion's signals are DAILY (50/100-day MAs, 30-day momentum) — force daily bars
@@ -212,7 +213,7 @@ class Engine:
 
         # BTC-betas (cross-section) computed once and reused for whale-demean + book beta-hedge
         betas_cs = compute_betas({s: d.closes for s, d in data.items()},
-                                 "E-BTC-USDT", cfg.portfolio.beta_lookback) if data else {}
+                                 self.btc_sym, cfg.portfolio.beta_lookback) if data else {}
         if cfg.portfolio.beta_neutralize and whale_bias and betas_cs:
             # kill the whale overlay's directional BTC tilt at SOURCE (orthogonalize vs beta)
             whale_bias = demean_by_beta(whale_bias, betas_cs)
@@ -255,7 +256,7 @@ class Engine:
                     log.info("dynamic de-risk: gross x%.2f (drawdown=%.1f%%)", gscale, ddf * 100)
             if cfg.risk.crash_guard:
                 itv_h = parse_duration_to_hours(self.base_interval)
-                ref_c = (data.get("E-BTC-USDT") or next(iter(data.values()), None))
+                ref_c = (data.get(self.btc_sym) or next(iter(data.values()), None))
                 cg = crash_guard(ref_c.closes if ref_c else [],
                                  int(cfg.risk.crash_dd_hours / itv_h), int(cfg.risk.crash_bounce_hours / itv_h),
                                  cfg.risk.crash_dd_trigger, cfg.risk.crash_bounce_trigger,
