@@ -973,6 +973,10 @@ HTML = r"""<!doctype html>
   .wallets .w{display:flex;justify-content:space-between;align-items:center;padding:4px 0;color:var(--mut)}
   #chart{max-height:340px}
   .chartwrap{position:relative}
+  .chart-empty{display:none;position:absolute;inset:0;flex-direction:column;align-items:center;justify-content:center;
+    text-align:center;color:var(--dim);font-size:14px;font-weight:650;pointer-events:none;padding:0 30px}
+  .chart-empty.on{display:flex}
+  .chart-empty .ce-sub{display:block;margin-top:6px;font-size:11.5px;font-weight:500;color:var(--mut);opacity:.9;max-width:440px;line-height:1.55}
   .charttip{position:absolute;left:0;top:0;pointer-events:none;opacity:0;z-index:6;will-change:transform;
     transform:translate(0,0);transition:opacity .16s ease,transform .12s cubic-bezier(.22,.9,.3,1);
     background:linear-gradient(180deg,rgba(18,26,40,.97),rgba(10,14,21,.97));border:1px solid rgba(255,138,92,.42);
@@ -1323,7 +1327,7 @@ HTML = r"""<!doctype html>
       <button class="t" data-r="24H">24H</button><button class="t" data-r="7D">7D</button>
       <button class="t" data-r="30D">30D</button><button class="t on" data-r="ALL">ALL</button>
     </div></div>
-    <div class="chartwrap"><canvas id="chart"></canvas><div id="chartTip" class="charttip"></div></div>
+    <div class="chartwrap"><canvas id="chart"></canvas><div id="chartTip" class="charttip"></div><div id="chartEmpty" class="chart-empty"></div></div>
   </div>
 
   <div class="panel tabwrap">
@@ -1764,6 +1768,19 @@ function drawChart(){
   $('chartval').innerHTML=metric==='value'?money(last):`<span class="${last>=0?'grn':'red'}">${sgn(last)}</span>`;
   const up=metric==='value'?true:last>=0;
   const line=up?'#4be0b0':'#ff7a8a';
+  // graceful empty-state: a window needs >=2 points to draw a line. A single point (e.g. right after a
+  // recording gap / outage, or a brand-new book) would render as a confusing blank grid.
+  const ce=$('chartEmpty');
+  if(s.length<2){
+    const anyData=(DATA.equity_series||[]).length>0;
+    ce.innerHTML=anyData
+      ? '📈 Building history for the '+range+' view…<span class="ce-sub">Only one data point in this window so far — the equity curve had a gap (the loop was interrupted). It fills back in as new ticks record. Try a longer range for now.</span>'
+      : '📈 No history yet<span class="ce-sub">This book hasn&rsquo;t recorded its first rebalance — check back shortly.</span>';
+    ce.classList.add('on');
+    if(chart){chart.data.labels=[];chart.data.datasets[0].data=[];chart.update('none');}
+    return;
+  }
+  ce.classList.remove('on');
   const ctx=$('chart').getContext('2d');
   const grad=ctx.createLinearGradient(0,0,0,340);
   grad.addColorStop(0, up?'rgba(75,224,176,.30)':'rgba(255,122,138,.30)');
