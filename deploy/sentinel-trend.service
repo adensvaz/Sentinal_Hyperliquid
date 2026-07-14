@@ -1,12 +1,12 @@
 [Unit]
-Description=Sentinel Funding-Alpha Loop (Hyperliquid, paper)
+Description=Sentinel Trend Loop (Hyperliquid, paper)
 After=network.target
 
 [Service]
 Type=simple
 User=a_vaz
 WorkingDirectory=/home/a_vaz/sentinel
-ExecStart=/home/a_vaz/sentinel/.venv/bin/python run.py loop --config config.hl-funding-alpha.yaml
+ExecStart=/home/a_vaz/sentinel/.venv/bin/python run.py loop --config config.hl-trend.yaml
 Restart=always
 RestartSec=10
 

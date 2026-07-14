@@ -315,7 +315,7 @@ FAVICON_SVG = (
 
 ROBOTS_TXT = (
     "# Sentinel Edge — live algorithmic crypto trading signals (Hyperliquid futures)\n"
-    "# Four strategies: market-neutral momentum, regime-gated momentum, funding-carry, delta-neutral funding-harvest\n"
+    "# Four strategies: market-neutral momentum, regime-gated momentum, funding-carry, cross-sectional trend (CTA)\n"
     "\n"
     "User-agent: *\n"
     "Allow: /\n"
@@ -394,10 +394,10 @@ def _build_llms_txt(cfg: Config) -> str:
    momentum-tilted to avoid shorting a ripping coin. Backtest 6.5yr: Sharpe ~2.0, every year positive.
    Uncorrelated to price momentum and to BTC (corr ≈ 0). True diversifier.
 
-4. **Funding-Alpha** (port 8790, experimental) — delta-neutral funding harvest.
-   Earns the funding premium on both sides while hedging out price and market risk (BTC-beta ≈ 0),
-   funding-weighted and dispersion-regime-scaled for the smallest drawdown of the four.
-   In-sample Sharpe ~2.3, maxDD ~17% on ~1.5yr Hyperliquid data — **paper-only** while it proves out.
+4. **Trend** (port 8790) — dollar-neutral cross-sectional trend-following (CTA).
+   Longs the coins in the strongest uptrends, shorts the strongest downtrends (price vs 30-day MA),
+   dollar-neutral. The most durable systematic edge; the vol-target/DD-throttle overlay tames the drawdown.
+   5yr Binance backtest Sharpe ~1.35, +75%/yr, positive every year (survivorship-caveated) — paper on HL.
 
 ## What "signal" means here
 - A signal is a ranked coin with a target side (LONG/SHORT) and score.
@@ -645,7 +645,7 @@ AI_PLUGIN_JSON = json.dumps({
         "strategy running on Hyperliquid futures. Returns current positions, market regime "
         "(BTC trend status), unrealised PnL, and signal scores for four uncorrelated strategies: "
         "market-neutral momentum (port 8787), regime-gated momentum Champion (port 8788), "
-        "funding-carry (port 8789), and delta-neutral funding-harvest (port 8790, experimental). "
+        "funding-carry (port 8789), and cross-sectional trend / CTA (port 8790). "
         "Use /signals.md for a readable summary or /api/state for raw JSON."
     ),
     "description_for_human": "Get live crypto trading signals and positions from Sentinel Edge algorithmic strategies.",
@@ -720,10 +720,10 @@ HTML = r"""<!doctype html>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
 <title>Sentinel Edge — Algorithmic Crypto Trading Bot (3 strategies)</title>
 <link rel="icon" type="image/svg+xml" href="/favicon.svg"/>
-<meta name="description" content="Sentinel Edge — four uncorrelated algorithmic crypto-futures strategies on Hyperliquid sharing one engine: market-neutral momentum, regime-gated momentum (champion), funding-carry, and a delta-neutral funding-harvest (experimental). Live paper-trading dashboards with real PnL, equity curves and backtests."/>
+<meta name="description" content="Sentinel Edge — four uncorrelated algorithmic crypto-futures strategies on Hyperliquid sharing one engine: market-neutral momentum, regime-gated momentum (champion), funding-carry, and a cross-sectional trend (CTA) book. Live paper-trading dashboards with real PnL, equity curves and backtests."/>
 <meta name="theme-color" content="#ff8a5c"/>
 <meta property="og:title" content="Sentinel Edge — Algorithmic Crypto Trading Bot"/>
-<meta property="og:description" content="Four uncorrelated crypto strategies on Hyperliquid — market-neutral, momentum+regime, funding-carry, and delta-neutral funding-harvest — with live PnL dashboards."/>
+<meta property="og:description" content="Four uncorrelated crypto strategies on Hyperliquid — market-neutral, momentum+regime, funding-carry, and cross-sectional trend (CTA) — with live PnL dashboards."/>
 <meta property="og:type" content="website"/>
 <meta name="twitter:card" content="summary"/>
 <meta name="keywords" content="crypto trading signals, live trading signals, algorithmic trading bot,
@@ -736,7 +736,7 @@ HTML = r"""<!doctype html>
   "@context": "https://schema.org",
   "@type": "SoftwareApplication",
   "name": "Sentinel Edge",
-  "description": "Four uncorrelated algorithmic crypto-futures trading strategies on Hyperliquid: market-neutral momentum, regime-gated momentum, funding-carry, and delta-neutral funding-harvest. Live signals updated daily.",
+  "description": "Four uncorrelated algorithmic crypto-futures trading strategies on Hyperliquid: market-neutral momentum, regime-gated momentum, funding-carry, and cross-sectional trend (CTA). Live signals updated daily.",
   "applicationCategory": "FinanceApplication",
   "operatingSystem": "Web",
   "url": "https://github.com/adensvaz/Sentinal_Hyperliquid",
@@ -1155,7 +1155,7 @@ HTML = r"""<!doctype html>
     background:linear-gradient(180deg,rgba(236,250,241,.98),rgba(250,255,251,.98))}
   #vs-champion.cur{box-shadow:0 0 0 2.5px var(--gold),0 30px 74px rgba(224,165,46,.28);
     background:linear-gradient(180deg,rgba(255,249,233,.98),rgba(255,253,243,.98))}
-  #vs-funding_alpha.cur{box-shadow:0 0 0 2.5px #3f80ba,0 30px 74px rgba(63,128,186,.26);
+  #vs-trend.cur{box-shadow:0 0 0 2.5px #3f80ba,0 30px 74px rgba(63,128,186,.26);
     background:linear-gradient(180deg,rgba(233,242,250,.98),rgba(249,252,255,.98))}
   /* header row: icon + name + badge(s) all on one line, no overlap */
   .vshead{font-size:17px;font-weight:800;letter-spacing:-.3px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding-right:0}
@@ -1170,7 +1170,7 @@ HTML = r"""<!doctype html>
   .vscard.cur .vs-here{color:var(--accent);background:rgba(255,138,92,.1);border-color:rgba(255,138,92,.3)}
   #vs-carry.cur .vs-here{color:var(--grn);background:rgba(75,224,176,.1);border-color:rgba(75,224,176,.3)}
   #vs-champion.cur .vs-here{color:#b9821c;background:rgba(224,165,46,.16);border-color:rgba(224,165,46,.42)}
-  #vs-funding_alpha.cur .vs-here{color:#3f80ba;background:rgba(63,128,186,.1);border-color:rgba(63,128,186,.32)}
+  #vs-trend.cur .vs-here{color:#3f80ba;background:rgba(63,128,186,.1);border-color:rgba(63,128,186,.32)}
   .vsq{font-size:10.5px;font-weight:600;color:var(--dim);opacity:.75}
   .vstag{font-size:11px;font-weight:700;letter-spacing:1.4px;text-transform:uppercase;color:var(--dim);margin:10px 0 13px}
   .vscard p{font-size:13px;line-height:1.62;color:var(--txt);margin:0 0 14px}
@@ -1180,7 +1180,7 @@ HTML = r"""<!doctype html>
     background:var(--accent);opacity:.7}
   #vs-champion .vsstats li::before{background:var(--gold);opacity:.9}
   #vs-carry .vsstats li::before{background:var(--grn);opacity:.85}
-  #vs-funding_alpha .vsstats li::before{background:#3f80ba;opacity:.85}
+  #vs-trend .vsstats li::before{background:#3f80ba;opacity:.85}
   .vsstats b{color:var(--txt)} .vsbest{font-size:12px;color:var(--mut);font-style:italic;margin:auto 0 16px}
   /* "switch to this" button — same-tab navigate */
   .vslink{display:inline-block;align-self:flex-start;font-size:13px;font-weight:700;color:var(--accent);text-decoration:none;
@@ -1191,15 +1191,15 @@ HTML = r"""<!doctype html>
   #vs-champion .vslink:hover{background:rgba(224,165,46,.2);border-color:rgba(224,165,46,.65)}
   #vs-carry .vslink{color:var(--grn);border-color:rgba(23,154,85,.4);background:rgba(23,154,85,.1)}
   #vs-carry .vslink:hover{background:rgba(23,154,85,.2);border-color:rgba(23,154,85,.65)}
-  #vs-funding_alpha .vslink{color:#2f6a9e;border-color:rgba(63,128,186,.4);background:rgba(63,128,186,.1)}
-  #vs-funding_alpha .vslink:hover{background:rgba(63,128,186,.2);border-color:rgba(63,128,186,.65)}
+  #vs-trend .vslink{color:#2f6a9e;border-color:rgba(63,128,186,.4);background:rgba(63,128,186,.1)}
+  #vs-trend .vslink:hover{background:rgba(63,128,186,.2);border-color:rgba(63,128,186,.65)}
   /* active card's "Currently active" pill — full-width filled button (standalone class, no .vslink hover) */
   .vslink-cur{display:block;width:100%;box-sizing:border-box;text-align:center;font-size:13px;font-weight:800;
     padding:.62em 1em;border-radius:999px;cursor:default;color:#fff;border:0;text-decoration:none;
     background:linear-gradient(135deg,var(--accent),#d8531f)}
   #vs-champion .vslink-cur{color:#3a2c10;background:linear-gradient(135deg,#f3bd44,#e0a52e)}
   #vs-carry .vslink-cur{background:linear-gradient(135deg,#1fb866,#179a55)}
-  #vs-funding_alpha .vslink-cur{background:linear-gradient(135deg,#3f80ba,#2f6a9e)}
+  #vs-trend .vslink-cur{background:linear-gradient(135deg,#3f80ba,#2f6a9e)}
   /* strategy switcher in nav — single pill dropdown */
   .nav-switcher{position:relative;display:flex;align-items:center}
   .nav-switcher-btn{display:flex;align-items:center;gap:6px;background:rgba(255,138,92,.12);border:1px solid rgba(255,138,92,.3);
@@ -1418,14 +1418,14 @@ HTML = r"""<!doctype html>
         <div class="vsbest">Best for — the best risk-adjusted return; a true diversifier</div>
         <a class="vslink" id="link-carry">Switch to this →</a>
       </div>
-      <div class="vscard" id="vs-funding_alpha">
-        <div class="vshead"><span class="vsicon f">🛡️</span> Funding-Alpha <span class="vsbadge">Experimental</span></div>
+      <div class="vscard" id="vs-trend">
+        <div class="vshead"><span class="vsicon f">📈</span> Trend <span class="vsbadge cb">NEW</span></div>
         <span class="vs-here">You are here</span>
-        <div class="vstag">Hedged · minimal drawdown</div>
-        <p>Pure funding harvest — earns the funding premium on both sides while <b>hedging out price &amp; market risk</b>. Engineered for the smallest drawdown of the four; <b>paper-only</b> while it proves the edge forward.</p>
-        <ul class="vsstats"><li><b>2.3</b> Sharpe <span class="vsq">in-sample</span></li><li><b>~17%</b> max drawdown — lowest here</li><li><b>paper-only</b> · ~1.5-yr data</li></ul>
-        <div class="vsbest">Best for — lowest-volatility income; still being proven</div>
-        <a class="vslink" id="link-funding_alpha">Switch to this →</a>
+        <div class="vstag">Trend-following · CTA</div>
+        <p>Dollar-neutral trend book: <b>longs the strongest uptrends, shorts the strongest downtrends</b>. The most durable systematic edge in finance — profits whether leaders rip up or laggards bleed down.</p>
+        <ul class="vsstats"><li><b>1.35</b> Sharpe <span class="vsq">5-yr</span></li><li><b>+75%</b>/yr · green every year</li><li><b>~44%</b> raw DD — throttled live</li></ul>
+        <div class="vsbest">Best for — the durable, all-weather trend edge</div>
+        <a class="vslink" id="link-trend">Switch to this →</a>
       </div>
     </div>
   </section>
@@ -1577,44 +1577,44 @@ const STRAT_INFO={
         +pcardHTML(96,'Universe-robust','',{suf:'%'})+pcardHTML(0,'BTC correlation','',{dec:2}),
     disclaim:'⚠ Backtest uses real funding rates but today&rsquo;s surviving coins (delisted names absent), and carry carries squeeze tail-risk (the ~28% is with the risk overlay; raw is ~56%). Live paper is the real test. Not a guarantee.'
   },
-  funding_alpha:{
-    tag:'FUNDING-ALPHA · DELTA-NEUTRAL · HYPERLIQUID',
-    title:'Sentinel&nbsp;Edge <span class="tchip cy">Funding-Alpha</span>',
-    sub:'The <b>delta-neutral funding harvest</b>, engineered for minimal drawdown — collects Hyperliquid&rsquo;s real funding premium while hedging the price risk away.',
-    stats:[{v:54.7,dec:1,suf:'%',sign:'+',l:'CAGR (in-sample)'},{v:2.26,dec:2,l:'Sharpe'},{v:17,suf:'%',l:'max drawdown'},{v:3.2,dec:1,l:'Calmar'}],
-    ideaTitle:'Harvest the funding. Hedge the price. Minimize drawdown.',
-    steps:stepHTML(1,'🛰️','Rank funding','Reads every Hyperliquid coin&rsquo;s funding rate — the fee crowded traders pay — and ranks the richest premiums.')
-        +stepHTML(2,'🎯','Harvest &amp; guard','Shorts the highest-funding coins, longs the lowest, funding-weighted — but a momentum guard skips any coin that&rsquo;s ripping.')
-        +stepHTML(3,'🛡️','Neutralize','BTC-beta hedged and diversified, with a funding-dispersion regime filter that eases off when the premium compresses.'),
-    why:whyHTML('Why minimal drawdown','On a real-funding venue the funding leg is near-riskless (isolated Sharpe 10-22, ~0 DD). This book keeps that income and hedges the price exposure that drives the drawdowns.')
-       +whyHTML('The unique angle','Not a directional bet — a market-neutral income engine: beta-hedged, momentum-guarded, regime-aware, funding-weighted.')
-       +whyHTML('Honest status','<b>New &amp; experimental.</b> Institutional in-sample (Sharpe ~2, Calmar ~3), but on Hyperliquid&rsquo;s short ~2yr history it&rsquo;s unstable quarter-to-quarter — being proven in live paper.'),
+  trend:{
+    tag:'TREND · CTA · HYPERLIQUID',
+    title:'Sentinel&nbsp;Edge <span class="tchip cy">Trend</span>',
+    sub:'A <b>dollar-neutral trend-following (CTA) book</b> — longs the coins in the strongest uptrends, shorts the strongest downtrends. The most durable systematic edge in finance.',
+    stats:[{v:1.35,dec:2,l:'Sharpe (5yr)'},{v:75,suf:'%',sign:'+',l:'CAGR (5yr backtest)'},{v:44,suf:'%',l:'max drawdown (raw)'},{v:5,l:'green years / 5'}],
+    ideaTitle:'Ride the strong. Fade the weak. Follow the trend.',
+    steps:stepHTML(1,'📈','Measure the trend','For every coin, measures how far price sits above or below its 30-day moving average — the direction and strength of its trend.')
+        +stepHTML(2,'🎯','Long strong / short weak','Longs the 8 coins in the strongest uptrends, shorts the 8 in the strongest downtrends — dollar-neutral, so it never bets on the market&rsquo;s overall direction.')
+        +stepHTML(3,'🛡️','Throttle the risk','Vol-target + drawdown-throttle scale the book down in violent regimes, taming trend-following&rsquo;s naturally deep drawdowns.'),
+    why:whyHTML('Why it&rsquo;s durable','Trend-following (managed futures / CTA) is the most-validated systematic edge in finance — it has worked across markets and decades. On 5 years of crypto data it was profitable every single year.')
+       +whyHTML('The unique angle','Not a funding or momentum-rank book — pure cross-sectional trend. Long/short and dollar-neutral, so it earns whether the leaders rip up or the laggards bleed down.')
+       +whyHTML('Honest status','<b>Replaces the retired Funding-Alpha</b> (whose edge decayed to a 5yr Sharpe of 0.38). Validated on 5yr Binance data (survivorship-caveated) — strong and consistent — but deployed on Hyperliquid, which has only ~2yr of native history, so prove the forward edge in live paper.'),
     arch:archHTML([
-      {c:'#4a9eff',n:'Signal',d:'Cross-sectional funding rank + momentum guard, per coin'},
-      {c:'#a78bfa',n:'Portfolio',d:'Funding-weighted short-rich / long-cheap · BTC-beta hedged · regime-scaled'},
-      {c:'#ff7a8a',n:'Risk',d:'Vol-target · drawdown throttle · funding-dispersion regime filter'},
+      {c:'#4a9eff',n:'Signal',d:'Price vs its 30-day moving average — trend strength per coin'},
+      {c:'#a78bfa',n:'Portfolio',d:'Long top-8 uptrends / short top-8 downtrends · dollar-neutral'},
+      {c:'#ff7a8a',n:'Risk',d:'Vol-target · drawdown throttle (tames the raw ~44% drawdown)'},
       {c:'#4be0b0',n:'Execution',d:'Reconcile → maker orders → paper or live Hyperliquid + this dashboard'},
-      {c:'#ffd166',n:'State &amp; Dashboard',d:'SQLite · funding history · equity curve · trades · copy-trade signal'},
+      {c:'#ffd166',n:'State &amp; Dashboard',d:'SQLite · equity curve · trades · copy-trade signal'},
     ]),
-    numNote:'~1.5yr · Hyperliquid&rsquo;s OWN funding + price · HL maker fees · all the on-venue history that exists',
-    perf:pcardHTML(54.7,'CAGR (in-sample)','grn',{suf:'%',sign:'+'})+pcardHTML(2.26,'Sharpe','',{dec:2})
-        +pcardHTML(17,'Max drawdown','red',{suf:'%'})+pcardHTML(3.23,'Calmar','',{dec:2})
-        +pcardHTML(4.17,'Sortino','',{dec:2})+pcardHTML(0,'BTC correlation','',{dec:2}),
-    disclaim:'⚠ NEW / EXPERIMENTAL. Validated only on Hyperliquid&rsquo;s ~1.5yr of history (all that exists), where the funding edge fades as the venue matures — rolling-quarter Sharpe swings from +4 to -1.4, split-half 3.6 → 0.5. In-sample institutional, NOT proven forward. Paper-only until a live track record exists. Not a guarantee.'
+    numNote:'5-year daily backtest · Binance prices (survivorship-caveated) · realistic fees · deployed on Hyperliquid',
+    perf:pcardHTML(75,'CAGR (5yr backtest)','grn',{suf:'%',sign:'+'})+pcardHTML(1.35,'Sharpe (5yr)','',{dec:2})
+        +pcardHTML(44,'Max drawdown (raw)','red',{suf:'%'})+pcardHTML(5,'Green years / 5','',{})
+        +pcardHTML(30,'MA period (days)','',{})+pcardHTML(8,'Names per side','',{}),
+    disclaim:'⚠ Backtest on 5yr Binance daily data (survivorship-caveated — delisted coins are absent, which flatters returns). Trend-following is the most durable systematic edge and was positive every year here, but its raw drawdown is deep (~44%, tamed by the vol-target / drawdown-throttle overlay). Deployed on Hyperliquid, which has only ~2yr of native history — prove the forward edge in live paper. Not a guarantee.'
   }
 };
-const STRAT_PORT={neutral:8787,champion:8788,carry:8789,funding_alpha:8790};
-const STRAT_ICON={neutral:'⚖',champion:'⚡',carry:'💰',funding_alpha:'🛡️'};
-const STRAT_LABEL={neutral:'⚖ Market-Neutral',champion:'⚡ Momentum (Champion)',carry:'💰 Funding Carry',funding_alpha:'🛡️ Funding-Alpha'};
-const STRAT_SHORT={neutral:'Market-Neutral',champion:'Champion',carry:'Carry',funding_alpha:'Funding-Alpha'};
-const STRAT_DOT={neutral:'#ff8a5c',champion:'#ffd166',carry:'#4be0b0',funding_alpha:'#3f80ba'};
+const STRAT_PORT={neutral:8787,champion:8788,carry:8789,trend:8790};
+const STRAT_ICON={neutral:'⚖',champion:'⚡',carry:'💰',trend:'📈'};
+const STRAT_LABEL={neutral:'⚖ Market-Neutral',champion:'⚡ Momentum (Champion)',carry:'💰 Funding Carry',trend:'📈 Trend'};
+const STRAT_SHORT={neutral:'Market-Neutral',champion:'Champion',carry:'Carry',trend:'Trend'};
+const STRAT_DOT={neutral:'#ff8a5c',champion:'#ffd166',carry:'#4be0b0',trend:'#3f80ba'};
 function stratUrl(k){const h=location.hostname||'localhost';return 'http://'+h+':'+STRAT_PORT[k];}
 function switchTo(k){if(k!==CUR_STRAT) location.href=stratUrl(k);}
 function toggleSwitcher(e){e.stopPropagation();$('navSwitcher').classList.toggle('open');}
 document.addEventListener('click',()=>{ const s=$('navSwitcher'); if(s) s.classList.remove('open'); });
 function buildSwitcher(strat){
   const menu=$('swMenu'); if(!menu) return;
-  menu.innerHTML=['neutral','champion','carry','funding_alpha'].map(k=>`<button class="sw-item${k===strat?' sw-cur':''}" onclick="${k!==strat?`switchTo('${k}')`:''}">`+
+  menu.innerHTML=['neutral','champion','carry','trend'].map(k=>`<button class="sw-item${k===strat?' sw-cur':''}" onclick="${k!==strat?`switchTo('${k}')`:''}">`+
     `<span class="sw-dot" style="background:${STRAT_DOT[k]}"></span>${STRAT_SHORT[k]}`+
     (k===strat?'<span class="sw-cur-tag">here</span>':'')+`</button>`).join('');
   const btn=$('swCurIcon'); if(btn) btn.textContent=STRAT_ICON[strat];
@@ -1639,7 +1639,7 @@ function paintStrategy(strat){
   $('numDisclaim').innerHTML=S.disclaim;
   // comparison block: label + highlight the one you're viewing
   $('curStrat').textContent=STRAT_LABEL[strat];
-  ['neutral','champion','carry','funding_alpha'].forEach(k=>{
+  ['neutral','champion','carry','trend'].forEach(k=>{
     document.getElementById('vs-'+k).classList.toggle('cur',strat===k);
     const ln=$('link-'+k);
     if(ln){

@@ -1,0 +1,65 @@
+# ============================================================================
+# TREND (CTA) — dollar-neutral cross-sectional trend-following on Hyperliquid.
+# Long the K coins in the strongest uptrends (price furthest above its MA), short the K in the strongest
+# downtrends. The most durable systematic edge across markets and decades.
+#
+# Validated on 5yr Binance daily data (survivorship-caveated): Sharpe ~1.35, +75-82% CAGR, positive every
+# full year 2021-2025. The raw gross drawdown (~44%) is tamed by the vol-target + drawdown-throttle risk
+# overlay (via gross_scale) — same machinery as the champion book.
+#
+# Replaces the retired FUNDING-ALPHA book, whose pure-funding-harvest edge decayed to a 5yr Sharpe of 0.38.
+# Phase 1 = PAPER (no keys). Live is Phase 2 (agent wallet, testnet-first).
+# ============================================================================
+mode: paper
+strategy: trend
+capital_usdt: 10000
+
+exchange:
+  venue: hyperliquid
+  hyperliquid_info_url: https://api.hyperliquid.xyz/info
+
+universe:
+  top_n: 30                    # broad pool so the trend book has enough names for a diversified L/S
+  min_quote_volume_usdt: 200000
+
+trend:
+  top_k: 8                     # long the 8 strongest uptrends, short the 8 strongest downtrends
+  ma_period: 30                # trend strength = price vs its 30-day moving average
+  target_gross: 2.0            # ~1x per side; vol-target/DD-throttle scale below in bad regimes
+
+execution:
+  order_type: limit
+  maker: true                  # HL maker ~1.5bps / taker ~4.5bps
+  maker_fill_ratio: 0.5        # REALISM: assume ~half of POST_ONLY orders fill as maker; the rest chase as taker
+  slippage_bps: 5
+  time_in_force: IOC
+  min_trade_notional: 15
+  min_rebalance_frac: 0.10
+  margin_mode: isolated
+  position_mode: net
+
+risk:
+  max_gross_leverage: 10
+  max_net_exposure: 0.10       # dollar-neutral by construction; allow a small residual
+  max_drawdown_pct: 45         # trend books have deep drawdowns; flatten only at catastrophe
+  max_position_loss_pct: 12
+  funding_abs_max: 1.0
+  pause_hours: 24
+  monitor_seconds: 60
+  # vol-target + drawdown-throttle: THIS is what tames the raw ~44% trend drawdown (feeds gross_scale)
+  dynamic_risk: true
+  vol_target_daily: 0.018
+  vol_lookback: 21
+  dd_throttle_start: 0.12
+  dd_throttle_full: 0.35
+  min_risk_scale: 0.25
+  crash_guard: false           # market-neutral long/short — crash-guard is a directional concept
+
+schedule:
+  rebalance_minutes: 1440
+  rebalance_hour_utc: 14
+
+state:
+  db_path: data/hl_trend.db
+  equity_csv: data/hl_trend_equity.csv
+  log_path: data/hl_trend.log

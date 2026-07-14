@@ -17,18 +17,18 @@
 | **Backtest edge** | Thin long-run (Sharpe ~0.06, 5.5yr clean) | **Validated** — Sharpe ~1.3, +39-74%/yr, 5.5yr | **Validated** — Sharpe ~2.0, +123%/yr, 6.5yr, every year green |
 | **Best for** | Capital preservation, low stress | Maximum growth, can stomach swings | Best risk-adjusted return; a diversifier |
 
-All three run **side-by-side in paper**, each with its own database, rebalance loop, and dashboard — and they are **mutually uncorrelated** (carry vs the others ≈ 0), so the combined book is smoother than any one alone. The same data feed, execution path, and risk rails serve all three.
+All four run **side-by-side in paper**, each with its own database, rebalance loop, and dashboard — and they are **mutually uncorrelated** (carry vs the others ≈ 0), so the combined book is smoother than any one alone. The same data feed, execution path, and risk rails serve all four.
 
-> 🛡️ **New — Funding-Alpha (experimental, Hyperliquid-only).** A delta-neutral funding-harvest book engineered for *minimal drawdown*: funding-weighted, BTC-beta-hedged, momentum-guarded, with a funding-dispersion regime filter. On Hyperliquid's own ~1.5 yr of data it shows an institutional in-sample profile (**Sharpe ~2.3 · Calmar ~3 · ~17% maxDD**) — but the funding edge fades as the venue matures (rolling-quarter Sharpe swings from +4 to −1.4), so it is **paper-only until it proves out live.**
+> 📈 **New — Trend (CTA).** A dollar-neutral cross-sectional trend-following book: longs the coins in the strongest uptrends, shorts the strongest downtrends (price vs its 30-day MA). Trend-following is the most durable systematic edge in finance — validated on **5 years of daily data (Sharpe ~1.35 · +75%/yr · positive every full year)**, with the vol-target / drawdown-throttle overlay taming the raw ~44% drawdown. **Replaces the retired Funding-Alpha**, whose pure-funding edge decayed to a 5yr Sharpe of 0.38. Paper-only until it proves out live.
 
 ## 🔴 Live Dashboards
 
 | Strategy | Dashboard | The book |
 |---|---|---|
-| ⚖ Market-Neutral | **▶ [136.113.89.123:8787](http://136.113.89.123:8787)** | steady, market-proof |
-| ⚡ Momentum *(Champion)* | **▶ [136.113.89.123:8788](http://136.113.89.123:8788)** | directional, regime-gated growth |
-| 💰 Funding Carry | **▶ [136.113.89.123:8789](http://136.113.89.123:8789)** | market-neutral funding income |
-| 🛡️ Funding-Alpha *(experimental)* | **▶ [136.113.89.123:8790](http://136.113.89.123:8790)** | delta-neutral funding harvest, Hyperliquid |
+| ⚖ Market-Neutral | **▶ [34.60.251.66:8787](http://34.60.251.66:8787)** | steady, market-proof |
+| ⚡ Momentum *(Champion)* | **▶ [34.60.251.66:8788](http://34.60.251.66:8788)** | directional, regime-gated growth |
+| 💰 Funding Carry | **▶ [34.60.251.66:8789](http://34.60.251.66:8789)** | market-neutral funding income |
+| 📈 Trend *(CTA)* | **▶ [34.60.251.66:8790](http://34.60.251.66:8790)** | dollar-neutral trend-following, Hyperliquid |
 
 Each has a **Dashboard** tab (live PnL, equity curve, open positions) and a **How it works** tab (animated, strategy-aware walkthrough). Running 24/7 on Google Cloud.
 

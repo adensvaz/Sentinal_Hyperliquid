@@ -167,25 +167,15 @@ class CarryCfg(BaseModel):
                                    #  single instantaneous rate; backtest Sharpe ~1.6 -> ~2.0 with it)
 
 
-class FundingAlphaCfg(BaseModel):
-    """Delta-neutral FUNDING-ALPHA book (best on a real-funding venue e.g. Hyperliquid). Harvests the
-    funding premium and hedges the price risk for minimal drawdown: heavy funding tilt + momentum guard
-    + funding-weighted sizing + BTC-beta hedge + funding-dispersion regime filter."""
-    top_k: int = 7                 # names per sleeve (diversify to suppress idiosyncratic drawdown)
-    lookback: int = 21             # momentum lookback (days), for the guard + small tilt
-    alpha: float = 0.9             # funding-vs-momentum weight (1.0 = pure funding harvest)
-    momentum_guard: float = 0.12   # skip shorts with momentum > +guard / longs with momentum < -guard
-    fund_weighted: bool = True     # size by |funding| (harvest more where the premium is richest)
-    beta_hedge: bool = True        # neutralize net BTC-beta -> market-neutral
-    beta_lookback: int = 30
-    regime_filter: bool = True     # scale gross by cross-sectional funding dispersion vs its rolling median
-    regime_lookback: int = 60
-    target_gross: float = 2.0
-    # BTC-trend derisk gate (robustness): the funding edge thins in risk-off regimes, so cut gross when
-    # BTC is below its trend MA. Backtest: lifts out-of-sample (2nd-half) Sharpe 0.15->0.58 and cuts
-    # maxDD 20%->16% at 0.5, monotonic in strength, economically motivated (not curve-fit). 0 = off.
-    btc_regime_gate: float = 0.5   # fraction to cut gross by when BTC < its trend MA (0.5 = half size)
-    btc_regime_ma: int = 50        # BTC trend MA length (days)
+class TrendCfg(BaseModel):
+    """Trend (CTA) book — dollar-neutral cross-sectional trend-following. Long the K coins in the
+    strongest uptrends (price furthest above its MA), short the K in the strongest downtrends. The most
+    durable systematic edge across markets; validated on 5yr Binance data at Sharpe ~1.35, +75-82% CAGR,
+    positive every full year (raw DD tamed by the vol-target/DD-throttle overlay). Replaces the retired
+    Funding-Alpha book, whose pure-funding-harvest edge decayed to a 5yr Sharpe of 0.38."""
+    top_k: int = 8                 # names per sleeve (long K strongest up / short K strongest down)
+    ma_period: int = 30            # trend strength = price vs this-day moving average
+    target_gross: float = 2.0      # total gross (~1x per side); vol-target/DD-throttle may scale below
 
 
 class ScheduleCfg(BaseModel):
@@ -203,14 +193,14 @@ class StateCfg(BaseModel):
 class Config(BaseModel):
     mode: Literal["paper", "live"] = "paper"
     # neutral = market-neutral momentum book; champion = directional momentum+regime; carry = funding-carry+momentum
-    strategy: Literal["neutral", "champion", "carry", "funding_alpha"] = "neutral"
+    strategy: Literal["neutral", "champion", "carry", "trend"] = "neutral"
     exchange: ExchangeCfg = Field(default_factory=ExchangeCfg)
     capital_usdt: Optional[float] = 10_000.0
     universe: UniverseCfg = Field(default_factory=UniverseCfg)
     signal: SignalCfg = Field(default_factory=SignalCfg)
     champion: ChampionCfg = Field(default_factory=ChampionCfg)
     carry: CarryCfg = Field(default_factory=CarryCfg)
-    funding_alpha: FundingAlphaCfg = Field(default_factory=FundingAlphaCfg)
+    trend: TrendCfg = Field(default_factory=TrendCfg)
     whales: WhalesCfg = Field(default_factory=WhalesCfg)
     portfolio: PortfolioCfg = Field(default_factory=PortfolioCfg)
     execution: ExecutionCfg = Field(default_factory=ExecutionCfg)
