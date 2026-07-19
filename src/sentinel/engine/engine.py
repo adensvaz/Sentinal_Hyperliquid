@@ -228,7 +228,10 @@ class Engine:
 
         if not self.live:
             self.broker.set_marks(prices)
-        equity = self.broker.equity() or (cfg.capital_usdt or 0.0)
+        raw_equity = self.broker.equity() or (cfg.capital_usdt or 0.0)
+        # Portfolio-level allocation weight: risk-parity allocator sets capital_weight
+        # (0-1) so each book sizes to its share of the total portfolio capital.
+        equity = raw_equity * cfg.capital_weight
 
         peak = max(self.store.peak_equity(self.mode, equity), equity)
         dd = drawdown_pct(peak, equity)

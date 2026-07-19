@@ -1240,25 +1240,50 @@ HTML = r"""<!doctype html>
   .tblwrap::-webkit-scrollbar-thumb{background:rgba(108,90,60,.35);border-radius:3px}
   .tblwrap::-webkit-scrollbar-track{background:transparent}
 
-  /* ===================== MOBILE ===================== */
+  /* ===================== MOBILE: 720px ===================== */
   @media(max-width:720px){
     main{padding:14px 12px}
-    header{padding:11px 13px;gap:9px 10px;flex-wrap:wrap}
-    .brand{flex:1 1 auto} .brand-name{font-size:14.5px} .brand-sub{font-size:8px;letter-spacing:2px}
-    .nav{order:5;width:100%;justify-content:center}
+    /* header: wrap into 2 rows; brand+mode on row 1, nav+status on row 2 */
+    header{padding:11px 13px;gap:8px 10px;flex-wrap:wrap;border-radius:16px;width:calc(100% - 20px);top:6px}
+    .brand{flex:1 1 auto} .brand-name{font-size:14.5px} .brand-sub{font-size:7.5px;letter-spacing:1.8px}
+    .nav{order:5;width:100%;justify-content:center;gap:3px}
+    .navbtn{font-size:11.5px;padding:6px 10px}
     .meta{display:none}
     #mode{margin-left:0}
-    .cd{margin-left:0;font-size:11.5px;padding:4px 10px}
+    .pill{font-size:10px;padding:3px 9px}
+    .cd{margin-left:0;font-size:11px;padding:4px 9px}
+    .status{font-size:11px;padding:4px 8px}
+    /* strategy switcher: prevent overflow */
+    .nav-switcher-btn{font-size:12px;padding:6px 10px;max-width:160px}
+    .nav-switcher-btn span{overflow:hidden;text-overflow:ellipsis}
+    .sw-menu{right:0;left:auto;min-width:180px}
+    /* stat cards: 2-up grid */
     .cards{grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:14px}
-    .card{padding:13px 14px} .card .v{font-size:21px} .card .k{margin-bottom:7px}
+    .card{padding:13px 14px} .card .v{font-size:20px} .card .k{margin-bottom:6px;font-size:9px}
     .info::after{width:min(72vw,260px)}
+    /* panels */
     .panel{padding:14px 13px;margin-bottom:14px}
-    .ph .big{font-size:24px} #chart{max-height:240px}
-    .seg{padding:2px} .seg .t{padding:5px 10px;font-size:11px}
+    /* performance section: stack PnL + toggles vertically */
+    .ph{flex-wrap:wrap;gap:10px}
+    .ph .big{font-size:24px}
+    .seg{margin-left:0;margin-top:4px;padding:2px}
+    .seg .t{padding:5px 10px;font-size:11px}
+    #chart{max-height:240px}
     .segs{gap:8px}
-    .tabs{gap:1px;overflow-x:auto} .tab{padding:10px 9px;font-size:12.5px;white-space:nowrap}
-    th,td{padding:9px 11px}
-    .charttip .ct-v{font-size:16px}
+    /* chart tooltip: keep inside viewport */
+    .charttip{max-width:calc(100vw - 40px)} .charttip .ct-v{font-size:16px}
+    /* tables: horizontal scroll instead of clipping */
+    .cols{grid-template-columns:1fr}
+    table{display:block;overflow-x:auto;-webkit-overflow-scrolling:touch}
+    th,td{padding:9px 11px;font-size:13px}
+    /* tabs: scroll horizontally */
+    .tabs{gap:1px;overflow-x:auto;-webkit-overflow-scrolling:touch;flex-wrap:nowrap}
+    .tab{padding:10px 9px;font-size:12.5px;white-space:nowrap;flex-shrink:0}
+    /* regime panel */
+    .regime{padding:16px 14px}
+    .rg-head .rg-title{font-size:13px}
+    /* comparison cards: kill the scale transform (causes horizontal overflow) */
+    .vscard.cur,.vscard.cur:hover{transform:none}
     /* strategy page */
     .spage{padding:4px 14px 60px} .hero{padding:46px 6px 38px}
     .sblock{margin-top:52px} .sh2{margin-bottom:22px}
@@ -1266,11 +1291,24 @@ HTML = r"""<!doctype html>
     .perfgrid{grid-template-columns:repeat(2,1fr)}
     .whyrow{grid-template-columns:1fr;gap:4px}
     .dfoot{flex-direction:column;gap:8px;text-align:center} .ghlink{margin-left:0}
+    /* pager */
+    .pager{flex-wrap:wrap;gap:6px}
+    /* modal: full-width on mobile */
+    .modal-box{width:calc(100vw - 24px);max-height:88vh;overflow-y:auto}
   }
+  /* ===================== MOBILE: 430px (small phones) ===================== */
   @media(max-width:430px){
+    header{padding:9px 10px;gap:6px 8px;border-radius:13px;top:4px;width:calc(100% - 16px)}
+    .brand-name{font-size:13px} .brand-sub{display:none}
+    .brand .mark{width:26px;height:26px;font-size:13px}
     .cards{grid-template-columns:1fr}
+    .card .v{font-size:20px} .card .k{font-size:8.5px}
     .hstat{flex:1 1 100%} .perfgrid{grid-template-columns:1fr}
-    .ph .big{font-size:21px} .card .v{font-size:20px}
+    .ph{flex-direction:column;align-items:flex-start;gap:6px}
+    .ph .big{font-size:21px}
+    .seg{width:100%;justify-content:center}
+    th,td{padding:7px 9px;font-size:12px}
+    .nav-switcher-btn{max-width:130px;font-size:11px}
   }
 </style>
 </head>

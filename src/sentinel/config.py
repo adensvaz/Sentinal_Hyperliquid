@@ -196,6 +196,10 @@ class Config(BaseModel):
     strategy: Literal["neutral", "champion", "carry", "trend"] = "neutral"
     exchange: ExchangeCfg = Field(default_factory=ExchangeCfg)
     capital_usdt: Optional[float] = 10_000.0
+    # Portfolio-level allocation weight (0.0-1.0). When a risk-parity allocator runs
+    # above the books, it writes this into each book's config to control what fraction
+    # of the total portfolio capital this book trades with. 1.0 = use full capital (default).
+    capital_weight: float = 1.0
     universe: UniverseCfg = Field(default_factory=UniverseCfg)
     signal: SignalCfg = Field(default_factory=SignalCfg)
     champion: ChampionCfg = Field(default_factory=ChampionCfg)
