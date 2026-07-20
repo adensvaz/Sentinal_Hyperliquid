@@ -42,7 +42,10 @@ risk:
   max_gross_leverage: 10
   max_net_exposure: 0.10       # dollar-neutral by construction; allow a small residual
   max_drawdown_pct: 45         # trend books have deep drawdowns; flatten only at catastrophe
-  max_position_loss_pct: 12
+  max_position_loss_pct: 12    # catastrophe backstop (% of equity)
+  position_stop_pct: 30        # per-name stop (% of the position's OWN value) — caps short-squeeze
+                               # blow-ups like the ACE short (+89% -> would cap the loss at ~30% of
+                               # notional instead of ~90%). Backtested: helps the edge, kills the tail.
   funding_abs_max: 1.0
   pause_hours: 24
   monitor_seconds: 60

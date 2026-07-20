@@ -23,7 +23,8 @@ from ..execution.live_broker import LiveBroker
 from ..execution.paper_broker import PaperBroker, PaperPosition
 from ..execution.reconciler import reconcile
 from ..risk.limits import (crash_guard, dispersion_scale, drawdown_pct, filter_by_funding,
-                           leverage_scale, net_exposure_ratio, position_loss_breached, risk_scale)
+                           leverage_scale, net_exposure_ratio, position_loss_breached,
+                           position_stop_breached, risk_scale)
 from ..signal.market_proxy import MarketProxySignal
 from ..signal.technicals import ta_consensus
 from ..signal.whale_tracker import WhaleTracker, map_bias_to_symbols
@@ -546,7 +547,11 @@ class Engine:
             if pp is None or sym not in marks:
                 continue
             pnl = (marks[sym] - pp.avg_price) * contracts * pp.multiplier
-            if position_loss_breached(pnl, eq, self.cfg.risk.max_position_loss_pct):
+            entry_notional = abs(pp.avg_price * contracts * pp.multiplier)
+            # per-name stop (caps short-squeeze / single-name blow-ups like the ACE short) OR the
+            # catastrophe backstop (a name melting a big % of the whole book) — whichever trips first.
+            if (position_stop_breached(pnl, entry_notional, self.cfg.risk.position_stop_pct)
+                    or position_loss_breached(pnl, eq, self.cfg.risk.max_position_loss_pct)):
                 self.close_symbol(sym, marks)
                 return {"action": "close_position", "symbol": sym, "loss": round(pnl, 2)}
         return {"action": "none", "equity": round(eq, 2), "drawdown_pct": round(dd, 2)}

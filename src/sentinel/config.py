@@ -110,6 +110,12 @@ class RiskCfg(BaseModel):
     funding_abs_max: float = 0.003
     monitor_seconds: int = 60          # how often the safety rail checks risk between rebalances
     max_position_loss_pct: float = 6.0  # close a single position if its loss exceeds this % of equity
+    position_stop_pct: float = 30.0     # per-name stop: close a position if it loses this % of its OWN
+                                        # entry value. Caps short-squeeze / blow-up risk (e.g. the ACE
+                                        # short that squeezed +89%). Measured vs the position's notional,
+                                        # not equity, so it fires on one name before it wrecks the book.
+                                        # Backtested: caps tail disasters without hurting the core trend
+                                        # edge. 0 = off.
     pause_hours: float = 12.0          # after a drawdown kill-switch, stay flat this long
     stop_loss_pct: float = 0.0         # LIVE only: rest a protective stop this % from entry (0 = off)
     # dynamic de-risking (smooths drawdowns / negative months by cutting gross in bad regimes)

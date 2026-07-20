@@ -3,7 +3,7 @@ import pytest
 from sentinel.risk.limits import (crash_guard, dispersion_scale, drawdown_breached, drawdown_pct,
                                   filter_by_funding, leverage_scale,
                                   net_exposure_ratio, net_within_tolerance,
-                                  position_loss_breached, risk_scale)
+                                  position_loss_breached, position_stop_breached, risk_scale)
 
 
 def test_dispersion_scale_full_when_at_or_above_ref():
@@ -92,6 +92,30 @@ def test_position_loss_breached():
     assert position_loss_breached(-500, 10_000, 6) is False
     assert position_loss_breached(+900, 10_000, 6) is False   # a gain never breaches
     assert position_loss_breached(-700, 10_000, 0) is False    # disabled
+
+
+def test_position_stop_breached():
+    # position entry notional $1,250, stop 30% -> breach if loss > $375
+    assert position_stop_breached(-400, 1_250, 30) is True
+    assert position_stop_breached(-300, 1_250, 30) is False
+    assert position_stop_breached(+500, 1_250, 30) is False    # a gain never breaches
+    assert position_stop_breached(-400, 1_250, 0) is False     # disabled
+    assert position_stop_breached(-400, 0, 30) is False        # no notional -> can't breach
+
+
+def test_ace_scenario_would_have_been_stopped():
+    """The real ACE short: $1,280 entry notional, squeezed +89% -> ~-$1,140 loss.
+    The old equity-based stop (12% of $10k = $1,200) did NOT fire (loss was $1,140 < $1,200).
+    The new per-name stop (30% of $1,280 = $384) fires early, capping the disaster."""
+    entry_notional = 1_280.0
+    loss_at_89pct = -0.89 * entry_notional      # ~-$1,139
+    # old stop: measured vs equity -> loss ($1,139) is just under the 12% line ($1,200), never fires
+    assert position_loss_breached(loss_at_89pct, 10_000, 12) is False
+    # new per-name stop: the position is down 89% of its own value -> far past the 30% stop -> FIRES.
+    # In practice it exits the moment the loss first crosses 30% (~$384), capping the disaster there.
+    assert position_stop_breached(loss_at_89pct, entry_notional, 30) is True
+    assert position_stop_breached(-0.31 * entry_notional, entry_notional, 30) is True   # just past 30%
+    assert position_stop_breached(-0.29 * entry_notional, entry_notional, 30) is False  # just under 30%
 
 
 def test_funding_filter():

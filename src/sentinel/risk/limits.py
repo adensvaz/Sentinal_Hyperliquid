@@ -90,10 +90,24 @@ def dispersion_scale(disp: float, ref: float, min_scale: float) -> float:
 
 
 def position_loss_breached(pnl: float, equity: float, max_loss_pct: float) -> bool:
-    """True if a single position's (signed) PnL is a loss exceeding max_loss_pct of equity."""
+    """True if a single position's (signed) PnL is a loss exceeding max_loss_pct of equity.
+    This is the CATASTROPHE backstop (a single name melting a big % of the whole book)."""
     if equity <= 0 or max_loss_pct <= 0:
         return False
     return pnl < -(max_loss_pct / 100.0) * equity
+
+
+def position_stop_breached(pnl: float, entry_notional: float, stop_pct: float) -> bool:
+    """True if a single position has lost more than stop_pct of its OWN entry value.
+
+    This is the per-name stop that caps short-squeeze / blow-up risk (e.g. the ACE short that
+    squeezed +89% and lost ~90% of its notional). Measuring against the position's own value —
+    not total equity — is what makes it fire on a single name before it wrecks the book.
+    A short that squeezes +30% loses 30% of its notional -> breached at stop_pct=30.
+    """
+    if entry_notional <= 0 or stop_pct <= 0:
+        return False
+    return pnl < -(stop_pct / 100.0) * entry_notional
 
 
 def filter_by_funding(funding: dict[str, float], abs_max: float) -> list[str]:
