@@ -1768,9 +1768,9 @@ function render(d){
       'Profit you have actually locked in from closed trades and funding, minus fees. This can not be lost.'),
     capBlock('Open profit',sgn(open),open>=0?'grn':'red',`${d.n_positions||0} open positions · still moving`,
       'Unrealized profit/loss on your open positions. It changes every tick and is not locked in until the trades close.'),
-    capBlock('Capital in trade',money(grossN),'',`${(d.leverage||0).toFixed(2)}× · ${money(longN)} long / ${money(shortN)} short`),
+    capBlock('In positions',money(d.margin_used||0),'',`your money holding the trades · ${money(grossN)} exposure (${(d.leverage||0).toFixed(2)}×)`),
     capBlock('💵 Free to withdraw',money(d.free_capital||0),(d.free_capital>0?'grn':''),
-      `${d.equity?Math.round((d.free_capital||0)/d.equity*100):0}% of balance · take out without closing trades`),
+      `the rest of your ${money(d.equity||0)} · take out anytime, no need to close trades`),
   ];
   if(d.treasury_enabled){   // only if the auto-sweep money-manager is turned on
     blocks.push(capBlock('🏦 Vault (banked)',money(vault),'grn',
