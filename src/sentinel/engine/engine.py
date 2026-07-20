@@ -31,6 +31,7 @@ from ..signal.whale_tracker import WhaleTracker, map_bias_to_symbols
 from ..state.store import Store
 from ..strategy.funding_carry import FundingCarryStrategy
 from ..strategy.trend import TrendStrategy
+from ..portfolio.treasury import Treasury
 from ..strategy.momentum_regime import MomentumRegimeStrategy
 from ..strategy.portfolio import beta_scales, book_beta, compute_betas, demean_by_beta, dispersion
 from ..strategy.sentiment_edge import SentimentEdgeStrategy
@@ -72,6 +73,7 @@ class Engine:
         self.champion = MomentumRegimeStrategy(cfg)   # directional momentum+regime (used when cfg.strategy=='champion')
         self.carry = FundingCarryStrategy(cfg)        # funding-carry+momentum, market-neutral (cfg.strategy=='carry')
         self.trend = TrendStrategy(cfg)               # dollar-neutral cross-sectional trend/CTA (cfg.strategy=='trend')
+        self.treasury = Treasury(cfg)                 # money manager: weekly profit sweep into a safe vault
         self.store = Store(cfg.state.db_path, cfg.state.equity_csv)
         self.registry: Optional[ContractRegistry] = None
         self.signal: Optional[MarketProxySignal] = None
@@ -230,9 +232,13 @@ class Engine:
         if not self.live:
             self.broker.set_marks(prices)
         raw_equity = self.broker.equity() or (cfg.capital_usdt or 0.0)
+        # Money manager: sweep 40% of new profit into the Vault weekly (safe, not traded).
+        # The at-risk trading pool = equity - vault, so the book de-risks as it wins.
+        vault = self._run_treasury(raw_equity)
+        trading_equity = max(0.0, raw_equity - vault)
         # Portfolio-level allocation weight: risk-parity allocator sets capital_weight
         # (0-1) so each book sizes to its share of the total portfolio capital.
-        equity = raw_equity * cfg.capital_weight
+        equity = trading_equity * cfg.capital_weight
 
         peak = max(self.store.peak_equity(self.mode, equity), equity)
         dd = drawdown_pct(peak, equity)
@@ -455,6 +461,21 @@ class Engine:
             return  # live funding is settled by the exchange itself
         marks, funding = self._index_data(positions) if positions else ({}, {})
         self.broker.accrue_funding(funding, marks, interval_hours=self._funding_interval_h)
+
+    def _run_treasury(self, raw_equity: float) -> float:
+        """Money-manager weekly profit sweep. Returns the current vault balance (0 if disabled)."""
+        t = self.store.load_treasury(self.mode)
+        trading_eq = max(0.0, raw_equity - t["vault"])
+        res = self.treasury.maybe_sweep(trading_eq, t["vault"], t["hwm"],
+                                        t["last_sweep_ts"], time.time())
+        if res.swept > 0:
+            log.info("TREASURY: swept $%.2f (%.0f%% of new profit) to vault -> vault=$%.2f",
+                     res.swept, self.cfg.treasury.sweep_frac * 100, res.vault)
+            self.store.save_treasury(self.mode, res.vault, res.hwm, res.last_sweep_ts,
+                                     t["total_swept"] + res.swept)
+        elif res.checkpoint or abs(res.hwm - t["hwm"]) > 1e-9:
+            self.store.save_treasury(self.mode, res.vault, res.hwm, res.last_sweep_ts, t["total_swept"])
+        return res.vault
 
     def _live_equity(self, marks: dict) -> float:
         if not self.live:

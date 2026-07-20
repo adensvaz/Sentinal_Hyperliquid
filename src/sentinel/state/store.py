@@ -54,6 +54,8 @@ CREATE INDEX IF NOT EXISTS ix_ww_ts ON whale_wallets(ts);
 CREATE TABLE IF NOT EXISTS funding_history(ts INTEGER, mode TEXT, symbol TEXT, current REAL, next REAL);
 CREATE INDEX IF NOT EXISTS ix_fh_ts ON funding_history(mode, ts);
 CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY, value TEXT);
+CREATE TABLE IF NOT EXISTS treasury(
+  mode TEXT PRIMARY KEY, vault REAL, hwm REAL, last_sweep_ts REAL, total_swept REAL, updated_ts INTEGER);
 """
 
 
@@ -119,6 +121,28 @@ class Store:
                               (mode, peak, int(time.time())))
         self.conn.commit()
         return peak
+
+    # -- treasury (money-manager vault) --------------------------------------
+    def load_treasury(self, mode: str) -> dict:
+        """Return the treasury state for a book (zeros if none yet)."""
+        cur = self.conn.execute(
+            "SELECT vault, hwm, last_sweep_ts, total_swept FROM treasury WHERE mode=?", (mode,))
+        row = cur.fetchone()
+        if not row:
+            return {"vault": 0.0, "hwm": 0.0, "last_sweep_ts": 0.0, "total_swept": 0.0}
+        return {"vault": float(row[0] or 0), "hwm": float(row[1] or 0),
+                "last_sweep_ts": float(row[2] or 0), "total_swept": float(row[3] or 0)}
+
+    def save_treasury(self, mode: str, vault: float, hwm: float,
+                      last_sweep_ts: float, total_swept: float) -> None:
+        self.conn.execute(
+            """INSERT INTO treasury(mode,vault,hwm,last_sweep_ts,total_swept,updated_ts)
+               VALUES(?,?,?,?,?,?)
+               ON CONFLICT(mode) DO UPDATE SET vault=excluded.vault, hwm=excluded.hwm,
+                 last_sweep_ts=excluded.last_sweep_ts, total_swept=excluded.total_swept,
+                 updated_ts=excluded.updated_ts""",
+            (mode, vault, hwm, last_sweep_ts, total_swept, int(time.time())))
+        self.conn.commit()
 
     def paused_until(self, mode: str) -> float:
         a = self.load_account(mode)

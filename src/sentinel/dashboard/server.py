@@ -233,6 +233,7 @@ def gather_state(cfg: Config) -> dict:
         peak = max(float(store.peak_equity(mode, eq)), eq)
         pnl = eq - starting
         dd = max(0.0, (peak - eq) / peak * 100.0) if peak else 0.0
+        _treasury = store.load_treasury(mode)   # money-manager vault (safe, swept profits)
         # transient "now" point so the chart ticks live (not persisted to the DB)
         live_series = list(series) + [{"ts": int(time.time()), "equity": round(eq, 4),
                                        "gross": round(gross, 2), "net": round(net, 2),
@@ -271,6 +272,12 @@ def gather_state(cfg: Config) -> dict:
             "trade_stats": store.trade_stats(mode),   # tables are paginated via /api/trades & /api/fills
             "equity_series": live_series,
             "cycles": len(series),
+            # money manager (Treasury): profit swept to the safe vault
+            "treasury_enabled": bool(cfg.treasury.enabled),
+            "sweep_frac": cfg.treasury.sweep_frac,
+            "vault": _treasury.get("vault", 0.0),
+            "total_swept": _treasury.get("total_swept", 0.0),
+            "trading_equity": max(0.0, eq - _treasury.get("vault", 0.0)),
         }
     finally:
         store.close()
@@ -928,6 +935,17 @@ HTML = r"""<!doctype html>
   .panel{background:linear-gradient(180deg,var(--surface2),var(--surface));border:1px solid var(--line);
     border-radius:var(--r);padding:18px 20px;margin-bottom:18px}
   .panel h2{font-size:11px;text-transform:uppercase;letter-spacing:.9px;color:var(--mut);margin:0 0 14px;font-weight:700}
+  /* Capital & Profit panel */
+  .cappanel:empty{display:none}
+  .caphead{font-size:10.5px;text-transform:uppercase;letter-spacing:.9px;color:var(--mut);font-weight:700;margin-bottom:13px}
+  .capgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+  .capgrid.cap4{grid-template-columns:repeat(4,1fr)}
+  .capb{background:var(--surface);border:1px solid var(--line);border-radius:13px;padding:13px 15px}
+  .capk{font-size:10px;text-transform:uppercase;letter-spacing:.7px;color:var(--mut);font-weight:700;margin-bottom:6px;display:flex;align-items:center;gap:6px}
+  .capv{font-size:21px;font-weight:780;letter-spacing:-.3px;font-variant-numeric:tabular-nums}
+  .caps{font-size:11.5px;color:var(--dim);margin-top:4px;line-height:1.4}
+  @media(max-width:720px){.capgrid,.capgrid.cap4{grid-template-columns:repeat(2,1fr);gap:10px}}
+  @media(max-width:430px){.capgrid,.capgrid.cap4{grid-template-columns:1fr}}
   .ph{display:flex;align-items:flex-end;gap:14px;margin-bottom:12px}
   .ph .lab{font-size:10.5px;text-transform:uppercase;letter-spacing:.9px;color:var(--mut)}
   .ph .big{font-size:30px;font-weight:780;letter-spacing:-.5px;margin-top:2px}
@@ -1356,6 +1374,8 @@ HTML = r"""<!doctype html>
   <section id="regimeWrap" style="display:none"></section>
   <div class="cards" id="cards"></div>
 
+  <div class="panel cappanel" id="capitalPanel"></div>
+
   <div class="panel">
     <div class="ph">
       <div><div class="lab">Performance</div><div class="big num" id="chartval">—</div></div>
@@ -1727,6 +1747,29 @@ function render(d){
     card('Drawdown',d.drawdown_pct.toFixed(2)+'%',d.drawdown_pct>0?'red':'',`peak ${money(d.peak)} · fees ${money(d.fees)} · funding ${sgn(d.funding||0)}`,'',
       'How far equity has fallen from its highest point. A kill-switch flattens everything and pauses if this exceeds 15%.'),
   ].join('');
+
+  // ---- Capital & Profit panel: booked vs open PnL, exposure, and the Vault ----
+  const booked=(d.realized||0)+(d.funding||0)-(d.fees||0);   // realized trades + funding − fees = locked in
+  const open=d.unrealized||0;                                 // still moving in open positions
+  const grossN=d.gross||0, longN=d.long_notional||0, shortN=d.short_notional||0;
+  const vault=d.vault||0, tradingEq=d.trading_equity||d.equity||0;
+  const capBlock=(label,val,cls,sub,tip)=>
+    `<div class="capb"><div class="capk">${label}${tip?` <span class="info" data-tip="${tip}">i</span>`:''}</div>`+
+    `<div class="capv ${cls||''}">${val}</div><div class="caps">${sub}</div></div>`;
+  let blocks=[
+    capBlock('Booked profit',sgn(booked),booked>=0?'grn':'red','realized trades + funding − fees · locked in',
+      'Profit you have actually locked in from closed trades and funding, minus fees. This can not be lost.'),
+    capBlock('Open profit',sgn(open),open>=0?'grn':'red',`${d.n_positions||0} open positions · still moving`,
+      'Unrealized profit/loss on your open positions. It changes every tick and is not locked in until the trades close.'),
+    capBlock('Capital in trade',money(grossN),'',`${(d.leverage||0).toFixed(2)}× · ${money(longN)} long / ${money(shortN)} short`,
+      'Your exposure — total position value. In perps you do not spend cash to trade; your full equity stays as collateral and backs this exposure as margin.'),
+  ];
+  if(d.treasury_enabled){
+    blocks.push(capBlock('🏦 Vault (banked)',money(vault),'grn',
+      `${((d.sweep_frac||0.4)*100).toFixed(0)}% of profit swept weekly · safe to withdraw`,
+      'The money manager sweeps a share of new profit into this vault every week. It is safe (not traded) and available to withdraw or reinvest. Your at-risk trading pool = equity − vault.'));
+  }
+  $('capitalPanel').innerHTML=`<div class="caphead">Capital &amp; Profit</div><div class="capgrid${d.treasury_enabled?' cap4':''}">${blocks.join('')}</div>`;
 
   const b=d.book||[];
   $('np').textContent=b.length;

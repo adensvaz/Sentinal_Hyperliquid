@@ -196,6 +196,22 @@ class StateCfg(BaseModel):
     log_path: str = "data/sentinel.log"
 
 
+class TreasuryCfg(BaseModel):
+    """Money manager: sweep a fraction of NEW profit into a separate Vault on a schedule.
+
+    Every `sweep_interval_days`, if the trading pool is at a new high, move `sweep_frac` of the
+    new profit into the Vault — safe cash held aside for withdrawal or reinvestment (never traded).
+    The at-risk trading pool = equity - vault, so the book de-risks as it wins. High-water-mark
+    based, so it never sweeps a down/flat period (no over-sweeping in chop).
+
+    Backtested trade-off (scripts/weekly_sweep_bt.py): banks steady income + cuts at-risk drawdown,
+    at the cost of some compounding (cheap on Trend/Neutral, ~pricey on strong compounders like Carry)."""
+    enabled: bool = True               # ON: sweep 40% of new profit weekly on every book
+                                       # (set to false in a book's config to keep it fully compounding)
+    sweep_frac: float = 0.40           # take 40% of new profit each sweep
+    sweep_interval_days: float = 7.0   # weekly
+
+
 class Config(BaseModel):
     mode: Literal["paper", "live"] = "paper"
     # neutral = market-neutral momentum book; champion = directional momentum+regime; carry = funding-carry+momentum
@@ -217,6 +233,7 @@ class Config(BaseModel):
     risk: RiskCfg = Field(default_factory=RiskCfg)
     schedule: ScheduleCfg = Field(default_factory=ScheduleCfg)
     state: StateCfg = Field(default_factory=StateCfg)
+    treasury: TreasuryCfg = Field(default_factory=TreasuryCfg)
 
     # secrets (from .env, never config.yaml)
     api_key: Optional[str] = None
