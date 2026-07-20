@@ -118,6 +118,11 @@ class RiskCfg(BaseModel):
                                         # edge. 0 = off.
     pause_hours: float = 12.0          # after a drawdown kill-switch, stay flat this long
     stop_loss_pct: float = 0.0         # LIVE only: rest a protective stop this % from entry (0 = off)
+    safe_withdraw_leverage: float = 2.0  # the dashboard's "Safe to withdraw" leaves enough buffer that
+                                         # post-withdrawal gross leverage stays at/below this, so pulling
+                                         # cash out never spikes you into liquidation risk before the bot
+                                         # rebalances positions back down. (Max withdrawable is higher but
+                                         # leaves no cushion — shown as a caveat.)
     # dynamic de-risking (smooths drawdowns / negative months by cutting gross in bad regimes)
     dynamic_risk: bool = True
     vol_target_daily: float = 0.015    # de-risk when recent daily book-return vol exceeds this

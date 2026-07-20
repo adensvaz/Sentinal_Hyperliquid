@@ -284,6 +284,11 @@ def gather_state(cfg: Config) -> dict:
             "free_capital": max(0.0, eq - ((gross / cfg.portfolio.per_name_leverage)
                                            if cfg.portfolio.per_name_leverage else 0.0)
                                         - _treasury.get("vault", 0.0)),
+            # SAFE to withdraw: leaves a buffer so post-withdrawal gross leverage stays <= safe cap
+            # (so pulling cash never spikes leverage into liquidation risk before the next rebalance)
+            "safe_withdraw": max(0.0, eq - (gross / (cfg.risk.safe_withdraw_leverage or 2.0))
+                                        - _treasury.get("vault", 0.0)),
+            "safe_withdraw_leverage": cfg.risk.safe_withdraw_leverage,
         }
     finally:
         store.close()
@@ -1769,8 +1774,8 @@ function render(d){
     capBlock('Open profit',sgn(open),open>=0?'grn':'red',`${d.n_positions||0} open positions · still moving`,
       'Unrealized profit/loss on your open positions. It changes every tick and is not locked in until the trades close.'),
     capBlock('In positions',money(d.margin_used||0),'',`your money holding the trades · ${money(grossN)} exposure (${(d.leverage||0).toFixed(2)}×)`),
-    capBlock('💵 Free to withdraw',money(d.free_capital||0),(d.free_capital>0?'grn':''),
-      `the rest of your ${money(d.equity||0)} · take out anytime, no need to close trades`),
+    capBlock('💵 Safe to withdraw',money(d.safe_withdraw||0),(d.safe_withdraw>0?'grn':''),
+      `keeps a safety cushion · max ${money(d.free_capital||0)} (but that leaves no buffer)`),
   ];
   if(d.treasury_enabled){   // only if the auto-sweep money-manager is turned on
     blocks.push(capBlock('🏦 Vault (banked)',money(vault),'grn',
