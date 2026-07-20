@@ -62,8 +62,8 @@ schedule:
   rebalance_minutes: 2880            # every 2 days: backtested Sharpe 0.79->0.96 vs daily
   rebalance_hour_utc: 14
 
-treasury:                            # money manager: sweep 40% of new profit into a safe vault weekly
-  enabled: true                      # (for withdrawal / reinvest). Set false to keep fully compounding.
+treasury:                            # auto-sweep OFF — withdraw manually; dashboard shows "Free to withdraw"
+  enabled: false                     # (set true to auto-bank 40% of profit into a vault each week)
   sweep_frac: 0.40
   sweep_interval_days: 7
 

@@ -206,9 +206,9 @@ class TreasuryCfg(BaseModel):
 
     Backtested trade-off (scripts/weekly_sweep_bt.py): banks steady income + cuts at-risk drawdown,
     at the cost of some compounding (cheap on Trend/Neutral, ~pricey on strong compounders like Carry)."""
-    enabled: bool = True               # ON: sweep 40% of new profit weekly on every book
-                                       # (set to false in a book's config to keep it fully compounding)
-    sweep_frac: float = 0.40           # take 40% of new profit each sweep
+    enabled: bool = False              # OFF: no auto-sweep — withdraw manually instead (the dashboard
+                                       # shows "Free to withdraw"). Set true in a config to auto-bank profit.
+    sweep_frac: float = 0.40           # take 40% of new profit each sweep (only if enabled)
     sweep_interval_days: float = 7.0   # weekly
 
 

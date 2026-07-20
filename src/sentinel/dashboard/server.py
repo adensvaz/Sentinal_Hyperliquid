@@ -272,12 +272,18 @@ def gather_state(cfg: Config) -> dict:
             "trade_stats": store.trade_stats(mode),   # tables are paginated via /api/trades & /api/fills
             "equity_series": live_series,
             "cycles": len(series),
-            # money manager (Treasury): profit swept to the safe vault
+            # money manager (Treasury): profit swept to the safe vault (auto-sweep, usually off)
             "treasury_enabled": bool(cfg.treasury.enabled),
             "sweep_frac": cfg.treasury.sweep_frac,
             "vault": _treasury.get("vault", 0.0),
             "total_swept": _treasury.get("total_swept", 0.0),
             "trading_equity": max(0.0, eq - _treasury.get("vault", 0.0)),
+            # free / withdrawable: equity minus the margin the open positions are using
+            # (positions open at per_name_leverage, so margin_used = gross / that leverage)
+            "margin_used": (gross / cfg.portfolio.per_name_leverage) if cfg.portfolio.per_name_leverage else 0.0,
+            "free_capital": max(0.0, eq - ((gross / cfg.portfolio.per_name_leverage)
+                                           if cfg.portfolio.per_name_leverage else 0.0)
+                                        - _treasury.get("vault", 0.0)),
         }
     finally:
         store.close()
@@ -938,14 +944,13 @@ HTML = r"""<!doctype html>
   /* Capital & Profit panel */
   .cappanel:empty{display:none}
   .caphead{font-size:10.5px;text-transform:uppercase;letter-spacing:.9px;color:var(--mut);font-weight:700;margin-bottom:13px}
-  .capgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
-  .capgrid.cap4{grid-template-columns:repeat(4,1fr)}
+  .capgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:14px}
   .capb{background:var(--surface);border:1px solid var(--line);border-radius:13px;padding:13px 15px}
   .capk{font-size:10px;text-transform:uppercase;letter-spacing:.7px;color:var(--mut);font-weight:700;margin-bottom:6px;display:flex;align-items:center;gap:6px}
   .capv{font-size:21px;font-weight:780;letter-spacing:-.3px;font-variant-numeric:tabular-nums}
   .caps{font-size:11.5px;color:var(--dim);margin-top:4px;line-height:1.4}
-  @media(max-width:720px){.capgrid,.capgrid.cap4{grid-template-columns:repeat(2,1fr);gap:10px}}
-  @media(max-width:430px){.capgrid,.capgrid.cap4{grid-template-columns:1fr}}
+  @media(max-width:720px){.capgrid{grid-template-columns:repeat(2,1fr);gap:10px}}
+  @media(max-width:430px){.capgrid{grid-template-columns:1fr}}
   .ph{display:flex;align-items:flex-end;gap:14px;margin-bottom:12px}
   .ph .lab{font-size:10.5px;text-transform:uppercase;letter-spacing:.9px;color:var(--mut)}
   .ph .big{font-size:30px;font-weight:780;letter-spacing:-.5px;margin-top:2px}
@@ -1763,15 +1768,15 @@ function render(d){
       'Profit you have actually locked in from closed trades and funding, minus fees. This can not be lost.'),
     capBlock('Open profit',sgn(open),open>=0?'grn':'red',`${d.n_positions||0} open positions · still moving`,
       'Unrealized profit/loss on your open positions. It changes every tick and is not locked in until the trades close.'),
-    capBlock('Capital in trade',money(grossN),'',`${(d.leverage||0).toFixed(2)}× · ${money(longN)} long / ${money(shortN)} short`,
-      'Your exposure — total position value. In perps you do not spend cash to trade; your full equity stays as collateral and backs this exposure as margin.'),
+    capBlock('Capital in trade',money(grossN),'',`${(d.leverage||0).toFixed(2)}× · ${money(longN)} long / ${money(shortN)} short`),
+    capBlock('💵 Free to withdraw',money(d.free_capital||0),(d.free_capital>0?'grn':''),
+      `${d.equity?Math.round((d.free_capital||0)/d.equity*100):0}% of balance · take out without closing trades`),
   ];
-  if(d.treasury_enabled){
+  if(d.treasury_enabled){   // only if the auto-sweep money-manager is turned on
     blocks.push(capBlock('🏦 Vault (banked)',money(vault),'grn',
-      `${((d.sweep_frac||0.4)*100).toFixed(0)}% of profit swept weekly · safe to withdraw`,
-      'The money manager sweeps a share of new profit into this vault every week. It is safe (not traded) and available to withdraw or reinvest. Your at-risk trading pool = equity − vault.'));
+      `${((d.sweep_frac||0.4)*100).toFixed(0)}% of profit swept weekly · safe to withdraw`));
   }
-  $('capitalPanel').innerHTML=`<div class="caphead">Capital &amp; Profit</div><div class="capgrid${d.treasury_enabled?' cap4':''}">${blocks.join('')}</div>`;
+  $('capitalPanel').innerHTML=`<div class="caphead">Capital &amp; Profit</div><div class="capgrid">${blocks.join('')}</div>`;
 
   const b=d.book||[];
   $('np').textContent=b.length;
