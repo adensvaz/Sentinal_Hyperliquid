@@ -1747,9 +1747,9 @@ function render(d){
   $('cards').innerHTML=[
     card('All-time PnL',sgn(d.pnl),pc,`<span class="${pc}">${d.pnl_pct>=0?'+':''}${d.pnl_pct.toFixed(2)}%</span> · equity ${money(d.equity)}`,'',
       'Total profit/loss since the account started — realized trades + open positions + funding. The % is vs your starting capital.'),
-    card('Leverage',lev.toFixed(2)+'×','',`${money(d.gross)} notional · ${money(d.equity)} equity`,
+    card('Leverage',lev.toFixed(2)+'×','',`${money(d.gross)} in positions · from ${money(d.equity)} of your money`,
       `<div class="bar"><span style="width:${levPct}%;background:linear-gradient(90deg,var(--accent),var(--accent2))"></span></div>`,
-      'Book gross leverage = total position value ÷ equity. It drifts every tick because your positions market value changes as prices move — the bot targets ~2x and trims it in risky conditions. The bot is NOT actively changing it; the wobble is just mark-to-market. (Each trade is opened at 3x on the exchange — see the LEV next to each position.)'),
+      'This is your REAL leverage — total position value ÷ your money. ~1.5× is moderate. It drifts a little every tick as prices move (mark-to-market), and the bot targets ~2× and trims it in risky conditions. (Each individual trade is margined at 3× on the exchange so it only ties up a third of its value as a deposit — that is a margin mechanic, not your book leverage.)'),
     card('Direction bias',`<span class="${bc}">${bias}</span>`,'',
       `${lp.toFixed(0)}% long · ${sp.toFixed(0)}% short`+(d.book_beta!=null?` · BTC-β ${(d.book_beta>=0?'+':'')}${d.book_beta.toFixed(2)}`:''),
       `<div class="bar"><span style="width:${lp}%;background:linear-gradient(90deg,rgba(75,224,176,.6),var(--grn))"></span><span style="width:${sp}%;background:linear-gradient(90deg,var(--red),rgba(255,122,138,.6))"></span></div>`,
@@ -1797,7 +1797,7 @@ function render(d){
         +`${fp>=0?'+$':'−$'}${amtS}</span><span class="fmut">/8h</span>`;
     }
     return `<tr><td class="asset">${short(p.symbol)}</td>
-      <td><span class="chip ${p.side}">${p.side}</span><span class="lev" title="leverage applied to this trade">${p.leverage||1}×</span></td>
+      <td><span class="chip ${p.side}">${p.side}</span></td>
       <td class="r num mut">${(+p.contracts).toLocaleString()}</td>
       <td class="r num">${money(p.notional)}</td>
       <td class="r num mut" style="font-size:11.5px">${sig6(p.entry)}</td>
