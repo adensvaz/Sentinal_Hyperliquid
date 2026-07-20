@@ -1753,8 +1753,10 @@ function render(d){
   const open=d.unrealized||0;                                 // still moving in open positions
   const grossN=d.gross||0, longN=d.long_notional||0, shortN=d.short_notional||0;
   const vault=d.vault||0, tradingEq=d.trading_equity||d.equity||0;
-  const capBlock=(label,val,cls,sub,tip)=>
-    `<div class="capb"><div class="capk">${label}${tip?` <span class="info" data-tip="${tip}">i</span>`:''}</div>`+
+  // no info-tooltips here — the sub-text under each value already explains it (tooltips were
+  // dropping down and covering the Performance panel below)
+  const capBlock=(label,val,cls,sub)=>
+    `<div class="capb"><div class="capk">${label}</div>`+
     `<div class="capv ${cls||''}">${val}</div><div class="caps">${sub}</div></div>`;
   let blocks=[
     capBlock('Booked profit',sgn(booked),booked>=0?'grn':'red','realized trades + funding − fees · locked in',
