@@ -79,7 +79,7 @@ def main():
         for i in range(warm, n - 1):
             ranging = ma[i] > 0 and abs(C[c][i] / ma[i] - 1) < band
             r = gb.tick(st, H[c][i], L[c][i], C[c][i], levels=g.levels, spacing=sp, stop=stop,
-                        ranging=ranging, cost=COST, unit_notional=unit)
+                        ranging=ranging, cost=COST, unit_notional=unit, fill_delta=g.fill_delta_pct / 100.0)
             for tr in r["closed"]:
                 ntrades += 1; wins += 1 if tr["pnl"] > 0 else 0
             cum += r["realized"]; total = cum + r["open_pnl"]

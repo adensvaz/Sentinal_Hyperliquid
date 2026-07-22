@@ -25,13 +25,18 @@ def new_state(anchor: float) -> dict:
 
 
 def tick(state: dict, high: float, low: float, close: float, *, levels: int, spacing: float,
-         stop: float, ranging: bool, cost: float, unit_notional: float, recenter: int = 168) -> dict:
+         stop: float, ranging: bool, cost: float, unit_notional: float, recenter: int = 168,
+         fill_delta: float = 0.0) -> dict:
     """Advance the book by one bar. Mutates `state` in place and returns a summary dict:
-        {realized, fills, net_units, open_pnl, gross_notional}
+        {realized, fees, fills, closed, net_units, open_pnl, gross_notional}
     - spacing / stop are FRACTIONS (0.012, 0.10). cost is per-fill cost fraction (fee + slippage).
     - unit_notional = $ per lot = target_gross * equity / (n_coins * levels).
     - ranging: precomputed by the caller (|price/MA - 1| < band). When False, no new entries are placed
       (existing lots still take profit or stop out).
+    - fill_delta: REALISM knob. A resting limit fills only if price trades THROUGH it by this fraction
+      (0 = fill on a mere touch = optimistic/front-of-queue; ~0.0005 = must trade 0.05% past = realistic,
+      models queue position / adverse selection). Breakeven is ~0.0007 — this is THE number that decides
+      whether the book makes money, so we run paper conservatively and measure the real value live.
     """
     a = state["anchor"]
     longs = state["longs"]      # list of entry prices for open long lots
@@ -73,7 +78,7 @@ def tick(state: dict, high: float, low: float, close: float, *, levels: int, spa
     kept = []
     for bp in sorted(longs):
         tp = bp * (1 + spacing)
-        if high > tp:
+        if high > tp * (1 + fill_delta):          # take-profit fills only if price trades THROUGH it
             _book("LONG", bp, tp, spacing)
         else:
             kept.append(bp)
@@ -81,7 +86,7 @@ def tick(state: dict, high: float, low: float, close: float, *, levels: int, spa
     kept = []
     for bp in sorted(shorts, reverse=True):
         tp = bp * (1 - spacing)
-        if low < tp:
+        if low < tp * (1 - fill_delta):
             _book("SHORT", bp, tp, spacing)
         else:
             kept.append(bp)
@@ -91,14 +96,14 @@ def tick(state: dict, high: float, low: float, close: float, *, levels: int, spa
     if ranging:
         while len(longs) < levels:
             lv = a * (1 - (len(longs) + 1) * spacing)
-            if low < lv:
+            if low < lv * (1 - fill_delta):        # buy fills only if price trades THROUGH the level
                 longs.append(lv)
                 fills.append({"side": "BUY", "price": lv, "notional": unit_notional, "kind": "entry"})
             else:
                 break
         while len(shorts) < levels:
             lv = a * (1 + (len(shorts) + 1) * spacing)
-            if high > lv:
+            if high > lv * (1 + fill_delta):
                 shorts.append(lv)
                 fills.append({"side": "SELL", "price": lv, "notional": unit_notional, "kind": "entry"})
             else:

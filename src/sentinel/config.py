@@ -204,6 +204,10 @@ class GridCfg(BaseModel):
     range_band: float = 0.08       # only grid when |price/MA - 1| < this; stand aside in trends
     ma_period: int = 100           # MA (in base-interval bars) for the ranging/trend filter
     target_gross: float = 1.0      # total gross at full extension across ALL coins (1.0 = no leverage)
+    fill_delta_pct: float = 0.05   # REALISM: a resting limit fills only if price trades this % THROUGH it
+                                   # (models queue position / adverse selection). 0 = fill-on-touch (rosy,
+                                   # +288%); 0.05% = realistic-conservative (~+7-25%/yr); breakeven ~0.07%.
+                                   # We run PAPER at this conservative value and measure the real one live.
 
 
 class ScheduleCfg(BaseModel):

@@ -401,10 +401,10 @@ def _build_llms_txt(cfg: Config) -> str:
 - **/api/state** — raw JSON snapshot with full position detail
 {live_line}{regime_line}
 ## The four live strategies
-1. **Grid** (port 8787) — market-making / mean-reversion book.
-   Buys the dips and sells the rips around a per-coin anchor (1×⁄K sizing, no leverage), banking the
-   spacing each time price reverts; a trend filter stands it aside in strong moves and a hard stop caps the tail.
-   4.5yr hourly backtest (resting-limit fills): Sharpe ~1.4, +3%/mo, ~12% DD, positive every year — paper on HL.
+1. **Grid** (port 8787) — market-making / mean-reversion book **(EXPERIMENTAL — validating fills)**.
+   Buys the dips and sells the rips around a per-coin anchor (1×⁄K sizing, no leverage), banking the spacing.
+   Its profit is captured spread, so it depends entirely on live fill quality: backtest ranges +288% (perfect
+   fills) to −51% (poor fills). Run conservative (0.05% fills → ~+12%/yr, Sharpe ~0.5); measuring real fills live.
 
 2. **Momentum + Regime / Champion** (port 8788) — directional, long-only top-5 momentum.
    Gated by a BTC 100-day MA regime brake: fully invested when BTC is in an uptrend,
@@ -1469,12 +1469,12 @@ HTML = r"""<!doctype html>
     <p class="sp-note">Same data, same execution, same risk rails — four uncorrelated ways to trade. You're viewing <b id="curStrat">—</b>.</p>
     <div class="vsgrid vs4">
       <div class="vscard" id="vs-grid">
-        <div class="vshead"><span class="vsicon n">🪜</span> Grid <span class="vsbadge cb">NEW</span></div>
+        <div class="vshead"><span class="vsicon n">🪜</span> Grid <span class="vsbadge cb">EXPERIMENTAL</span></div>
         <span class="vs-here">You are here</span>
-        <div class="vstag">Market-making · mean-reversion</div>
-        <p>Buys the dips and sells the rips around a moving anchor, banking the spread each time price snaps back. Harvests the constant intraday chop that directional books ignore.</p>
-        <ul class="vsstats"><li><b>1.42</b> Sharpe <span class="vsq">4.5-yr</span></li><li><b>+3%</b>/mo · 87% win rate</li><li><b>~12%</b> max drawdown</li></ul>
-        <div class="vsbest">Best for — steady income in flat, choppy markets</div>
+        <div class="vstag">Market-making · validating fills</div>
+        <p>Buys the dips and sells the rips around a moving anchor, banking the spread. Its edge depends on <b>fill quality</b> — so we&rsquo;re measuring it live before trusting it.</p>
+        <ul class="vsstats"><li><b>0.5</b> Sharpe <span class="vsq">realistic</span></li><li><b>+12%</b>/yr est · 85% win</li><li>validating <b>live fills</b></li></ul>
+        <div class="vsbest">Status — experimental; measuring real fills</div>
         <a class="vslink" id="link-grid">Switch to this →</a>
       </div>
       <div class="vscard" id="vs-champion">
@@ -1582,15 +1582,15 @@ const STRAT_INFO={
   grid:{
     tag:'GRID · MARKET-MAKING · HYPERLIQUID',
     title:'Sentinel&nbsp;Edge <span class="tchip cy">Grid</span>',
-    sub:'The market-making book. It <b>buys the dips and sells the rips</b> around a moving anchor, banking the spread each time price snaps back — harvesting the constant intraday chop.',
-    stats:[{v:1.42,dec:2,l:'Sharpe (4.5yr)'},{v:3,suf:'%',sign:'+',l:'avg month'},{v:12,suf:'%',l:'max drawdown'},{v:87,suf:'%',l:'win rate'}],
+    sub:'The market-making book <span class="tchip cy">EXPERIMENTAL</span>. It <b>buys the dips and sells the rips</b> around a moving anchor, banking the spread — but its edge depends on <b>fill quality</b>, which we&rsquo;re validating live before trusting it.',
+    stats:[{v:0.5,dec:2,l:'Sharpe (realistic)'},{v:12,suf:'%',sign:'+',l:'est. annual'},{v:14,suf:'%',l:'max drawdown'},{v:85,suf:'%',l:'win rate'}],
     ideaTitle:'Buy the dips. Sell the rips. Bank the chop.',
     steps:stepHTML(1,'🪜','Ladder around fair value','Around each coin&rsquo;s recent anchor price it lays a ladder — every 1.2% step down is a buy, every step up is a sell (1×⁄K sizing, no leverage).')
         +stepHTML(2,'♻️','Harvest the reversion','As price wobbles it buys the dips and sells them back a step higher (and shorts the rips) — pocketing the spacing each time price reverts toward the anchor.')
         +stepHTML(3,'🛡️','Stand aside in trends','A trend filter parks the grid and re-centers when a coin breaks into a strong move; a hard stop caps the tail — so it never martingales into a runaway.'),
     why:whyHTML('Where the money comes from','Crypto chops far more than it trends. A grid is a bet on <i>ranging</i> — it monetises the constant intraday wobble that directional books ignore. Positive in 76% of months across 4.5 years.')
        +whyHTML('Why it&rsquo;s a diversifier','It earns from <b>volatility &amp; mean-reversion</b> — not direction or funding — the opposite engine to the Trend book, so one tends to pay when the other is quiet.')
-       +whyHTML('Honest status','<b>Replaces the retired Market-Neutral book</b>, whose cross-sectional-momentum edge decayed (negative the last two years; live profit-factor 0.93). The edge lives in the <b>resting limit fills</b> (not market rebalancing), is <b>fee-sensitive</b> and <b>regime-dependent</b> (best in chop). Positive every year 2022–2025 (Sharpe 0.9–1.9), ~87% of round-trips win — but prove the live fills in paper first.'),
+       +whyHTML('Honest status — it all hinges on fills','The profit is captured <b>spread</b>, which only exists if your resting limit orders actually fill. The backtest ranges from <b>+288%</b> (fill the instant price touches) to <b>−51%</b> (you&rsquo;re at the back of the queue) — breakeven at a 0.07% fill margin. We run PAPER at a <b>conservative</b> assumption (0.05% trade-through → ~+12%/yr) and are <b>measuring the real fill quality live</b>. Until that data is in, treat it as experimental, not proven.'),
     arch:archHTML([
       {c:'#4a9eff',n:'Signal',d:'Price vs a per-coin anchor + a ranging/trend MA filter'},
       {c:'#a78bfa',n:'Portfolio',d:'Long the dips / short the rips · 1×⁄K sizing (no leverage) · 7 liquid coins'},
@@ -1598,11 +1598,11 @@ const STRAT_INFO={
       {c:'#4be0b0',n:'Execution',d:'Reconcile → maker limit orders → paper or live Hyperliquid + this dashboard'},
       {c:'#ffd166',n:'State &amp; Dashboard',d:'SQLite · per-coin anchors · equity curve · trades · copy-trade signal'},
     ]),
-    numNote:'4.5-year hourly backtest · 7 liquid coins · resting-limit fills · STRICT no-same-bar · maker + slippage',
-    perf:pcardHTML(1.42,'Sharpe (4.5yr)','',{dec:2})+pcardHTML(3,'Avg month','grn',{suf:'%',sign:'+'})
-        +pcardHTML(12,'Max drawdown','red',{suf:'%'})+pcardHTML(87,'Win rate','',{suf:'%'})
-        +pcardHTML(288,'4.5yr backtest','grn',{suf:'%',sign:'+'})+pcardHTML(7,'Coins traded','',{}),
-    disclaim:'⚠ Backtest on 4.5yr hourly Binance data (survivorship-caveated). Fills are simulated as RESTING limit orders against each bar&rsquo;s high/low (STRICT no same-bar round-trips) with maker + slippage cost — but live fill quality is the real risk: the edge roughly halves at taker fees. Regime-dependent (best in chop, bleeds in strong trends; the stop caps it). Prove the forward edge in live paper. Not a guarantee.'
+    numNote:'4.5yr hourly · CONSERVATIVE fills (0.05% trade-through) · maker + slippage · validating live',
+    perf:pcardHTML(0.5,'Sharpe (realistic)','',{dec:2})+pcardHTML(12,'Est. annual','grn',{suf:'%',sign:'+'})
+        +pcardHTML(14,'Max drawdown','red',{suf:'%'})+pcardHTML(85,'Win rate','',{suf:'%'})
+        +pcardHTML(0.13,'BTC correlation','',{dec:2})+pcardHTML(7,'Coins traded','',{}),
+    disclaim:'⚠ EXPERIMENTAL — profitability depends entirely on live FILL QUALITY, which a backtest cannot know. Range: +288% (perfect maker fills) to −51% (poor fills), breakeven at a 0.07% fill margin. Shown numbers use a conservative 0.05% assumption (~+12%/yr). A taker-order version has NO edge after fees — so this only works if resting-limit fills are good. We are measuring the real value in live paper before trusting it. Not a guarantee; treat as a validation experiment.'
   },
   champion:{
     tag:'DIRECTIONAL MOMENTUM · REGIME-FILTERED · HYPERLIQUID FUTURES',

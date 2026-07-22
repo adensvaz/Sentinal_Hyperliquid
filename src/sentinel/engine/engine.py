@@ -459,7 +459,8 @@ class Engine:
                     ma = sum(closes[lo0:j + 1]) / (j + 1 - lo0)
                     ranging = ma > 0 and abs(cl / ma - 1) < g.range_band
                     r = grid_book.tick(st, hi, lo, cl, levels=g.levels, spacing=sp, stop=stop,
-                                       ranging=ranging, cost=cost, unit_notional=unit)
+                                       ranging=ranging, cost=cost, unit_notional=unit,
+                                       fill_delta=g.fill_delta_pct / 100.0)
                     new_realized += r["realized"]
                     new_fees += r["fees"]
                     for tr in r["closed"]:

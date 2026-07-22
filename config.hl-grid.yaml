@@ -5,9 +5,11 @@
 # spacing on the bounce. Symmetric shorts above. Hard stop + trend filter cap the tail. Advanced one
 # hourly bar per tick by engine.run_grid_once (NOT the snapshot/reconcile path, which captures no spread).
 #
-# Validated (replaying grid_book over 4.5yr hourly, 7 coins, resting-limit fills + maker/slippage cost):
-# portfolio Sharpe ~1.4 (last year ~1.9), +288% / +47% (1yr), ~+3%/month, maxDD ~12%, ~87% win, POSITIVE
-# every year 2022-2025. Fee-sensitive (needs MAKER fills) and regime-dependent (best in chop).
+# EXPERIMENTAL — profitability hinges entirely on live FILL QUALITY. The +288% (fill-on-touch) is the rosy
+# corner; a devil's-advocate sweep (scripts/grid_devils_advocate.py, grid_taker_mrev.py) shows the edge is
+# captured SPREAD that evaporates under realistic fills: +288% (perfect) -> -51% (back of queue), breakeven
+# at a 0.07% fill margin; a taker version has NO edge. So we run PAPER at a CONSERVATIVE fill assumption
+# (fill_delta_pct 0.05% -> Sharpe ~0.5, ~+12%/yr) and MEASURE the real fill quality live before trusting it.
 #
 # Replaces the retired MARKET-NEUTRAL book, whose cross-sectional-momentum edge decayed (negative the
 # last two years on 5.5yr data, live profit-factor 0.93; Trend beat it on every robustness cut). Grid
@@ -36,6 +38,10 @@ grid:
   range_band: 0.08             # only grid when |price/MA - 1| < this; stand aside in strong trends
   ma_period: 100               # 100 hourly bars (~4 days) MA for the ranging/trend filter
   target_gross: 1.0            # total gross at full extension across ALL coins (1.0 = 1x, no leverage)
+  fill_delta_pct: 0.05         # REALISM: a resting limit fills only if price trades this % THROUGH it.
+                               # THE number that decides profitability (breakeven ~0.07%): 0 = fill-on-touch
+                               # (+288%, rosy); 0.05 = conservative (~+12%/yr). We run PAPER conservative and
+                               # MEASURE the real value live — this is the whole experiment.
 
 execution:
   order_type: limit
