@@ -30,6 +30,7 @@ from ..signal.technicals import ta_consensus
 from ..signal.whale_tracker import WhaleTracker, map_bias_to_symbols
 from ..state.store import Store
 from ..strategy.funding_carry import FundingCarryStrategy
+from ..strategy.grid import GridStrategy
 from ..strategy.trend import TrendStrategy
 from ..portfolio.treasury import Treasury
 from ..strategy.momentum_regime import MomentumRegimeStrategy
@@ -73,6 +74,7 @@ class Engine:
         self.champion = MomentumRegimeStrategy(cfg)   # directional momentum+regime (used when cfg.strategy=='champion')
         self.carry = FundingCarryStrategy(cfg)        # funding-carry+momentum, market-neutral (cfg.strategy=='carry')
         self.trend = TrendStrategy(cfg)               # dollar-neutral cross-sectional trend/CTA (cfg.strategy=='trend')
+        self.grid = GridStrategy(cfg)                 # grid / market-making, harvests chop (cfg.strategy=='grid')
         self.treasury = Treasury(cfg)                 # money manager: weekly profit sweep into a safe vault
         self.store = Store(cfg.state.db_path, cfg.state.equity_csv)
         self.registry: Optional[ContractRegistry] = None
@@ -168,6 +170,11 @@ class Engine:
                 self.history_bars = min(300, self.cfg.carry.lookback + 30)
             else:
                 self.history_bars = min(300, self.cfg.trend.ma_period + 35)
+        elif self.cfg.strategy == "grid":
+            # grid trades intraday mean-reversion — force HOURLY bars with enough history for the
+            # ranging/trend MA filter (the grid re-evaluates every rebalance_minutes, e.g. every 15m).
+            self.base_interval = "1h"
+            self.history_bars = min(400, self.cfg.grid.ma_period + 20)
         else:
             self.base_interval = pick_base_interval(self.fx, ref)
             itv_h = parse_duration_to_hours(self.base_interval)
@@ -305,6 +312,14 @@ class Engine:
                 # vol-target / drawdown-throttle overlay (gross_scale) tames the raw drawdown.
                 book = self.trend.build_book({s: d.closes for s, d in data.items()}, prices,
                                              self.registry, equity, gross_scale=gscale)
+            elif cfg.strategy == "grid":
+                # GRID / market-making: go long the dips / short the rips around a persisted per-coin
+                # anchor, harvesting mean-reversion. 1x/K sizing, trend filter, hard recenter-stop.
+                # Anchors persist across ticks (recentered on stop / trend-exit) so restarts don't churn.
+                anchors = self.store.get_meta("grid_anchors", {}) or {}
+                book = self.grid.build_book({s: d.closes for s, d in data.items()}, prices,
+                                            self.registry, equity, anchors, gross_scale=gscale)
+                self.store.set_meta("grid_anchors", anchors)
             else:
                 ta_scores = ({s: ta_consensus(d.closes) for s, d in data.items()}
                              if cfg.signal.ta_veto > 0 else None)

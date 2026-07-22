@@ -1,0 +1,81 @@
+# ============================================================================
+# GRID / MARKET-MAKING — harvest intraday mean-reversion (chop) on Hyperliquid.
+# Around a per-coin anchor, go progressively LONG as price dips below it and SHORT as it pops above,
+# unwinding each step back toward the anchor for a spacing-sized gain. The honest, risk-capped version
+# of the edge run by the on-chain market-makers we studied.
+#
+# Validated (scripts/grid_regime_bt.py — STRICT no-same-bar fills, 4.5yr, 8 liquid coins): portfolio
+# Sharpe ~1.65, ~+3%/month (~40% APY), maxDD ~15%, walk-forward held OOS (1.50 -> 1.86). The edge is
+# fee-sensitive (needs MAKER fills) and regime-dependent (best in ranging, flat-to-down in strong trends).
+#
+# Replaces the retired MARKET-NEUTRAL book, whose cross-sectional-momentum edge decayed (negative the
+# last two years on 5.5yr data, live profit-factor 0.93; Trend beat it on every robustness cut). Grid
+# takes its port (8787). Trend / Carry / Champion stay.
+# Phase 1 = PAPER (no keys). Live is Phase 2 (agent wallet, testnet-first, double-opt-in).
+# ============================================================================
+mode: paper
+strategy: grid
+capital_usdt: 10000
+
+exchange:
+  venue: hyperliquid
+  hyperliquid_info_url: https://api.hyperliquid.xyz/info
+
+universe:
+  # ONLY the coins with a demonstrated grid edge in the backtest (AVAX excluded — it was net-negative).
+  # allowlist restricts the universe to exactly these names.
+  allowlist: [BTC, ETH, SOL, DOGE, LINK, ADA, LTC]
+  top_n: 7
+  min_quote_volume_usdt: 0
+
+grid:
+  levels: 6                    # K: ladder depth per side; each step = 1/K of the coin's budget (no leverage)
+  spacing_pct: 1.2             # % between grid levels (one round-trip's profit target)
+  stop_pct: 10.0               # flatten + recenter if price runs this far from the anchor (tail cap)
+  range_band: 0.08             # only grid when |price/MA - 1| < this; stand aside in strong trends
+  ma_period: 100               # 100 hourly bars (~4 days) MA for the ranging/trend filter
+  target_gross: 1.0            # total gross at full extension across ALL coins (1.0 = 1x, no leverage)
+
+execution:
+  order_type: limit
+  maker: true                  # MAKER IS ESSENTIAL — the edge dies at taker fees. HL maker ~1.5bps.
+  maker_fill_ratio: 0.5        # REALISM: assume ~half of POST_ONLY orders fill as maker; rest chase
+  slippage_bps: 5
+  time_in_force: IOC
+  min_trade_notional: 15
+  min_rebalance_frac: 0.10     # suppress sub-level churn: only trade when the delta clears ~10% of a step
+  margin_mode: isolated
+  position_mode: net
+
+risk:
+  max_gross_leverage: 3        # grid targets 1x; headroom for the safety clamp
+  max_net_exposure: 1.0        # grid is NOT dollar-neutral — a broad dip -> net long, a broad pop -> net short
+  max_drawdown_pct: 25         # flatten-all catastrophe brake (backtest maxDD ~15%)
+  max_position_loss_pct: 10    # per-position catastrophe backstop (% of equity)
+  position_stop_pct: 30        # per-name stop (% of the position's OWN value) — the grid's 10% recenter
+                               # fires first; this is the deeper backstop
+  funding_abs_max: 1.0
+  pause_hours: 12
+  monitor_seconds: 60
+  # de-risking overlay (all one-directional: cut gross in bad regimes; none fire in normal chop where the edge lives)
+  dynamic_risk: true
+  vol_target_daily: 0.03       # loose governor — only trims gross in genuinely extreme vol
+  vol_lookback: 21
+  dd_throttle_start: 0.10      # start cutting gross once 10% in drawdown...
+  dd_throttle_full: 0.20       # ...down to min_risk_scale by 20%
+  min_risk_scale: 0.30
+  crash_guard: false
+
+schedule:
+  rebalance_minutes: 15        # re-evaluate the grid every 15 min (catches intraday oscillations)
+  # no fixed rebalance_hour_utc — the grid must tick continuously, not once a day
+
+treasury:                      # auto-sweep OFF — dashboard shows "Free to withdraw"
+  enabled: false
+  sweep_frac: 0.40
+  sweep_interval_days: 7
+
+state:
+  db_path: data/hl_grid.db
+  equity_csv: data/hl_grid_equity.csv
+  log_path: data/hl_grid.log

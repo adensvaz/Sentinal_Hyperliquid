@@ -189,6 +189,23 @@ class TrendCfg(BaseModel):
     target_gross: float = 2.0      # total gross (~1x per side); vol-target/DD-throttle may scale below
 
 
+class GridCfg(BaseModel):
+    """Grid / market-making book — harvests intraday mean-reversion (chop). Around a per-coin anchor
+    price, go progressively LONG as price dips below it and SHORT as it pops above, unwinding each step
+    back toward the anchor for a spacing-sized gain. 1x/K sizing (NO leverage), a trend filter that
+    stands the grid aside in strong trends, and a hard recenter-stop that caps the tail.
+
+    Validated (scripts/grid_regime_bt.py, strict no-same-bar fills, 4.5yr, 8 coins): portfolio
+    Sharpe ~1.65, ~+3%/month, maxDD ~15%, walk-forward held OOS (1.50 -> 1.86). Edge is fee-sensitive
+    (maker fills essential) and regime-dependent (best in ranging, flat-to-down in strong trends)."""
+    levels: int = 6                # K: ladder depth per side. Each step = 1/K of the coin's budget.
+    spacing_pct: float = 1.2       # % between grid levels (one step's profit target)
+    stop_pct: float = 10.0         # recenter + flatten if price runs this far from the anchor (tail cap)
+    range_band: float = 0.08       # only grid when |price/MA - 1| < this; stand aside in trends
+    ma_period: int = 100           # MA (in base-interval bars) for the ranging/trend filter
+    target_gross: float = 1.0      # total gross at full extension across ALL coins (1.0 = no leverage)
+
+
 class ScheduleCfg(BaseModel):
     rebalance_minutes: int = 240
     rebalance_hour_utc: Optional[int] = None  # if 0-23, rebalance daily at this fixed UTC hour
@@ -220,7 +237,8 @@ class TreasuryCfg(BaseModel):
 class Config(BaseModel):
     mode: Literal["paper", "live"] = "paper"
     # neutral = market-neutral momentum book; champion = directional momentum+regime; carry = funding-carry+momentum
-    strategy: Literal["neutral", "champion", "carry", "trend"] = "neutral"
+    # trend = dollar-neutral CTA (retired); grid = market-making / mean-reversion book
+    strategy: Literal["neutral", "champion", "carry", "trend", "grid"] = "neutral"
     exchange: ExchangeCfg = Field(default_factory=ExchangeCfg)
     capital_usdt: Optional[float] = 10_000.0
     # Portfolio-level allocation weight (0.0-1.0). When a risk-parity allocator runs
@@ -232,6 +250,7 @@ class Config(BaseModel):
     champion: ChampionCfg = Field(default_factory=ChampionCfg)
     carry: CarryCfg = Field(default_factory=CarryCfg)
     trend: TrendCfg = Field(default_factory=TrendCfg)
+    grid: GridCfg = Field(default_factory=GridCfg)
     whales: WhalesCfg = Field(default_factory=WhalesCfg)
     portfolio: PortfolioCfg = Field(default_factory=PortfolioCfg)
     execution: ExecutionCfg = Field(default_factory=ExecutionCfg)
