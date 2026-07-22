@@ -402,7 +402,7 @@ def _build_llms_txt(cfg: Config) -> str:
 1. **Grid** (port 8787) — market-making / mean-reversion book.
    Buys the dips and sells the rips around a per-coin anchor (1×⁄K sizing, no leverage), banking the
    spacing each time price reverts; a trend filter stands it aside in strong moves and a hard stop caps the tail.
-   4.5yr hourly backtest (strict fills): Sharpe ~1.65, +3%/mo, ~15% DD, walk-forward held OOS — paper on HL.
+   4.5yr hourly backtest (resting-limit fills): Sharpe ~1.4, +3%/mo, ~12% DD, positive every year — paper on HL.
 
 2. **Momentum + Regime / Champion** (port 8788) — directional, long-only top-5 momentum.
    Gated by a BTC 100-day MA regime brake: fully invested when BTC is in an uptrend,
@@ -1469,7 +1469,7 @@ HTML = r"""<!doctype html>
         <span class="vs-here">You are here</span>
         <div class="vstag">Market-making · mean-reversion</div>
         <p>Buys the dips and sells the rips around a moving anchor, banking the spread each time price snaps back. Harvests the constant intraday chop that directional books ignore.</p>
-        <ul class="vsstats"><li><b>1.65</b> Sharpe <span class="vsq">4.5-yr</span></li><li><b>+3%</b>/mo · 76% green months</li><li><b>~15%</b> max drawdown</li></ul>
+        <ul class="vsstats"><li><b>1.42</b> Sharpe <span class="vsq">4.5-yr</span></li><li><b>+3%</b>/mo · 87% win rate</li><li><b>~12%</b> max drawdown</li></ul>
         <div class="vsbest">Best for — steady income in flat, choppy markets</div>
         <a class="vslink" id="link-grid">Switch to this →</a>
       </div>
@@ -1579,14 +1579,14 @@ const STRAT_INFO={
     tag:'GRID · MARKET-MAKING · HYPERLIQUID',
     title:'Sentinel&nbsp;Edge <span class="tchip cy">Grid</span>',
     sub:'The market-making book. It <b>buys the dips and sells the rips</b> around a moving anchor, banking the spread each time price snaps back — harvesting the constant intraday chop.',
-    stats:[{v:1.65,dec:2,l:'Sharpe (4.5yr)'},{v:3,suf:'%',sign:'+',l:'avg month'},{v:15,suf:'%',l:'max drawdown'},{v:76,suf:'%',l:'green months'}],
+    stats:[{v:1.42,dec:2,l:'Sharpe (4.5yr)'},{v:3,suf:'%',sign:'+',l:'avg month'},{v:12,suf:'%',l:'max drawdown'},{v:87,suf:'%',l:'win rate'}],
     ideaTitle:'Buy the dips. Sell the rips. Bank the chop.',
     steps:stepHTML(1,'🪜','Ladder around fair value','Around each coin&rsquo;s recent anchor price it lays a ladder — every 1.2% step down is a buy, every step up is a sell (1×⁄K sizing, no leverage).')
         +stepHTML(2,'♻️','Harvest the reversion','As price wobbles it buys the dips and sells them back a step higher (and shorts the rips) — pocketing the spacing each time price reverts toward the anchor.')
         +stepHTML(3,'🛡️','Stand aside in trends','A trend filter parks the grid and re-centers when a coin breaks into a strong move; a hard stop caps the tail — so it never martingales into a runaway.'),
     why:whyHTML('Where the money comes from','Crypto chops far more than it trends. A grid is a bet on <i>ranging</i> — it monetises the constant intraday wobble that directional books ignore. Positive in 76% of months across 4.5 years.')
        +whyHTML('Why it&rsquo;s a diversifier','It earns from <b>volatility &amp; mean-reversion</b> — not direction or funding — the opposite engine to the Trend book, so one tends to pay when the other is quiet.')
-       +whyHTML('Honest status','<b>Replaces the retired Market-Neutral book</b>, whose cross-sectional-momentum edge decayed (negative the last two years; live profit-factor 0.93). The grid&rsquo;s edge is <b>fee-sensitive</b> (needs maker fills) and <b>regime-dependent</b> (best in chop). Walk-forward held out-of-sample (Sharpe 1.50 → 1.86) — prove the live fills in paper first.'),
+       +whyHTML('Honest status','<b>Replaces the retired Market-Neutral book</b>, whose cross-sectional-momentum edge decayed (negative the last two years; live profit-factor 0.93). The edge lives in the <b>resting limit fills</b> (not market rebalancing), is <b>fee-sensitive</b> and <b>regime-dependent</b> (best in chop). Positive every year 2022–2025 (Sharpe 0.9–1.9), ~87% of round-trips win — but prove the live fills in paper first.'),
     arch:archHTML([
       {c:'#4a9eff',n:'Signal',d:'Price vs a per-coin anchor + a ranging/trend MA filter'},
       {c:'#a78bfa',n:'Portfolio',d:'Long the dips / short the rips · 1×⁄K sizing (no leverage) · 7 liquid coins'},
@@ -1594,11 +1594,11 @@ const STRAT_INFO={
       {c:'#4be0b0',n:'Execution',d:'Reconcile → maker limit orders → paper or live Hyperliquid + this dashboard'},
       {c:'#ffd166',n:'State &amp; Dashboard',d:'SQLite · per-coin anchors · equity curve · trades · copy-trade signal'},
     ]),
-    numNote:'4.5-year hourly backtest · 8 liquid coins · STRICT no-same-bar fills · maker fees + slippage',
-    perf:pcardHTML(1.65,'Sharpe (4.5yr)','',{dec:2})+pcardHTML(3,'Avg month','grn',{suf:'%',sign:'+'})
-        +pcardHTML(15,'Max drawdown','red',{suf:'%'})+pcardHTML(76,'Green months','',{suf:'%'})
-        +pcardHTML(1.86,'Walk-forward OOS','',{dec:2})+pcardHTML(7,'Coins traded','',{}),
-    disclaim:'⚠ Backtest on 4.5yr hourly Binance data (survivorship-caveated). Numbers use a STRICT fill model (no same-bar round-trips) with maker fees + slippage — but live fill quality is the real risk: the edge roughly halves at taker fees. Regime-dependent (best in chop, bleeds in strong trends; the stop caps it). Prove the forward edge in live paper. Not a guarantee.'
+    numNote:'4.5-year hourly backtest · 7 liquid coins · resting-limit fills · STRICT no-same-bar · maker + slippage',
+    perf:pcardHTML(1.42,'Sharpe (4.5yr)','',{dec:2})+pcardHTML(3,'Avg month','grn',{suf:'%',sign:'+'})
+        +pcardHTML(12,'Max drawdown','red',{suf:'%'})+pcardHTML(87,'Win rate','',{suf:'%'})
+        +pcardHTML(288,'4.5yr backtest','grn',{suf:'%',sign:'+'})+pcardHTML(7,'Coins traded','',{}),
+    disclaim:'⚠ Backtest on 4.5yr hourly Binance data (survivorship-caveated). Fills are simulated as RESTING limit orders against each bar&rsquo;s high/low (STRICT no same-bar round-trips) with maker + slippage cost — but live fill quality is the real risk: the edge roughly halves at taker fees. Regime-dependent (best in chop, bleeds in strong trends; the stop caps it). Prove the forward edge in live paper. Not a guarantee.'
   },
   champion:{
     tag:'DIRECTIONAL MOMENTUM · REGIME-FILTERED · HYPERLIQUID FUTURES',

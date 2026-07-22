@@ -190,14 +190,14 @@ class TrendCfg(BaseModel):
 
 
 class GridCfg(BaseModel):
-    """Grid / market-making book — harvests intraday mean-reversion (chop). Around a per-coin anchor
-    price, go progressively LONG as price dips below it and SHORT as it pops above, unwinding each step
-    back toward the anchor for a spacing-sized gain. 1x/K sizing (NO leverage), a trend filter that
-    stands the grid aside in strong trends, and a hard recenter-stop that caps the tail.
+    """Grid / market-making book — a RESTING-LIMIT order book per coin (strategy/grid_book.py, driven by
+    engine.run_grid_once). Resting buy limits below a per-coin anchor fill on the bar low (buy the dip),
+    rest a take-profit one spacing above, and book the spacing on the bounce; symmetric shorts above.
+    1x/K sizing (NO leverage), a trend filter that stands aside in strong trends, and a hard stop.
 
-    Validated (scripts/grid_regime_bt.py, strict no-same-bar fills, 4.5yr, 8 coins): portfolio
-    Sharpe ~1.65, ~+3%/month, maxDD ~15%, walk-forward held OOS (1.50 -> 1.86). Edge is fee-sensitive
-    (maker fills essential) and regime-dependent (best in ranging, flat-to-down in strong trends)."""
+    Validated (replaying grid_book over 4.5yr hourly, 7 coins, resting-limit fills + maker/slippage):
+    portfolio Sharpe ~1.4 (last year ~1.9), +288% / +47% (1yr), ~+3%/month, maxDD ~12%, ~87% win,
+    positive every year 2022-2025. Fee-sensitive (maker fills essential); best in chop."""
     levels: int = 6                # K: ladder depth per side. Each step = 1/K of the coin's budget.
     spacing_pct: float = 1.2       # % between grid levels (one step's profit target)
     stop_pct: float = 10.0         # recenter + flatten if price runs this far from the anchor (tail cap)

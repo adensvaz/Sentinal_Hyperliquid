@@ -29,8 +29,8 @@ from ..signal.market_proxy import MarketProxySignal
 from ..signal.technicals import ta_consensus
 from ..signal.whale_tracker import WhaleTracker, map_bias_to_symbols
 from ..state.store import Store
+from ..strategy import grid_book
 from ..strategy.funding_carry import FundingCarryStrategy
-from ..strategy.grid import GridStrategy
 from ..strategy.trend import TrendStrategy
 from ..portfolio.treasury import Treasury
 from ..strategy.momentum_regime import MomentumRegimeStrategy
@@ -74,7 +74,6 @@ class Engine:
         self.champion = MomentumRegimeStrategy(cfg)   # directional momentum+regime (used when cfg.strategy=='champion')
         self.carry = FundingCarryStrategy(cfg)        # funding-carry+momentum, market-neutral (cfg.strategy=='carry')
         self.trend = TrendStrategy(cfg)               # dollar-neutral cross-sectional trend/CTA (cfg.strategy=='trend')
-        self.grid = GridStrategy(cfg)                 # grid / market-making, harvests chop (cfg.strategy=='grid')
         self.treasury = Treasury(cfg)                 # money manager: weekly profit sweep into a safe vault
         self.store = Store(cfg.state.db_path, cfg.state.equity_csv)
         self.registry: Optional[ContractRegistry] = None
@@ -195,6 +194,8 @@ class Engine:
     # -- core cycle -----------------------------------------------------------
     def run_once(self, flatten: bool = False) -> RebalanceReport:
         cfg = self.cfg
+        if cfg.strategy == "grid":
+            return self.run_grid_once(flatten)      # resting-limit market-maker — its own tick-driven path
         if self.live:
             self.broker.preflight()
         self._ensure_market()
@@ -312,14 +313,6 @@ class Engine:
                 # vol-target / drawdown-throttle overlay (gross_scale) tames the raw drawdown.
                 book = self.trend.build_book({s: d.closes for s, d in data.items()}, prices,
                                              self.registry, equity, gross_scale=gscale)
-            elif cfg.strategy == "grid":
-                # GRID / market-making: go long the dips / short the rips around a persisted per-coin
-                # anchor, harvesting mean-reversion. 1x/K sizing, trend filter, hard recenter-stop.
-                # Anchors persist across ticks (recentered on stop / trend-exit) so restarts don't churn.
-                anchors = self.store.get_meta("grid_anchors", {}) or {}
-                book = self.grid.build_book({s: d.closes for s, d in data.items()}, prices,
-                                            self.registry, equity, anchors, gross_scale=gscale)
-                self.store.set_meta("grid_anchors", anchors)
             else:
                 ta_scores = ({s: ta_consensus(d.closes) for s, d in data.items()}
                              if cfg.signal.ta_veto > 0 else None)
@@ -406,6 +399,167 @@ class Engine:
             universe_size=len(universe), n_long=n_long, n_short=n_short, n_orders=len(orders),
             positions=positions, fills=fills, top_scores=top_scores[:10],
         )
+
+    # -- GRID (resting-limit market-maker) -----------------------------------
+    def run_grid_once(self, flatten: bool = False) -> RebalanceReport:
+        """Advance the resting-limit grid book by every new hourly bar since the last tick. Each coin runs
+        an independent order book (grid_book): resting buy limits below the anchor fill on the bar's low,
+        take-profits on the high — capturing the spacing the snapshot approach could not. State + the
+        last-processed timestamp persist, so each bar is processed exactly once (restart-safe, no churn)."""
+        cfg = self.cfg
+        g = cfg.grid
+        self._ensure_market()                                   # base_interval='1h'
+        assert self.registry is not None
+        universe = build_universe(self.fx, self.registry, cfg.universe)
+        cost = max(0.0, cfg.execution.slippage_bps / 1e4)       # per-fill cost (slippage-dominated; HL maker ~0)
+        sp = g.spacing_pct / 100.0
+        stop = g.stop_pct / 100.0
+
+        bars: dict[str, list] = {}                              # coin -> [(ts_ms, high, low, close)] ascending
+        for s in universe:
+            rows = []
+            for k in (self.fx.klines(s, "1h", self.history_bars) or []):
+                try:
+                    c = float(k["close"])
+                    rows.append((int(k["idx"]), float(k.get("high", c)), float(k.get("low", c)), c))
+                except (KeyError, TypeError, ValueError):
+                    continue
+            rows.sort()
+            if len(rows) > g.ma_period + 2:
+                bars[s] = rows
+        coins = list(bars)
+
+        gstate = self.store.get_meta("grid_state", {}) or {}
+        last_ts = int(self.store.get_meta("grid_last_ts", 0) or 0)
+        acct = self.store.load_account(self.mode) or {}
+        cap = float(cfg.capital_usdt or 10000.0)
+        booked = float(acct.get("realized_pnl", 0.0)) - float(acct.get("fees_paid", 0.0))
+        fees_cum = float(acct.get("fees_paid", 0.0))
+        paused_until = float(acct.get("paused_until", 0.0) or 0.0)
+        now = time.time()
+        latest_bar = max((rows[-1][0] for rows in bars.values()), default=last_ts)
+
+        equity0 = self.store.last_equity(self.mode) or (cap + booked)
+        unit = max(0.0, g.target_gross * equity0) / (max(1, len(coins)) * max(1, g.levels))
+
+        newest = last_ts
+        new_realized = 0.0
+        new_fees = 0.0
+        closed_trades: list[dict] = []
+        active = (now >= paused_until) and not flatten
+        if active:
+            for s in coins:
+                rows = bars[s]
+                closes = [r[3] for r in rows]
+                st = gstate.get(s) or grid_book.new_state(rows[0][3])
+                for j, (ts, hi, lo, cl) in enumerate(rows):
+                    if ts <= last_ts:
+                        continue
+                    lo0 = max(0, j - g.ma_period)
+                    ma = sum(closes[lo0:j + 1]) / (j + 1 - lo0)
+                    ranging = ma > 0 and abs(cl / ma - 1) < g.range_band
+                    r = grid_book.tick(st, hi, lo, cl, levels=g.levels, spacing=sp, stop=stop,
+                                       ranging=ranging, cost=cost, unit_notional=unit)
+                    new_realized += r["realized"]
+                    new_fees += r["fees"]
+                    for tr in r["closed"]:
+                        closed_trades.append({"symbol": s, "side": tr["side"], "entry": tr["entry"],
+                                              "exit": tr["exit"], "contracts": 0, "pnl": tr["pnl"],
+                                              "opened_ts": ts / 1000.0, "closed_ts": ts / 1000.0})
+                    if ts > newest:
+                        newest = ts
+                gstate[s] = st
+        else:
+            newest = latest_bar                                 # paused/flatten: skip these bars, don't retro-trade
+
+        booked += new_realized
+        fees_cum += new_fees
+
+        # mark open lots + build the position book at each coin's latest close
+        positions_store: dict[str, dict] = {}
+        report_positions: list[dict] = []
+        open_pnl = 0.0
+        gross_notional = 0.0
+        net_notional = 0.0
+        n_long = 0
+        n_short = 0
+        for s in coins:
+            st = gstate.get(s) or {}
+            longs = st.get("longs", [])
+            shorts = st.get("shorts", [])
+            last_close = bars[s][-1][3]
+            open_pnl += (sum((last_close / bp - 1) * unit for bp in longs)
+                         + sum((bp / last_close - 1) * unit for bp in shorts))
+            gross_notional += (len(longs) + len(shorts)) * unit
+            net_units = len(longs) - len(shorts)
+            net_notional += net_units * unit
+            if net_units != 0 and self.registry.has(s):
+                spec = self.registry.get(s)
+                contracts = spec.notional_to_contracts(abs(net_units) * unit, last_close)
+                if contracts > 0:
+                    signed = contracts if net_units > 0 else -contracts
+                    avg = (sum(longs) + sum(shorts)) / max(1, len(longs) + len(shorts))
+                    positions_store[s] = {"contracts": signed, "avg_price": avg,
+                                          "multiplier": spec.multiplier, "opened_ts": 0.0}
+                    report_positions.append({"symbol": s, "side": "LONG" if net_units > 0 else "SHORT",
+                                             "contracts": signed, "notional": net_units * unit,
+                                             "score": float(net_units)})
+                    n_long += 1 if net_units > 0 else 0
+                    n_short += 1 if net_units < 0 else 0
+
+        equity = cap + booked + open_pnl
+        peak = self.store.update_peak_equity(self.mode, equity)
+        dd = drawdown_pct(peak, equity)
+
+        # portfolio drawdown kill-switch: flatten every book (book the open PnL) + pause
+        breached = False
+        if flatten or (cfg.risk.max_drawdown_pct and dd >= cfg.risk.max_drawdown_pct):
+            for s in coins:
+                st = gstate.get(s) or {}
+                last_close = bars[s][-1][3]
+                for bp in st.get("longs", []):
+                    booked += ((last_close / bp - 1) - 2 * cost) * unit
+                for bp in st.get("shorts", []):
+                    booked += ((bp / last_close - 1) - 2 * cost) * unit
+                st["longs"] = []
+                st["shorts"] = []
+                gstate[s] = st
+            open_pnl = 0.0
+            positions_store = {}
+            report_positions = []
+            gross_notional = net_notional = 0.0
+            n_long = n_short = 0
+            equity = cap + booked
+            if not flatten:
+                paused_until = now + cfg.risk.pause_hours * 3600
+                breached = True
+                log.warning("grid drawdown %.1f%% >= %.1f%% — flattened + paused %.0fh",
+                            dd, cfg.risk.max_drawdown_pct, cfg.risk.pause_hours)
+
+        realized_gross = booked + fees_cum
+        self.store.set_meta("grid_state", gstate)
+        self.store.set_meta("grid_last_ts", int(newest))
+        self.store.save_account(self.mode, starting_capital=cap, realized_pnl=realized_gross,
+                                fees_paid=fees_cum, funding_pnl=0.0, last_funding_ts=0.0)
+        if breached:
+            self.store.conn.execute("UPDATE account SET paused_until=? WHERE mode=?", (paused_until, self.mode))
+            self.store.conn.commit()
+        self.store.save_positions(self.mode, positions_store)
+        if closed_trades:
+            self.store.record_closed_trades(self.mode, closed_trades)
+        self.store.record_equity(self.mode, equity, gross_notional, net_notional, dd)
+        self.store.save_scores(self.mode, {p["symbol"]: p["score"] for p in report_positions})
+        log.info("GRID | equity=$%.2f | %dL/%dS | %d fills | dd=%.2f%% | %s", equity, n_long, n_short,
+                 len(closed_trades), dd, "PAUSED" if breached else "ok")
+        return RebalanceReport(mode=self.mode, equity=equity, gross=gross_notional, net=net_notional,
+                               drawdown_pct=dd, paused=breached, universe_size=len(coins),
+                               n_long=n_long, n_short=n_short, n_orders=len(closed_trades),
+                               positions=report_positions, fills=[], top_scores=[])
+
+    def _grid_risk_check(self) -> dict:
+        """The grid runs its own per-coin stops + portfolio drawdown kill-switch inside run_grid_once; the
+        between-tick safety poll is a no-op (nothing to do until the next hourly bar closes)."""
+        return {"action": None}
 
     def flatten(self) -> RebalanceReport:
         return self.run_once(flatten=True)
@@ -545,6 +699,8 @@ class Engine:
     def risk_check(self) -> dict:
         """Lightweight between-rebalance safety check: drawdown kill-switch + per-position stop.
         Records an equity tick so the curve/dashboard stay live."""
+        if self.cfg.strategy == "grid":
+            return self._grid_risk_check()
         self._ensure_market()
         cur = self.broker.positions()
         marks, funding = self._index_data(cur) if cur else ({}, {})

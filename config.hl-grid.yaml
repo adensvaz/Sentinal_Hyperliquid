@@ -1,12 +1,13 @@
 # ============================================================================
 # GRID / MARKET-MAKING — harvest intraday mean-reversion (chop) on Hyperliquid.
-# Around a per-coin anchor, go progressively LONG as price dips below it and SHORT as it pops above,
-# unwinding each step back toward the anchor for a spacing-sized gain. The honest, risk-capped version
-# of the edge run by the on-chain market-makers we studied.
+# A RESTING-LIMIT order book per coin (src/sentinel/strategy/grid_book.py): resting buy limits below a
+# per-coin anchor fill on the bar's low (buy the dip), rest a take-profit one spacing above, and book the
+# spacing on the bounce. Symmetric shorts above. Hard stop + trend filter cap the tail. Advanced one
+# hourly bar per tick by engine.run_grid_once (NOT the snapshot/reconcile path, which captures no spread).
 #
-# Validated (scripts/grid_regime_bt.py — STRICT no-same-bar fills, 4.5yr, 8 liquid coins): portfolio
-# Sharpe ~1.65, ~+3%/month (~40% APY), maxDD ~15%, walk-forward held OOS (1.50 -> 1.86). The edge is
-# fee-sensitive (needs MAKER fills) and regime-dependent (best in ranging, flat-to-down in strong trends).
+# Validated (replaying grid_book over 4.5yr hourly, 7 coins, resting-limit fills + maker/slippage cost):
+# portfolio Sharpe ~1.4 (last year ~1.9), +288% / +47% (1yr), ~+3%/month, maxDD ~12%, ~87% win, POSITIVE
+# every year 2022-2025. Fee-sensitive (needs MAKER fills) and regime-dependent (best in chop).
 #
 # Replaces the retired MARKET-NEUTRAL book, whose cross-sectional-momentum edge decayed (negative the
 # last two years on 5.5yr data, live profit-factor 0.93; Trend beat it on every robustness cut). Grid

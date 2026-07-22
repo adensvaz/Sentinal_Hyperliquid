@@ -142,7 +142,10 @@ class HyperliquidFutures:
         out = []
         for r in rows or []:
             try:
-                out.append({"idx": int(r["t"]), "close": float(r["c"]), "vol": float(r.get("v", 0) or 0)})
+                c = float(r["c"])
+                out.append({"idx": int(r["t"]), "close": c,
+                            "open": float(r.get("o", c)), "high": float(r.get("h", c)),
+                            "low": float(r.get("l", c)), "vol": float(r.get("v", 0) or 0)})
             except (KeyError, TypeError, ValueError):
                 continue
         return out[-limit:]

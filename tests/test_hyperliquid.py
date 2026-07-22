@@ -71,7 +71,8 @@ def test_ticker_recovers_quote_notional(fx):
 
 def test_klines_shape(fx):
     kl = fx.klines("BTC", "1day", 100)
-    assert kl[-1] == {"idx": 1700086400000, "close": 60000.0, "vol": 10.0}
+    assert kl[-1] == {"idx": 1700086400000, "close": 60000.0, "open": 60000.0,
+                      "high": 60000.0, "low": 60000.0, "vol": 10.0}
 
 
 def test_execution_is_gated(fx):
