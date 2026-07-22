@@ -14,6 +14,7 @@ exchange:
 universe:
   top_n: 24
   min_quote_volume_usdt: 200000                   # liquidity floor (HL volume scale)
+  denylist: [ACE]                                 # excluded — too violent (squeezed Trend, sank Carry)
 
 champion:
   top_k: 5                   # hold the 5 strongest names

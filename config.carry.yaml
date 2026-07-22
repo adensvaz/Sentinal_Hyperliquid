@@ -16,6 +16,8 @@ exchange:
 universe:
   top_n: 30                    # broader than KoinBay: HL's funding dispersion lives in the mid-cap alts
   min_quote_volume_usdt: 200000
+  denylist: [ACE]              # excluded — too violent, keeps landing on the wrong side (squeezed Trend's
+                               # short, sank Carry's long). Dropping it closes any open ACE at next rebalance.
 
 carry:
   top_k: 5

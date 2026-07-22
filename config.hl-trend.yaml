@@ -21,6 +21,7 @@ exchange:
 universe:
   top_n: 30                    # broad pool so the trend book has enough names for a diversified L/S
   min_quote_volume_usdt: 200000
+  denylist: [ACE]              # excluded — the original ACE short-squeeze coin; too violent to trade
 
 trend:
   top_k: 8                     # long the 8 strongest uptrends, short the 8 strongest downtrends
