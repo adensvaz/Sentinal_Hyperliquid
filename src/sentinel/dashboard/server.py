@@ -271,6 +271,8 @@ def gather_state(cfg: Config) -> dict:
             "whales_enabled": bool(cfg.whales.enabled),   # carry/champion don't use the whale overlay -> hide the tab
             "trade_stats": store.trade_stats(mode),   # tables are paginated via /api/trades & /api/fills
             "equity_series": live_series,
+            # grid only: equity before this ts is BACKTEST-seeded (dashed on the chart), after is live paper
+            "backtest_until_ts": int(store.get_meta("grid_backtest_until_ts", 0) or 0),
             "cycles": len(series),
             # money manager (Treasury): profit swept to the safe vault (auto-sweep, usually off)
             "treasury_enabled": bool(cfg.treasury.enabled),
@@ -1002,6 +1004,7 @@ HTML = r"""<!doctype html>
   .wallets .w{display:flex;justify-content:space-between;align-items:center;padding:4px 0;color:var(--mut)}
   #chart{max-height:340px}
   .chartwrap{position:relative}
+  .chart-note{display:none;margin-top:8px;font-size:11.5px;color:rgba(52,46,36,.55);letter-spacing:.02em;text-align:center}
   .chart-empty{display:none;position:absolute;inset:0;flex-direction:column;align-items:center;justify-content:center;
     text-align:center;color:var(--dim);font-size:14px;font-weight:650;pointer-events:none;padding:0 30px}
   .chart-empty.on{display:flex}
@@ -1397,6 +1400,7 @@ HTML = r"""<!doctype html>
       <button class="t" data-r="30D">30D</button><button class="t on" data-r="ALL">ALL</button>
     </div></div>
     <div class="chartwrap"><canvas id="chart"></canvas><div id="chartTip" class="charttip"></div><div id="chartEmpty" class="chart-empty"></div></div>
+    <div id="chartNote" class="chart-note"></div>
   </div>
 
   <div class="panel tabwrap">
@@ -1879,7 +1883,11 @@ function drawChart(){
   const grad=ctx.createLinearGradient(0,0,0,340);
   grad.addColorStop(0, up?'rgba(75,224,176,.30)':'rgba(255,122,138,.30)');
   grad.addColorStop(1,'rgba(0,0,0,0)');
-  const ds={data:vals,borderColor:line,backgroundColor:grad,fill:true,tension:.32,pointRadius:0,pointHoverRadius:0,borderWidth:2.4};
+  // grid: draw the backtest-seeded portion DASHED + greyed so it's never mistaken for live paper
+  const BT=(DATA.backtest_until_ts||0), isBT=i=>s[i]&&s[i].ts<=BT;
+  const seg=BT>0?{borderDash:c=>isBT(c.p1DataIndex)?[5,4]:undefined,
+                  borderColor:c=>isBT(c.p1DataIndex)?'rgba(140,140,150,.75)':line}:undefined;
+  const ds={data:vals,borderColor:line,backgroundColor:grad,fill:true,tension:.32,pointRadius:0,pointHoverRadius:0,borderWidth:2.4,segment:seg};
   if(!chart){
     chart=new Chart(ctx,{type:'line',data:{labels,datasets:[ds]},
       plugins:[crosshairPlugin],
@@ -1890,6 +1898,11 @@ function drawChart(){
         scales:{x:{ticks:{color:'rgba(52,46,36,.5)',maxTicksLimit:8,font:{size:11}},grid:{color:'rgba(60,50,30,.1)'}},
                 y:{ticks:{color:'rgba(52,46,36,.5)',font:{size:11}},grid:{color:'rgba(60,50,30,.1)'}}}}});
   }else{chart.data.labels=labels;chart.data.datasets[0]=ds;chart.update('none');}
+  const note=$('chartNote');
+  if(note){const anyBT=BT>0&&s.some(r=>r.ts<=BT), anyLive=s.some(r=>r.ts>BT);
+    note.innerHTML=(anyBT&&anyLive)?'&#9622; dashed = backtested &nbsp;·&nbsp; &#9644; solid = live paper'
+                  :(anyBT?'&#9622; backtested history — live paper begins as new ticks record':'');
+    note.style.display=anyBT?'':'none';}
 }
 
 // cinematic chart hover: glassmorphic floating value card that glides to each point
