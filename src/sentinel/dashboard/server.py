@@ -1482,28 +1482,28 @@ HTML = r"""<!doctype html>
       <div class="vscard" id="vs-champion">
         <div class="vshead"><span class="vsicon c">⚡</span> Momentum <span class="vsbadge">Champion</span></div>
         <span class="vs-here">You are here</span>
-        <div class="vstag">Growth · rides the trend</div>
-        <p>Holds the 5 strongest coins while Bitcoin trends up — and moves fully to <b>cash</b> when BTC drops below its 100-day line. Keeps the upside, sidesteps the crashes.</p>
-        <ul class="vsstats"><li><b>+39%</b> / yr · <b>1.12</b> Sharpe</li><li><b>~32%</b> max drawdown</li><li><b>5.5-yr</b> walk-forward backtest</li></ul>
-        <div class="vsbest">Best for — maximum growth, if you can stomach the swings</div>
+        <div class="vstag">Growth · rides bull trends</div>
+        <p>Holds the 5 strongest coins <b>only while Bitcoin is above its 100-day line</b>, and sits fully in <b>cash</b> the rest of the time. All the upside of a bull run, zero exposure in bear or chop.</p>
+        <ul class="vsstats"><li><b>In cash now</b> — BTC below its line</li><li>directional · <b>high variance</b> when live</li><li>backtest is survivorship-caveated</li></ul>
+        <div class="vsbest">Best for — bull-market growth; deliberately does nothing otherwise</div>
         <a class="vslink" id="link-champion">Switch to this →</a>
       </div>
       <div class="vscard" id="vs-carry">
-        <div class="vshead"><span class="vsicon k">💰</span> Funding Carry <span class="vsbadge cb">New</span></div>
+        <div class="vshead"><span class="vsicon k">💰</span> Funding Carry <span class="vsbadge cb">Live</span></div>
         <span class="vs-here">You are here</span>
-        <div class="vstag">Income · harvests funding</div>
-        <p>Dollar-neutral: <b>shorts</b> the coins paying the most funding (income the crowd pays you), <b>longs</b> the cheapest — tilted by momentum so it isn't short a coin that's ripping.</p>
-        <ul class="vsstats"><li><b>+123%</b> / yr · <b>2.05</b> Sharpe</li><li><b>~28%</b> max drawdown</li><li><b>6.5-yr</b> backtest, every year green</li></ul>
-        <div class="vsbest">Best for — the best risk-adjusted return; a true diversifier</div>
+        <div class="vstag">Market-neutral · momentum + funding</div>
+        <p>Dollar-neutral: <b>longs the strongest coins, shorts the weakest</b>, tilted by the funding each pays. Profits from <i>which coins beat which</i> — not the market's direction.</p>
+        <ul class="vsstats"><li><b>+8%</b> live · best book so far</li><li><b>~15–22%</b>/yr honest · Sharpe ~1.0</li><li><b>lumpy</b> — big years <i>and</i> dead ones</li></ul>
+        <div class="vsbest">Best for — copyable market-neutral returns; a real diversifier</div>
         <a class="vslink" id="link-carry">Switch to this →</a>
       </div>
       <div class="vscard" id="vs-trend">
-        <div class="vshead"><span class="vsicon f">📈</span> Trend <span class="vsbadge cb">NEW</span></div>
+        <div class="vshead"><span class="vsicon f">📈</span> Trend <span class="vsbadge cb">Live</span></div>
         <span class="vs-here">You are here</span>
         <div class="vstag">Trend-following · CTA</div>
-        <p>Dollar-neutral trend book: <b>longs the strongest uptrends, shorts the strongest downtrends</b>. The most durable systematic edge in finance — profits whether leaders rip up or laggards bleed down.</p>
-        <ul class="vsstats"><li><b>1.35</b> Sharpe <span class="vsq">5-yr</span></li><li><b>+75%</b>/yr · green every year</li><li><b>~44%</b> raw DD — throttled live</li></ul>
-        <div class="vsbest">Best for — the durable, all-weather trend edge</div>
+        <p>Dollar-neutral trend book: <b>longs the strongest uptrends, shorts the strongest downtrends</b>. Managed-futures style — it profits when trends persist and bleeds when they whipsaw.</p>
+        <ul class="vsstats"><li><b>−7.5%</b> live — one ACE short-squeeze</li><li>real edge is <b>modest &amp; lumpy</b></li><li>tail now capped (per-name stop)</li></ul>
+        <div class="vsbest">Best for — the durable trend edge, once it earns back the ACE hit</div>
         <a class="vslink" id="link-trend">Switch to this →</a>
       </div>
     </div>
@@ -1610,7 +1610,7 @@ const STRAT_INFO={
     tag:'DIRECTIONAL MOMENTUM · REGIME-FILTERED · HYPERLIQUID FUTURES',
     title:'Sentinel&nbsp;Edge <span class="tchip">Champion</span>',
     sub:'The growth book. It rides the <b>strongest coins</b> while the market trends up — and steps fully to cash the moment Bitcoin turns down.',
-    stats:[{v:39,suf:'%',sign:'+',l:'backtest CAGR'},{v:1.12,dec:2,l:'Sharpe ratio'},{v:32,suf:'%',l:'max drawdown'},{v:5.5,dec:1,l:'years tested'}],
+    stats:[{v:0,dec:0,l:'live PnL — in cash'},{v:39,suf:'%',sign:'+',l:'backtest CAGR*'},{v:32,suf:'%',l:'max drawdown'},{v:100,suf:'%',l:'cash when BTC weak'}],
     ideaTitle:'Ride the strongest coins. Sit in cash when the market turns.',
     steps:stepHTML(1,'🛰️','Scan','Every day it reads daily price action on 24 Hyperliquid coins and measures each one&rsquo;s 30-day momentum.')
         +stepHTML(2,'📈','Rank','It ranks all 24 by 30-day momentum and holds the 5 strongest — weighted toward the leaders, capped at 40% in any one name.')
@@ -1625,24 +1625,24 @@ const STRAT_INFO={
       {c:'#ff7a8a',n:'Risk',d:'Vol-target · drawdown throttle · crash guard · per-name catastrophe stop'},
       {c:'#4be0b0',n:'Execution',d:'Reconcile → maker orders → paper or live Hyperliquid + this dashboard'},
     ]),
-    numNote:'5.5 years · survivorship-free Binance daily data · walk-forward validated',
-    perf:pcardHTML(39,'CAGR (per year)','grn',{suf:'%',sign:'+'})+pcardHTML(1.12,'Sharpe ratio','',{dec:2})
-        +pcardHTML(32,'Max drawdown','red',{suf:'%'})+pcardHTML(0.75,'Worst-half Sharpe','',{dec:2})
-        +pcardHTML(3,'vs buy &amp; hold','',{suf:'×'})+pcardHTML(45,'Time in cash','',{suf:'%'}),
-    disclaim:'⚠ Tested on clean, survivorship-free data with walk-forward validation — but it still assumes ideal fills and excludes funding/slippage. Live paper results will be lower, and the ~32% drawdowns are real. Not a guarantee.'
+    numNote:'directional long-only · regime-gated (in cash ~45% of the time) · backtest survivorship-caveated',
+    perf:pcardHTML(0,'Live PnL (in cash)','',{})+pcardHTML(39,'Backtest CAGR*','grn',{suf:'%',sign:'+'})
+        +pcardHTML(32,'Max drawdown','red',{suf:'%'})+pcardHTML(45,'Time in cash','',{suf:'%'})
+        +pcardHTML(1.12,'Backtest Sharpe*','',{dec:2})+pcardHTML(3,'vs buy &amp; hold','',{suf:'×'}),
+    disclaim:'⚠ Currently IDLE — its BTC-100-day-MA gate has it 100% in cash right now (protecting capital; BTC is below the line). It only trades in confirmed bull regimes, where it&rsquo;s high-variance directional. * The backtest is survivorship-caveated like every crypto backtest (delisted coins absent, which flatters it) — the real number is lower. Not a guarantee.'
   },
   carry:{
     tag:'FUNDING CARRY · MARKET-NEUTRAL · HYPERLIQUID FUTURES',
     title:'Sentinel&nbsp;Edge <span class="tchip cy">Carry</span>',
     sub:'The income book. It <b>collects the funding</b> that crowded longs pay — shorting the priciest coins, longing the cheapest — and stays market-neutral.',
-    stats:[{v:123,suf:'%',sign:'+',l:'backtest CAGR'},{v:2.05,dec:2,l:'Sharpe ratio'},{v:28,suf:'%',l:'max drawdown'},{v:6.5,dec:1,l:'years tested'}],
+    stats:[{v:22,suf:'%',sign:'+',l:'honest CAGR'},{v:1.0,dec:1,l:'Sharpe (real)'},{v:28,suf:'%',l:'max drawdown'},{v:8,suf:'%',sign:'+',l:'live so far'}],
     ideaTitle:'Get paid to hold the spread. Stay market-neutral.',
     steps:stepHTML(1,'🛰️','Read funding','Every day it reads each coin&rsquo;s <i>funding rate</i> — the fee perp traders pay to hold a position — averaged over recent days.')
         +stepHTML(2,'💰','Short pricey, long cheap','It <b>shorts</b> the 5 coins paying the highest funding (it collects that fee) and <b>longs</b> the 5 paying the lowest/negative.')
         +stepHTML(3,'⚖️','Balance &amp; tilt','Equal dollars long and short (market-neutral), tilted by momentum so it&rsquo;s never short a coin that&rsquo;s ripping.'),
     why:whyHTML('Where the income comes from','Perp funding is a structural payment from crowded longs to shorts. Being on the paid side harvests it.')
        +whyHTML('Why it&rsquo;s a diversifier','Its returns are <b>uncorrelated</b> to the other books (corr ~0) and to Bitcoin — it earns in regimes where they stall.')
-       +whyHTML('The edge word','<b>Funding carry</b> — positive every year 2020-2026 in backtest; the momentum tilt tames the classic short-squeeze tail.'),
+       +whyHTML('Honest status','It&rsquo;s <b>mostly a momentum book</b> with a funding tilt (funding alone is a weak edge). The old &ldquo;+123%/yr&rdquo; headline was ~5&times; too rosy — 2&times; gross + survivorship + one monster month. Honest through-cycle: <b>~+15&ndash;22%/yr, Sharpe ~1.0, lumpy</b> (big years AND dead ones, like 2025 at +3%). Live so far <b>+8%</b> — the best of our books.'),
     arch:archHTML([
       {c:'#4a9eff',n:'Signal',d:'Trailing-average funding rate + 21-day momentum, per coin'},
       {c:'#a78bfa',n:'Portfolio',d:'Short top-5 funding / long bottom-5 · momentum-tilted · dollar-neutral'},
@@ -1650,24 +1650,24 @@ const STRAT_INFO={
       {c:'#4be0b0',n:'Execution',d:'Reconcile → maker orders → paper or live Hyperliquid + this dashboard'},
       {c:'#ffd166',n:'State &amp; Dashboard',d:'SQLite · funding history · equity curve · trades · copy-trade signal'},
     ]),
-    numNote:'6.5 years · Binance funding history + daily prices · look-ahead-free, fee-tested',
-    perf:pcardHTML(123,'CAGR (per year)','grn',{suf:'%',sign:'+'})+pcardHTML(2.05,'Sharpe ratio','',{dec:2})
-        +pcardHTML(28,'Max drawdown','red',{suf:'%'})+pcardHTML(1.56,'Worst-half Sharpe','',{dec:2})
-        +pcardHTML(96,'Universe-robust','',{suf:'%'})+pcardHTML(0,'BTC correlation','',{dec:2}),
-    disclaim:'⚠ Backtest uses real funding rates but today&rsquo;s surviving coins (delisted names absent), and carry carries squeeze tail-risk (the ~28% is with the risk overlay; raw is ~56%). Live paper is the real test. Not a guarantee.'
+    numNote:'honest reconciliation · realistic fills + ~25% survivorship haircut · vs the inflated +123% headline',
+    perf:pcardHTML(22,'Honest CAGR','grn',{suf:'%',sign:'+'})+pcardHTML(1.0,'Sharpe (real)','',{dec:1})
+        +pcardHTML(28,'Max drawdown','red',{suf:'%'})+pcardHTML(8,'Live PnL','grn',{suf:'%',sign:'+'})
+        +pcardHTML(0,'BTC correlation','',{dec:2})+pcardHTML(46,'Live trades','',{}),
+    disclaim:'⚠ The headline &ldquo;+123%&rdquo; was survivorship-flattered + 2&times; gross + one huge month; the honest through-cycle number is <b>~+15&ndash;22%/yr at Sharpe ~1.0</b>, and it&rsquo;s lumpy (dead years happen). Crypto backtests over-state in both directions — the <b>live paper (+8% so far) is the number to trust</b>. Not a guarantee.'
   },
   trend:{
     tag:'TREND · CTA · HYPERLIQUID',
     title:'Sentinel&nbsp;Edge <span class="tchip cy">Trend</span>',
     sub:'A <b>dollar-neutral trend-following (CTA) book</b> — longs the coins in the strongest uptrends, shorts the strongest downtrends. The most durable systematic edge in finance.',
-    stats:[{v:1.35,dec:2,l:'Sharpe (5yr)'},{v:75,suf:'%',sign:'+',l:'CAGR (5yr backtest)'},{v:44,suf:'%',l:'max drawdown (raw)'},{v:5,l:'green years / 5'}],
+    stats:[{v:8,suf:'%',l:'live: down (1 trade)'},{v:12,suf:'%',l:'max drawdown'},{v:50,suf:'%',l:'live win rate'},{v:0.5,dec:1,l:'profit factor'}],
     ideaTitle:'Ride the strong. Fade the weak. Follow the trend.',
     steps:stepHTML(1,'📈','Measure the trend','For every coin, measures how far price sits above or below its 30-day moving average — the direction and strength of its trend.')
         +stepHTML(2,'🎯','Long strong / short weak','Longs the 8 coins in the strongest uptrends, shorts the 8 in the strongest downtrends — dollar-neutral, so it never bets on the market&rsquo;s overall direction.')
         +stepHTML(3,'🛡️','Throttle the risk','Vol-target + drawdown-throttle scale the book down in violent regimes, taming trend-following&rsquo;s naturally deep drawdowns.'),
     why:whyHTML('Why it&rsquo;s durable','Trend-following (managed futures / CTA) is the most-validated systematic edge in finance — it has worked across markets and decades. On 5 years of crypto data it was profitable every single year.')
        +whyHTML('The unique angle','Not a funding or momentum-rank book — pure cross-sectional trend. Long/short and dollar-neutral, so it earns whether the leaders rip up or the laggards bleed down.')
-       +whyHTML('Honest status','<b>Replaces the retired Funding-Alpha</b> (whose edge decayed to a 5yr Sharpe of 0.38). Validated on 5yr Binance data (survivorship-caveated) — strong and consistent — but deployed on Hyperliquid, which has only ~2yr of native history, so prove the forward edge in live paper.'),
+       +whyHTML('Honest status','The old &ldquo;+75%/yr&rdquo; was <b>survivorship fantasy</b> (backtests only see coins that survived and trended). Live, it&rsquo;s <b>&minus;7.5%</b> — but almost all of that is <b>one trade</b>: the ACE short-squeeze (&minus;$1,141). Strip ACE and it&rsquo;s ~breakeven. The current book is actually up (open +$520). The real trend edge is <b>modest and lumpy</b>, and the ACE-type tail is now capped by a per-name stop.'),
     arch:archHTML([
       {c:'#4a9eff',n:'Signal',d:'Price vs its 30-day moving average — trend strength per coin'},
       {c:'#a78bfa',n:'Portfolio',d:'Long top-8 uptrends / short top-8 downtrends · dollar-neutral'},
@@ -1675,11 +1675,11 @@ const STRAT_INFO={
       {c:'#4be0b0',n:'Execution',d:'Reconcile → maker orders → paper or live Hyperliquid + this dashboard'},
       {c:'#ffd166',n:'State &amp; Dashboard',d:'SQLite · equity curve · trades · copy-trade signal'},
     ]),
-    numNote:'5-year daily backtest · Binance prices (survivorship-caveated) · realistic fees · deployed on Hyperliquid',
-    perf:pcardHTML(75,'CAGR (5yr backtest)','grn',{suf:'%',sign:'+'})+pcardHTML(1.35,'Sharpe (5yr)','',{dec:2})
-        +pcardHTML(44,'Max drawdown (raw)','red',{suf:'%'})+pcardHTML(5,'Green years / 5','',{})
-        +pcardHTML(30,'MA period (days)','',{})+pcardHTML(8,'Names per side','',{}),
-    disclaim:'⚠ Backtest on 5yr Binance daily data (survivorship-caveated — delisted coins are absent, which flatters returns). Trend-following is the most durable systematic edge and was positive every year here, but its raw drawdown is deep (~44%, tamed by the vol-target / drawdown-throttle overlay). Deployed on Hyperliquid, which has only ~2yr of native history — prove the forward edge in live paper. Not a guarantee.'
+    numNote:'live Hyperliquid paper · the +75% backtest was survivorship-inflated — trust the live number',
+    perf:pcardHTML(8,'Live: down (ACE)','red',{suf:'%'})+pcardHTML(12,'Max drawdown','red',{suf:'%'})
+        +pcardHTML(50,'Live win rate','',{suf:'%'})+pcardHTML(0.5,'Profit factor','',{dec:1})
+        +pcardHTML(1141,'ACE loss ($)','red',{int:1})+pcardHTML(52,'Live trades','',{}),
+    disclaim:'⚠ Trend-following IS a durable edge, but the &ldquo;+75%/yr&rdquo; backtest was survivorship-flattered — on point-in-time data momentum-style books drop hard (+37% &rarr; +9.5%). Live it&rsquo;s &minus;7.5%, essentially all from one ACE short-squeeze now capped by a per-name stop; the current book is up. Real expectation: <b>modest, lumpy, positive over time</b> once it earns the ACE hit back. Trust the live number, not the backtest. Not a guarantee.'
   }
 };
 const STRAT_PORT={funding:8787,champion:8788,carry:8789,trend:8790};
