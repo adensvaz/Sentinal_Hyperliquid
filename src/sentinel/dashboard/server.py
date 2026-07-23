@@ -229,13 +229,19 @@ def gather_state(cfg: Config) -> dict:
         else:
             last_eq = store.last_equity(mode)
             eq = float(last_eq) if last_eq is not None else starting
+        if cfg.strategy == "funding":
+            # Delta-neutral funding harvest: every short perp is hedged by a simulated SPOT LONG that is NOT in the
+            # positions table, so marking only the short legs invents a phantom open PnL (the hedge would offset it).
+            # The engine also stores realized_pnl GROSS of fees. So ignore the naked-leg MtM and use the engine's own
+            # booked equity: cap + realized + funding − fees. Open PnL is ~0 by construction; PnL is the booked carry.
+            net = 0.0
+            live_unreal = 0.0
+            eq = starting + realized + funding - fees
 
         peak = max(float(store.peak_equity(mode, eq)), eq)
         pnl = eq - starting
         dd = max(0.0, (peak - eq) / peak * 100.0) if peak else 0.0
         _treasury = store.load_treasury(mode)   # money-manager vault (safe, swept profits)
-        if cfg.strategy == "funding":
-            net = 0.0                            # delta-neutral: the short perps are hedged by spot -> report neutral
         # transient "now" point so the chart ticks live (not persisted to the DB)
         live_series = list(series) + [{"ts": int(time.time()), "equity": round(eq, 4),
                                        "gross": round(gross, 2), "net": round(net, 2),
@@ -254,7 +260,8 @@ def gather_state(cfg: Config) -> dict:
             "pnl": pnl,
             "pnl_pct": (pnl / starting * 100.0) if starting else 0.0,
             "realized": realized,
-            "unrealized": eq - starting - realized - funding,
+            # funding book is delta-neutral -> open MtM is ~0 (the short-leg drift is hedged by the simulated spot long)
+            "unrealized": 0.0 if cfg.strategy == "funding" else eq - starting - realized - funding,
             "funding": funding,
             "fees": fees,
             "peak": peak,
