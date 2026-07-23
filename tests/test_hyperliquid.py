@@ -23,12 +23,19 @@ CANDLES = [{"t": 1700000000000, "c": "59900.0", "v": "12.3"},
            {"t": 1700086400000, "c": "60000.0", "v": "10.0"}]
 
 
+FUNDING_HIST = [{"coin": "BTC", "fundingRate": "0.0000125", "time": 1700000000000},
+                {"coin": "BTC", "fundingRate": "0.0000125", "time": 1700003600000},   # same UTC day -> summed
+                {"coin": "BTC", "fundingRate": "0.0000100", "time": 1700086400000}]   # next day
+
+
 def _fake_post(body):
     t = body.get("type")
     if t == "metaAndAssetCtxs":
         return META_CTXS
     if t == "candleSnapshot":
         return CANDLES
+    if t == "fundingHistory":
+        return FUNDING_HIST
     return {}
 
 
@@ -79,3 +86,19 @@ def test_execution_is_gated(fx):
     for m in ("create_order", "cancel_order", "positions", "account", "my_trades", "edit_leverage"):
         with pytest.raises(NotImplementedError):
             getattr(fx, m)("BTC")
+
+
+def test_funding_history_daily_sum(fx):
+    """The funding-harvest book measures funding CONSISTENCY from trailing daily-summed funding."""
+    h = fx.funding_history("BTC", days=14)
+    assert len(h) == 2
+    assert h[0] == pytest.approx(0.000025)    # two same-UTC-day events summed
+    assert h[1] == pytest.approx(0.00001)
+
+
+def test_index_exposes_mark_and_oracle(fx):
+    """The delta-neutral basis (mark vs oracle) needs both prices from index()."""
+    idx = fx.index("BTC")
+    assert idx["tagPrice"] == pytest.approx(60000.0)      # mark (perp)
+    assert idx["indexPrice"] == pytest.approx(60001.0)    # oracle (~spot) — for the basis PnL
+    assert idx["currentFundRate"] == pytest.approx(0.0000125)

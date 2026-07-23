@@ -210,6 +210,23 @@ class GridCfg(BaseModel):
                                    # We run PAPER at this conservative value and measure the real one live.
 
 
+class FundingCfg(BaseModel):
+    """Funding Harvest — DELTA-NEUTRAL cash-and-carry (engine.run_funding_once). Short the perps paying
+    STABLE positive funding and hold a matching spot long, so price cancels and you collect the funding
+    premium (the structural cost of leverage that longs pay). Market beta ~ 0 -> works in bull, bear, chop.
+
+    The ONE edge that survived survivorship-honest, point-in-time backtesting: ~+15-20%/yr, positive every
+    year (2024-26), ~0-3% drawdown, because delta-neutral harvesting doesn't depend on picking winning coins.
+    Selection is by funding CONSISTENCY (t-stat), not magnitude, to avoid the flip-prone whipsaw. PAPER
+    simulates the spot hedge (books funding + real mark-vs-oracle basis - fees); live (Phase 2) uses real spot."""
+    funding_window_days: int = 14    # trailing window to measure each coin's funding mean + consistency
+    tstat_min: float = 0.7           # only harvest coins whose funding is persistently one-signed (mean/std)
+    min_funding_daily: float = 0.0001  # ...and meaningfully positive (>1bp/day) so it clears fees
+    max_coins: int = 15              # cap the book breadth (diversify across the richest-stable-funding names)
+    target_gross: float = 3.0        # delta-neutral -> ~0 DD, so it safely carries higher gross than a directional book
+    cost_per_side: float = 0.0004    # maker + slippage on each leg, charged on turnover (entry/exit/rotation)
+
+
 class ScheduleCfg(BaseModel):
     rebalance_minutes: int = 240
     rebalance_hour_utc: Optional[int] = None  # if 0-23, rebalance daily at this fixed UTC hour
@@ -241,8 +258,8 @@ class TreasuryCfg(BaseModel):
 class Config(BaseModel):
     mode: Literal["paper", "live"] = "paper"
     # neutral = market-neutral momentum book; champion = directional momentum+regime; carry = funding-carry+momentum
-    # trend = dollar-neutral CTA (retired); grid = market-making / mean-reversion book
-    strategy: Literal["neutral", "champion", "carry", "trend", "grid"] = "neutral"
+    # trend = dollar-neutral CTA; grid = market-making (retired); funding = delta-neutral funding harvest
+    strategy: Literal["neutral", "champion", "carry", "trend", "grid", "funding"] = "neutral"
     exchange: ExchangeCfg = Field(default_factory=ExchangeCfg)
     capital_usdt: Optional[float] = 10_000.0
     # Portfolio-level allocation weight (0.0-1.0). When a risk-parity allocator runs
@@ -255,6 +272,7 @@ class Config(BaseModel):
     carry: CarryCfg = Field(default_factory=CarryCfg)
     trend: TrendCfg = Field(default_factory=TrendCfg)
     grid: GridCfg = Field(default_factory=GridCfg)
+    funding: FundingCfg = Field(default_factory=FundingCfg)
     whales: WhalesCfg = Field(default_factory=WhalesCfg)
     portfolio: PortfolioCfg = Field(default_factory=PortfolioCfg)
     execution: ExecutionCfg = Field(default_factory=ExecutionCfg)

@@ -150,6 +150,21 @@ class HyperliquidFutures:
                 continue
         return out[-limit:]
 
+    def funding_history(self, contract: str, days: int = 14) -> list[float]:
+        """Daily-summed funding rates over the trailing `days` — used by the funding-harvest book to
+        measure each coin's funding CONSISTENCY (mean/std) rather than chasing a single high snapshot."""
+        end = int(time.time() * 1000)
+        start = end - (days + 1) * 86_400_000
+        rows = self._post({"type": "fundingHistory", "coin": contract, "startTime": start, "endTime": end})
+        daily: dict[int, float] = {}
+        for r in rows or []:
+            try:
+                d = int(r["time"]) // 86_400_000
+                daily[d] = daily.get(d, 0.0) + float(r["fundingRate"])
+            except (KeyError, TypeError, ValueError):
+                continue
+        return [daily[k] for k in sorted(daily)]
+
     def ping(self) -> Any:
         self._post({"type": "meta"})
         return "ok"

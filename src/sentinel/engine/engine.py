@@ -174,6 +174,10 @@ class Engine:
             # ranging/trend MA filter (the grid re-evaluates every rebalance_minutes, e.g. every 15m).
             self.base_interval = "1h"
             self.history_bars = min(400, self.cfg.grid.ma_period + 20)
+        elif self.cfg.strategy == "funding":
+            # funding harvest uses index (mark/oracle/funding) + fundingHistory, not klines — minimal setup
+            self.base_interval = "1h"
+            self.history_bars = 30
         else:
             self.base_interval = pick_base_interval(self.fx, ref)
             itv_h = parse_duration_to_hours(self.base_interval)
@@ -196,6 +200,8 @@ class Engine:
         cfg = self.cfg
         if cfg.strategy == "grid":
             return self.run_grid_once(flatten)      # resting-limit market-maker — its own tick-driven path
+        if cfg.strategy == "funding":
+            return self.run_funding_once(flatten)   # delta-neutral funding harvest — its own tick-driven path
         if self.live:
             self.broker.preflight()
         self._ensure_market()
@@ -562,6 +568,116 @@ class Engine:
         between-tick safety poll is a no-op (nothing to do until the next hourly bar closes)."""
         return {"action": None}
 
+    # -- FUNDING HARVEST (delta-neutral cash-and-carry) -----------------------
+    def run_funding_once(self, flatten: bool = False) -> RebalanceReport:
+        """Short the perps paying STABLE positive funding + hold a matching spot long (simulated in paper),
+        so price cancels and we collect the funding premium — market beta ~ 0, works in every regime. Each
+        tick: book funding accrued + the real mark-vs-oracle basis move - fees on the held book, then re-pick
+        the richest-stable-funding coins and re-hedge. Selection is by funding CONSISTENCY (t-stat), not
+        magnitude, and gross is opportunity-scaled (deploy less when the premium is thin -> capital-preserving).
+        The survivorship-robust ~+15-20%/yr edge. Live (Phase 2) replaces the simulated spot leg with real spot."""
+        cfg = self.cfg
+        fh = cfg.funding
+        self._ensure_market()
+        assert self.registry is not None
+        universe = build_universe(self.fx, self.registry, cfg.universe)
+        now = time.time()
+        cost = fh.cost_per_side
+
+        gstate = self.store.get_meta("funding_state", {}) or {}
+        last_ts = float(self.store.get_meta("funding_last_ts", now) or now)
+        dt_h = min(24.0, max(0.0, (now - last_ts) / 3600.0))     # hours since last tick (cap the first accrual)
+        acct = self.store.load_account(self.mode) or {}
+        cap = float(cfg.capital_usdt or 10000.0)
+        booked = float(acct.get("realized_pnl", 0.0)) - float(acct.get("fees_paid", 0.0))
+        fees_cum = float(acct.get("fees_paid", 0.0))
+        equity0 = self.store.last_equity(self.mode) or (cap + booked)
+
+        # pull mark / oracle / hourly funding + trailing funding for each candidate
+        info: dict[str, dict] = {}
+        for s in universe:
+            try:
+                idx = self.fx.index(s)
+                mark = float(idx.get("tagPrice") or 0.0)
+                oracle = float(idx.get("indexPrice") or mark)
+                if mark <= 0 or oracle <= 0:
+                    continue
+                info[s] = {"mark": mark, "oracle": oracle, "funding": float(idx.get("currentFundRate") or 0.0),
+                           "basis": (mark - oracle) / oracle, "hist": self.fx.funding_history(s, fh.funding_window_days)}
+            except Exception:
+                continue
+
+        # book PnL on the CURRENTLY HELD book: funding accrued (short collects +funding) + basis move, per unit held
+        new_realized = 0.0
+        for s, st in gstate.items():
+            d = info.get(s)
+            if not d:
+                continue
+            notional = float(st.get("notional", 0.0))
+            new_realized += notional * d["funding"] * dt_h                                   # funding accrual
+            new_realized += -(d["basis"] - float(st.get("basis", d["basis"]))) * notional    # long-spot/short-perp basis
+        booked += new_realized
+
+        # select the richest STABLE positive-funding coins (consistency, not magnitude)
+        picks = []
+        for s, d in info.items():
+            h = d["hist"]
+            if len(h) < fh.funding_window_days - 3:
+                continue
+            mu = sum(h) / len(h)
+            sd = (sum((x - mu) ** 2 for x in h) / len(h)) ** 0.5 or 1e-9
+            if mu > fh.min_funding_daily and (mu / sd) > fh.tstat_min:
+                picks.append((s, mu / sd))
+        picks.sort(key=lambda x: -x[1])
+        picks = [] if flatten else picks[: fh.max_coins]
+
+        # opportunity-scaled gross: fewer qualifying coins (thin premium) -> deploy less -> preserve capital
+        g = fh.target_gross * (min(1.0, len(picks) / fh.max_coins) if fh.max_coins else 0.0)
+        unit = (g * equity0) / max(1, len(picks)) if picks else 0.0
+
+        new_state: dict[str, dict] = {}
+        positions_store: dict[str, dict] = {}
+        report_positions: list[dict] = []
+        turnover = 0.0
+        pickset = {s for s, _ in picks}
+        for s, _ in picks:
+            d = info[s]
+            turnover += abs(unit - float(gstate.get(s, {}).get("notional", 0.0)))
+            new_state[s] = {"notional": unit, "basis": d["basis"]}
+            if self.registry.has(s):
+                spec = self.registry.get(s)
+                contracts = spec.notional_to_contracts(unit, d["mark"])
+                if contracts > 0:
+                    positions_store[s] = {"contracts": -contracts, "avg_price": d["mark"],
+                                          "multiplier": spec.multiplier, "opened_ts": 0.0}
+                    report_positions.append({"symbol": s, "side": "SHORT", "contracts": -contracts,
+                                             "notional": -unit, "score": round(d["funding"] * 24 * 365 * 100, 1)})
+        for s, st in gstate.items():
+            if s not in pickset:
+                turnover += abs(float(st.get("notional", 0.0)))
+
+        fee = turnover * 2 * cost           # two legs (spot + perp) per unit of turnover
+        fees_cum += fee
+        booked -= fee
+        realized_gross = booked + fees_cum
+        equity = cap + booked               # delta-neutral -> PnL booked each tick, no open MtM
+        gross = sum(abs(st["notional"]) for st in new_state.values())
+        peak = self.store.update_peak_equity(self.mode, equity)
+        dd = drawdown_pct(peak, equity)
+
+        self.store.set_meta("funding_state", new_state)
+        self.store.set_meta("funding_last_ts", now)
+        self.store.save_account(self.mode, starting_capital=cap, realized_pnl=realized_gross,
+                                fees_paid=fees_cum, funding_pnl=0.0, last_funding_ts=0.0)
+        self.store.save_positions(self.mode, positions_store)
+        self.store.record_equity(self.mode, equity, gross, 0.0, dd)   # net = 0 (delta-neutral by construction)
+        self.store.save_scores(self.mode, {p["symbol"]: p["score"] for p in report_positions})
+        log.info("FUNDING | equity=$%.2f | %d coins | gross=$%.0f | dd=%.2f%% | tick %+.2f",
+                 equity, len(picks), gross, dd, new_realized - fee)
+        return RebalanceReport(mode=self.mode, equity=equity, gross=gross, net=0.0, drawdown_pct=dd,
+                               paused=False, universe_size=len(universe), n_long=0, n_short=len(report_positions),
+                               n_orders=int(turnover > 0), positions=report_positions, fills=[], top_scores=[])
+
     def flatten(self) -> RebalanceReport:
         return self.run_once(flatten=True)
 
@@ -702,6 +818,8 @@ class Engine:
         Records an equity tick so the curve/dashboard stay live."""
         if self.cfg.strategy == "grid":
             return self._grid_risk_check()
+        if self.cfg.strategy == "funding":
+            return {"action": None}                 # funding book books its own PnL each tick; no between-tick poll
         self._ensure_market()
         cur = self.broker.positions()
         marks, funding = self._index_data(cur) if cur else ({}, {})

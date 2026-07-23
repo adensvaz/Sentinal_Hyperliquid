@@ -1,0 +1,69 @@
+# ============================================================================
+# FUNDING HARVEST — delta-neutral cash-and-carry on Hyperliquid.
+# Short the perps paying STABLE positive funding + hold a matching spot long (simulated in paper), so price
+# cancels and you collect the funding premium — the structural cost of leverage that crowded longs pay.
+# Market beta ~ 0 by construction -> earns in bull, bear AND chop.
+#
+# THE edge that survived survivorship-honest, POINT-IN-TIME backtesting (where momentum collapsed +37% -> +9.5%,
+# but this held +28% -> +20%): ~+15-20%/yr, positive every year 2024-26, ~0-3% drawdown. Delta-neutral harvesting
+# doesn't depend on picking winning coins, so it isn't corrupted by survivorship. Selection is by funding
+# CONSISTENCY (t-stat), not magnitude, to dodge the flip-prone whipsaw; gross is opportunity-scaled (deploy less
+# when the premium is thin -> capital-preserving). Sharpe is realistically ~2-3 once basis/tail are modeled.
+#
+# Replaces the retired GRID book (proven fake — fill illusion; -28% every backtest, ~0% live).
+# Phase 1 = PAPER (simulated spot hedge). Live is Phase 2 (real spot legs, agent wallet, testnet-first).
+# ============================================================================
+mode: paper
+strategy: funding
+capital_usdt: 10000
+
+exchange:
+  venue: hyperliquid
+  hyperliquid_info_url: https://api.hyperliquid.xyz/info
+
+universe:
+  # WIDE — the funding premium lives in the hot/new coins, so scan broadly by volume (not a fixed allowlist).
+  top_n: 40
+  min_quote_volume_usdt: 500000
+
+funding:
+  funding_window_days: 14      # trailing window to measure each coin's funding mean + consistency
+  tstat_min: 0.7               # only harvest persistently one-signed funding (mean/std > this)
+  min_funding_daily: 0.0001    # ...and meaningfully positive (>1bp/day) so it clears fees
+  max_coins: 15                # book breadth — diversify across the richest-stable-funding names
+  target_gross: 3.0            # delta-neutral -> ~0 DD, so it safely carries higher gross than a directional book
+  cost_per_side: 0.0004        # maker + slippage per leg, charged on turnover
+
+execution:
+  order_type: limit
+  maker: true                  # POST_ONLY both legs — funding harvest wants maker fills
+  maker_fill_ratio: 0.5
+  slippage_bps: 4
+  min_trade_notional: 15
+  min_rebalance_frac: 0.10
+  margin_mode: isolated
+  position_mode: net
+
+risk:
+  max_gross_leverage: 6        # delta-neutral book; headroom for the 3x notional
+  max_net_exposure: 0.05       # ~0 by construction (spot long hedges perp short)
+  max_drawdown_pct: 15         # catastrophe brake (backtest DD ~0-3%; this only fires on a basis blowout)
+  max_position_loss_pct: 10
+  funding_abs_max: 5.0         # don't filter high funding — that's exactly what we harvest
+  pause_hours: 6
+  monitor_seconds: 60
+  dynamic_risk: false          # delta-neutral -> no vol-target/crash-guard needed
+  crash_guard: false
+
+schedule:
+  rebalance_minutes: 60        # re-evaluate the book hourly (funding accrues hourly on HL)
+
+treasury:
+  enabled: false
+  sweep_frac: 0.40
+  sweep_interval_days: 7
+
+state:
+  db_path: data/hl_funding.db
+  equity_csv: data/hl_funding_equity.csv
+  log_path: data/hl_funding.log

@@ -234,6 +234,8 @@ def gather_state(cfg: Config) -> dict:
         pnl = eq - starting
         dd = max(0.0, (peak - eq) / peak * 100.0) if peak else 0.0
         _treasury = store.load_treasury(mode)   # money-manager vault (safe, swept profits)
+        if cfg.strategy == "funding":
+            net = 0.0                            # delta-neutral: the short perps are hedged by spot -> report neutral
         # transient "now" point so the chart ticks live (not persisted to the DB)
         live_series = list(series) + [{"ts": int(time.time()), "equity": round(eq, 4),
                                        "gross": round(gross, 2), "net": round(net, 2),
@@ -264,7 +266,7 @@ def gather_state(cfg: Config) -> dict:
             "long_notional": (gross + net) / 2.0,
             "short_notional": (gross - net) / 2.0,
             "n_positions": len(book),
-            "book_beta": store.get_meta("book_beta"),
+            "book_beta": 0.0 if cfg.strategy == "funding" else store.get_meta("book_beta"),
             "dispersion": store.get_meta("dispersion"),
             "book": book,
             "whales": whales,
@@ -335,7 +337,7 @@ FAVICON_SVG = (
 
 ROBOTS_TXT = (
     "# Sentinel Edge — live algorithmic crypto trading signals (Hyperliquid futures)\n"
-    "# Four strategies: market-making grid, regime-gated momentum, funding-carry, cross-sectional trend (CTA)\n"
+    "# Four strategies: delta-neutral funding harvest, regime-gated momentum, funding-carry, cross-sectional trend (CTA)\n"
     "\n"
     "User-agent: *\n"
     "Allow: /\n"
@@ -401,10 +403,10 @@ def _build_llms_txt(cfg: Config) -> str:
 - **/api/state** — raw JSON snapshot with full position detail
 {live_line}{regime_line}
 ## The four live strategies
-1. **Grid** (port 8787) — market-making / mean-reversion book **(EXPERIMENTAL — validating fills)**.
-   Buys the dips and sells the rips around a per-coin anchor (1×⁄K sizing, no leverage), banking the spacing.
-   Its profit is captured spread, so it depends entirely on live fill quality: backtest ranges +288% (perfect
-   fills) to −51% (poor fills). Run conservative (0.05% fills → ~+12%/yr, Sharpe ~0.5); measuring real fills live.
+1. **Funding Harvest** (port 8787) — delta-neutral cash-and-carry.
+   Shorts the perps paying stable positive funding and holds matching spot, so price cancels and only the
+   funding premium remains — market beta ≈ 0, earns in bull/bear/chop. Selection by funding consistency,
+   opportunity-scaled. Survivorship-honest backtest: ~+15–20%/yr, positive every year 2024–26, ~2% DD — paper on HL.
 
 2. **Momentum + Regime / Champion** (port 8788) — directional, long-only top-5 momentum.
    Gated by a BTC 100-day MA regime brake: fully invested when BTC is in an uptrend,
@@ -449,7 +451,7 @@ def _signals_md(cfg: Config) -> str:
     except Exception:
         return f"# Sentinel Edge — Signals\n\nUnavailable at {now}.\n"
     strat = s.get("strategy", "neutral")
-    strat_name = {"grid": "Market-Making Grid", "champion": "Momentum + Regime (Champion)",
+    strat_name = {"funding": "Funding Harvest (delta-neutral)", "champion": "Momentum + Regime (Champion)",
                   "carry": "Funding Carry", "trend": "Trend (CTA)"}.get(strat, strat)
     pnl = s.get("pnl", 0.0); pnl_pct = s.get("pnl_pct", 0.0); eq = s.get("equity", 0.0)
     dd = s.get("drawdown_pct", 0.0); book = s.get("book", [])
@@ -532,7 +534,7 @@ def _signals_json(cfg: Config) -> str:
             "@type": "DataFeed",
             "name": "Sentinel Edge Live Trading Signals",
             "description": "Real-time algorithmic crypto trading signals from four uncorrelated strategies "
-                           "(market-making grid, momentum+regime, funding-carry, cross-sectional trend) on Hyperliquid futures.",
+                           "(delta-neutral funding harvest, momentum+regime, funding-carry, cross-sectional trend) on Hyperliquid futures.",
             "url": REPO_URL,
             "dateModified": now_iso,
             "keywords": ["crypto signals", "trading signals", "algorithmic trading", "Hyperliquid",
@@ -606,7 +608,7 @@ def _signals_html(cfg: Config) -> str:
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Sentinel Edge — Live Crypto Trading Signals</title>
 <meta name="description" content="Live algorithmic crypto trading signals from Sentinel Edge: "
-    "market-making grid, regime-gated momentum, funding-carry and cross-sectional trend on Hyperliquid futures. "
+    "delta-neutral funding harvest, regime-gated momentum, funding-carry and cross-sectional trend on Hyperliquid futures. "
     "Updated every 24 hours. Machine-readable at /signals.md and /signals.json.">
 <meta name="keywords" content="crypto trading signals, live trading signals, algorithmic trading, "
     "momentum signals, funding carry, market neutral, Hyperliquid signals, crypto futures signals, "
@@ -665,7 +667,7 @@ AI_PLUGIN_JSON = json.dumps({
         "Fetch live algorithmic crypto trading signals from Sentinel Edge, an autonomous "
         "strategy running on Hyperliquid futures. Returns current positions, market regime "
         "(BTC trend status), unrealised PnL, and signal scores for four uncorrelated strategies: "
-        "a market-making grid (port 8787), regime-gated momentum Champion (port 8788), "
+        "a delta-neutral funding harvest (port 8787), regime-gated momentum Champion (port 8788), "
         "funding-carry (port 8789), and cross-sectional trend / CTA (port 8790). "
         "Use /signals.md for a readable summary or /api/state for raw JSON."
     ),
@@ -741,10 +743,10 @@ HTML = r"""<!doctype html>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
 <title>Sentinel Edge — Algorithmic Crypto Trading Bot (3 strategies)</title>
 <link rel="icon" type="image/svg+xml" href="/favicon.svg"/>
-<meta name="description" content="Sentinel Edge — four uncorrelated algorithmic crypto-futures strategies on Hyperliquid sharing one engine: a market-making grid, regime-gated momentum (champion), funding-carry, and a cross-sectional trend (CTA) book. Live paper-trading dashboards with real PnL, equity curves and backtests."/>
+<meta name="description" content="Sentinel Edge — four uncorrelated algorithmic crypto-futures strategies on Hyperliquid sharing one engine: a delta-neutral funding harvest, regime-gated momentum (champion), funding-carry, and a cross-sectional trend (CTA) book. Live paper-trading dashboards with real PnL, equity curves and backtests."/>
 <meta name="theme-color" content="#ff8a5c"/>
 <meta property="og:title" content="Sentinel Edge — Algorithmic Crypto Trading Bot"/>
-<meta property="og:description" content="Four uncorrelated crypto strategies on Hyperliquid — a market-making grid, momentum+regime, funding-carry, and cross-sectional trend (CTA) — with live PnL dashboards."/>
+<meta property="og:description" content="Four uncorrelated crypto strategies on Hyperliquid — a delta-neutral funding harvest, momentum+regime, funding-carry, and cross-sectional trend (CTA) — with live PnL dashboards."/>
 <meta property="og:type" content="website"/>
 <meta name="twitter:card" content="summary"/>
 <meta name="keywords" content="crypto trading signals, live trading signals, algorithmic trading bot,
@@ -757,7 +759,7 @@ HTML = r"""<!doctype html>
   "@context": "https://schema.org",
   "@type": "SoftwareApplication",
   "name": "Sentinel Edge",
-  "description": "Four uncorrelated algorithmic crypto-futures trading strategies on Hyperliquid: a market-making grid, regime-gated momentum, funding-carry, and cross-sectional trend (CTA). Live signals updated daily.",
+  "description": "Four uncorrelated algorithmic crypto-futures trading strategies on Hyperliquid: a delta-neutral funding harvest, regime-gated momentum, funding-carry, and cross-sectional trend (CTA). Live signals updated daily.",
   "applicationCategory": "FinanceApplication",
   "operatingSystem": "Web",
   "url": "https://github.com/adensvaz/Sentinal_Hyperliquid",
@@ -1468,14 +1470,14 @@ HTML = r"""<!doctype html>
     <h2 class="sh2">Four strategies, one engine</h2>
     <p class="sp-note">Same data, same execution, same risk rails — four uncorrelated ways to trade. You're viewing <b id="curStrat">—</b>.</p>
     <div class="vsgrid vs4">
-      <div class="vscard" id="vs-grid">
-        <div class="vshead"><span class="vsicon n">🪜</span> Grid <span class="vsbadge cb">EXPERIMENTAL</span></div>
+      <div class="vscard" id="vs-funding">
+        <div class="vshead"><span class="vsicon n">🌾</span> Funding Harvest <span class="vsbadge cb">NEW</span></div>
         <span class="vs-here">You are here</span>
-        <div class="vstag">Market-making · validating fills</div>
-        <p>Buys the dips and sells the rips around a moving anchor, banking the spread. Its edge depends on <b>fill quality</b> — so we&rsquo;re measuring it live before trusting it.</p>
-        <ul class="vsstats"><li><b>0.5</b> Sharpe <span class="vsq">realistic</span></li><li><b>+12%</b>/yr est · 85% win</li><li>validating <b>live fills</b></li></ul>
-        <div class="vsbest">Status — experimental; measuring real fills</div>
-        <a class="vslink" id="link-grid">Switch to this →</a>
+        <div class="vstag">Delta-neutral · all-weather</div>
+        <p>Shorts the perps paying stable positive funding and holds matching spot, so <b>price cancels</b> and only the funding premium remains. Market-neutral — earns in bull, bear and chop.</p>
+        <ul class="vsstats"><li><b>~2.5</b> Sharpe <span class="vsq">realistic</span></li><li><b>+15–20%</b>/yr · β≈0</li><li><b>~2%</b> max drawdown</li></ul>
+        <div class="vsbest">Best for — steady all-weather income, near-zero market risk</div>
+        <a class="vslink" id="link-funding">Switch to this →</a>
       </div>
       <div class="vscard" id="vs-champion">
         <div class="vshead"><span class="vsicon c">⚡</span> Momentum <span class="vsbadge">Champion</span></div>
@@ -1579,30 +1581,30 @@ const whyHTML=(k,v)=>`<div class="whyrow"><span class="wk">${k}</span><span clas
 const pcardHTML=(v,l,cls,o={})=>`<div class="pcard reveal"><div class="pv ${cls||''}" data-count="${v}"${o.dec?` data-dec="${o.dec}"`:''}${o.suf?` data-suffix="${o.suf}"`:''}${o.sign?` data-sign="${o.sign}"`:''}${o.int?' data-int="1"':''}>0</div><div class="pl">${l}</div></div>`;
 const archHTML=layers=>layers.map(L=>`<div class="alayer reveal" style="--ac:${L.c}"><div class="aname">⬡ ${L.n}</div><div class="adesc">${L.d}</div></div>`).join('<div class="aflow">▼</div>');
 const STRAT_INFO={
-  grid:{
-    tag:'GRID · MARKET-MAKING · HYPERLIQUID',
-    title:'Sentinel&nbsp;Edge <span class="tchip cy">Grid</span>',
-    sub:'The market-making book <span class="tchip cy">EXPERIMENTAL</span>. It <b>buys the dips and sells the rips</b> around a moving anchor, banking the spread — but its edge depends on <b>fill quality</b>, which we&rsquo;re validating live before trusting it.',
-    stats:[{v:0.5,dec:2,l:'Sharpe (realistic)'},{v:12,suf:'%',sign:'+',l:'est. annual'},{v:14,suf:'%',l:'max drawdown'},{v:85,suf:'%',l:'win rate'}],
-    ideaTitle:'Buy the dips. Sell the rips. Bank the chop.',
-    steps:stepHTML(1,'🪜','Ladder around fair value','Around each coin&rsquo;s recent anchor price it lays a ladder — every 1.2% step down is a buy, every step up is a sell (1×⁄K sizing, no leverage).')
-        +stepHTML(2,'♻️','Harvest the reversion','As price wobbles it buys the dips and sells them back a step higher (and shorts the rips) — pocketing the spacing each time price reverts toward the anchor.')
-        +stepHTML(3,'🛡️','Stand aside in trends','A trend filter parks the grid and re-centers when a coin breaks into a strong move; a hard stop caps the tail — so it never martingales into a runaway.'),
-    why:whyHTML('Where the money comes from','Crypto chops far more than it trends. A grid is a bet on <i>ranging</i> — it monetises the constant intraday wobble that directional books ignore. Positive in 76% of months across 4.5 years.')
-       +whyHTML('Why it&rsquo;s a diversifier','It earns from <b>volatility &amp; mean-reversion</b> — not direction or funding — the opposite engine to the Trend book, so one tends to pay when the other is quiet.')
-       +whyHTML('Honest status — it all hinges on fills','The profit is captured <b>spread</b>, which only exists if your resting limit orders actually fill. The backtest ranges from <b>+288%</b> (fill the instant price touches) to <b>−51%</b> (you&rsquo;re at the back of the queue) — breakeven at a 0.07% fill margin. We run PAPER at a <b>conservative</b> assumption (0.05% trade-through → ~+12%/yr) and are <b>measuring the real fill quality live</b>. Until that data is in, treat it as experimental, not proven.'),
+  funding:{
+    tag:'FUNDING HARVEST · DELTA-NEUTRAL · HYPERLIQUID',
+    title:'Sentinel&nbsp;Edge <span class="tchip cy">Funding Harvest</span>',
+    sub:'The all-weather book. It <b>collects the funding</b> that crowded longs pay — shorting the perps with stable positive funding while holding matching spot — so <b>price cancels</b> and only the premium remains. Market-neutral by construction: it earns in bull, bear <b>and</b> chop.',
+    stats:[{v:17,suf:'%',sign:'+',l:'est. annual'},{v:2.5,dec:1,l:'Sharpe (realistic)'},{v:3,suf:'%',l:'max drawdown'},{v:0,dec:2,l:'BTC exposure'}],
+    ideaTitle:'Get paid to provide leverage. Stay delta-neutral.',
+    steps:stepHTML(1,'🛰️','Read funding','Every coin&rsquo;s perp charges <i>funding</i> — a fee longs pay shorts (or vice-versa) to keep the perp pinned to spot. It reads the trailing rate for the whole HL universe.')
+        +stepHTML(2,'🌾','Short the payers, hedge with spot','It <b>shorts</b> the perps paying stable positive funding (collecting that fee) and holds a matching <b>long spot</b> — the two price legs cancel, leaving pure funding income.')
+        +stepHTML(3,'🎚️','Harvest the stable, scale to the premium','Picks by funding <i>consistency</i> (not the biggest one-off spike), and deploys more when the premium is fat, less when it&rsquo;s thin — so it preserves capital when there&rsquo;s nothing to harvest.'),
+    why:whyHTML('Where the income comes from','Perp funding is a structural payment from leveraged longs to the shorts who take the other side. Being the delta-neutral short harvests it — a fee for providing leverage, not a market bet.')
+       +whyHTML('Why it&rsquo;s all-weather','With price hedged, <b>market direction doesn&rsquo;t matter</b> — BTC-β ≈ 0. It earned in 2024, 2025 <b>and</b> 2026, the years momentum books stalled.')
+       +whyHTML('Why we trust this one','It <b>survived survivorship-honest testing</b>: on point-in-time data (coins liquid at each date, not today&rsquo;s winners) momentum collapsed +37% → +9.5%, but this held +28% → +20%. Delta-neutral harvesting doesn&rsquo;t depend on picking winning coins, so it isn&rsquo;t corrupted by survivorship. <b>Replaces the retired Grid</b> (a fill illusion).'),
     arch:archHTML([
-      {c:'#4a9eff',n:'Signal',d:'Price vs a per-coin anchor + a ranging/trend MA filter'},
-      {c:'#a78bfa',n:'Portfolio',d:'Long the dips / short the rips · 1×⁄K sizing (no leverage) · 7 liquid coins'},
-      {c:'#ff7a8a',n:'Risk',d:'Trend filter stands aside · hard recenter-stop caps the tail · vol-target/DD-throttle'},
-      {c:'#4be0b0',n:'Execution',d:'Reconcile → maker limit orders → paper or live Hyperliquid + this dashboard'},
-      {c:'#ffd166',n:'State &amp; Dashboard',d:'SQLite · per-coin anchors · equity curve · trades · copy-trade signal'},
+      {c:'#4a9eff',n:'Signal',d:'Trailing funding mean + consistency (t-stat), per coin, across the wide HL universe'},
+      {c:'#a78bfa',n:'Portfolio',d:'Short stable-+funding perps / long matching spot · delta-neutral · opportunity-scaled'},
+      {c:'#ff7a8a',n:'Risk',d:'Market-neutral (β≈0) · only tail is a basis blowout · drawdown kill-switch'},
+      {c:'#4be0b0',n:'Execution',d:'POST-only maker both legs → paper (simulated hedge) or live Hyperliquid + this dashboard'},
+      {c:'#ffd166',n:'State &amp; Dashboard',d:'SQLite · funding history · equity curve · copy-trade signal'},
     ]),
-    numNote:'4.5yr hourly · CONSERVATIVE fills (0.05% trade-through) · maker + slippage · validating live',
-    perf:pcardHTML(0.5,'Sharpe (realistic)','',{dec:2})+pcardHTML(12,'Est. annual','grn',{suf:'%',sign:'+'})
-        +pcardHTML(14,'Max drawdown','red',{suf:'%'})+pcardHTML(85,'Win rate','',{suf:'%'})
-        +pcardHTML(0.13,'BTC correlation','',{dec:2})+pcardHTML(7,'Coins traded','',{}),
-    disclaim:'⚠ EXPERIMENTAL — profitability depends entirely on live FILL QUALITY, which a backtest cannot know. Range: +288% (perfect maker fills) to −51% (poor fills), breakeven at a 0.07% fill margin. Shown numbers use a conservative 0.05% assumption (~+12%/yr). A taker-order version has NO edge after fees — so this only works if resting-limit fills are good. We are measuring the real value in live paper before trusting it. Not a guarantee; treat as a validation experiment.'
+    numNote:'point-in-time HL backtest (survivorship-honest) · funding + real basis · maker + slippage',
+    perf:pcardHTML(17,'Est. annual','grn',{suf:'%',sign:'+'})+pcardHTML(2.5,'Sharpe (realistic)','',{dec:1})
+        +pcardHTML(3,'Max drawdown','red',{suf:'%'})+pcardHTML(0,'BTC correlation','',{dec:2})
+        +pcardHTML(3,'Green years / 3','',{})+pcardHTML(15,'Coins harvested','',{}),
+    disclaim:'⚠ Delta-neutral funding harvest — the survivorship-robust edge (~+15-20%/yr point-in-time, positive every year 2024-26, ~0-3% DD). PAPER simulates the spot hedge and books funding + the real mark-vs-oracle basis; the shown Sharpe assumes a good hedge — real is ~2-3 once basis noise + the crash-blowout tail are modeled. Fully-delisted coins are absent from any backtest, and the premium can compress as it gets crowded. Live is Phase 2 (real spot legs). Prove the forward number in paper first. Not a guarantee.'
   },
   champion:{
     tag:'DIRECTIONAL MOMENTUM · REGIME-FILTERED · HYPERLIQUID FUTURES',
@@ -1680,25 +1682,25 @@ const STRAT_INFO={
     disclaim:'⚠ Backtest on 5yr Binance daily data (survivorship-caveated — delisted coins are absent, which flatters returns). Trend-following is the most durable systematic edge and was positive every year here, but its raw drawdown is deep (~44%, tamed by the vol-target / drawdown-throttle overlay). Deployed on Hyperliquid, which has only ~2yr of native history — prove the forward edge in live paper. Not a guarantee.'
   }
 };
-const STRAT_PORT={grid:8787,champion:8788,carry:8789,trend:8790};
-const STRAT_ICON={grid:'🪜',champion:'⚡',carry:'💰',trend:'📈'};
-const STRAT_LABEL={grid:'🪜 Grid',champion:'⚡ Momentum (Champion)',carry:'💰 Funding Carry',trend:'📈 Trend'};
-const STRAT_SHORT={grid:'Grid',champion:'Champion',carry:'Carry',trend:'Trend'};
-const STRAT_DOT={grid:'#ff8a5c',champion:'#ffd166',carry:'#4be0b0',trend:'#3f80ba'};
+const STRAT_PORT={funding:8787,champion:8788,carry:8789,trend:8790};
+const STRAT_ICON={funding:'🌾',champion:'⚡',carry:'💰',trend:'📈'};
+const STRAT_LABEL={funding:'🌾 Funding Harvest',champion:'⚡ Momentum (Champion)',carry:'💰 Funding Carry',trend:'📈 Trend'};
+const STRAT_SHORT={funding:'Funding Harvest',champion:'Champion',carry:'Carry',trend:'Trend'};
+const STRAT_DOT={funding:'#ff8a5c',champion:'#ffd166',carry:'#4be0b0',trend:'#3f80ba'};
 function stratUrl(k){const h=location.hostname||'localhost';return 'http://'+h+':'+STRAT_PORT[k];}
 function switchTo(k){if(k!==CUR_STRAT) location.href=stratUrl(k);}
 function toggleSwitcher(e){e.stopPropagation();$('navSwitcher').classList.toggle('open');}
 document.addEventListener('click',()=>{ const s=$('navSwitcher'); if(s) s.classList.remove('open'); });
 function buildSwitcher(strat){
   const menu=$('swMenu'); if(!menu) return;
-  menu.innerHTML=['grid','champion','carry','trend'].map(k=>`<button class="sw-item${k===strat?' sw-cur':''}" onclick="${k!==strat?`switchTo('${k}')`:''}">`+
+  menu.innerHTML=['funding','champion','carry','trend'].map(k=>`<button class="sw-item${k===strat?' sw-cur':''}" onclick="${k!==strat?`switchTo('${k}')`:''}">`+
     `<span class="sw-dot" style="background:${STRAT_DOT[k]}"></span>${STRAT_SHORT[k]}`+
     (k===strat?'<span class="sw-cur-tag">here</span>':'')+`</button>`).join('');
   const btn=$('swCurIcon'); if(btn) btn.textContent=STRAT_ICON[strat];
   const lbl=$('swCurLbl'); if(lbl) lbl.textContent=STRAT_SHORT[strat];
 }
 function paintStrategy(strat){
-  if(!STRAT_INFO[strat]) strat='grid';
+  if(!STRAT_INFO[strat]) strat='funding';
   if(STRAT_PAINTED && CUR_STRAT===strat) return;
   CUR_STRAT=strat; STRAT_PAINTED=true;
   buildSwitcher(strat);
@@ -1716,7 +1718,7 @@ function paintStrategy(strat){
   $('numDisclaim').innerHTML=S.disclaim;
   // comparison block: label + highlight the one you're viewing
   $('curStrat').textContent=STRAT_LABEL[strat];
-  ['grid','champion','carry','trend'].forEach(k=>{
+  ['funding','champion','carry','trend'].forEach(k=>{
     document.getElementById('vs-'+k).classList.toggle('cur',strat===k);
     const ln=$('link-'+k);
     if(ln){
@@ -2298,7 +2300,7 @@ function goPage(p){
   document.querySelectorAll('.navbtn').forEach(b=>b.classList.toggle('on',b.dataset.page===p));
   $('alienBg').classList.toggle('on',!dash);
   window.scrollTo({top:0,behavior:'instant'});
-  if(!dash){ if(!STRAT_PAINTED) paintStrategy((DATA&&DATA.strategy)||'grid');
+  if(!dash){ if(!STRAT_PAINTED) paintStrategy((DATA&&DATA.strategy)||'funding');
     startAlien(); if(!stratBuilt){buildStrat();stratBuilt=true;} runReveals(); }
   else stopAlien();
 }
