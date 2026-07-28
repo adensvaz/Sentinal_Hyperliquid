@@ -217,14 +217,23 @@ class FundingCfg(BaseModel):
 
     The ONE edge that survived survivorship-honest, point-in-time backtesting: ~+15-20%/yr, positive every
     year (2024-26), ~0-3% drawdown, because delta-neutral harvesting doesn't depend on picking winning coins.
-    Selection is by funding CONSISTENCY (t-stat), not magnitude, to avoid the flip-prone whipsaw. PAPER
-    simulates the spot hedge (books funding + real mark-vs-oracle basis - fees); live (Phase 2) uses real spot."""
+    Selection keeps a funding CONSISTENCY (t-stat) floor but fills fresh slots by funding MAGNITUDE (where the fat
+    premium is). PAPER simulates the spot hedge (books funding + real mark-vs-oracle basis - fees); live = real spot.
+
+    TURNOVER CONTROL is the whole game: funding accrues every tick regardless, so the book only re-picks/re-sizes
+    every `rebalance_days` (not every tick), keeps names via a wide `keep_top_n` band + `min_hold_days`, and only
+    resizes a leg past a `no_trade_band`. Rebalancing hourly with no band bleeds ~0.08%/day of gross in fees, which
+    turns a backtested +14%/yr harvest into a ~-26%/yr loser — the fees, not the market, are the enemy here."""
     funding_window_days: int = 14    # trailing window to measure each coin's funding mean + consistency
     tstat_min: float = 0.7           # only harvest coins whose funding is persistently one-signed (mean/std)
     min_funding_daily: float = 0.0001  # ...and meaningfully positive (>1bp/day) so it clears fees
     max_coins: int = 15              # cap the book breadth (diversify across the richest-stable-funding names)
     target_gross: float = 3.0        # delta-neutral -> ~0 DD, so it safely carries higher gross than a directional book
     cost_per_side: float = 0.0004    # maker + slippage on each leg, charged on turnover (entry/exit/rotation)
+    rebalance_days: float = 3.0      # re-pick/re-size the basket only this often (funding still accrues every tick)
+    no_trade_band: float = 0.10      # only resize an existing leg when its target notional drifts beyond this
+    min_hold_days: float = 3.0       # don't drop a name held less than this (unless its funding has gone negative)
+    keep_top_n: int = 25             # a held name stays as long as it's still within this wide consistency band
 
 
 class ScheduleCfg(BaseModel):

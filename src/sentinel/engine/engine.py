@@ -570,12 +570,13 @@ class Engine:
 
     # -- FUNDING HARVEST (delta-neutral cash-and-carry) -----------------------
     def run_funding_once(self, flatten: bool = False) -> RebalanceReport:
-        """Short the perps paying STABLE positive funding + hold a matching spot long (simulated in paper),
-        so price cancels and we collect the funding premium — market beta ~ 0, works in every regime. Each
-        tick: book funding accrued + the real mark-vs-oracle basis move - fees on the held book, then re-pick
-        the richest-stable-funding coins and re-hedge. Selection is by funding CONSISTENCY (t-stat), not
-        magnitude, and gross is opportunity-scaled (deploy less when the premium is thin -> capital-preserving).
-        The survivorship-robust ~+15-20%/yr edge. Live (Phase 2) replaces the simulated spot leg with real spot."""
+        """Short the perps paying STABLE positive funding + hold a matching spot long (simulated in paper), so price
+        cancels and we collect the funding premium — market beta ~ 0, works in every regime. EVERY tick books funding
+        accrued + the real mark-vs-oracle basis move - fees on the held book. But we only RE-PICK / RE-SIZE the basket
+        every fh.rebalance_days (a sticky basket held via keep_top_n + min_hold_days, resized only past no_trade_band),
+        because funding accrues whether or not we trade — rebalancing hourly just bleeds fees (~0.08%/day of gross,
+        enough to flip a backtested +14%/yr harvest to -26%/yr). Fresh slots are filled by funding MAGNITUDE (fat
+        premium) subject to a consistency floor; gross is opportunity-scaled. Live (Phase 2) uses a real spot leg."""
         cfg = self.cfg
         fh = cfg.funding
         self._ensure_market()
@@ -586,6 +587,7 @@ class Engine:
 
         gstate = self.store.get_meta("funding_state", {}) or {}
         last_ts = float(self.store.get_meta("funding_last_ts", now) or now)
+        last_rebal = float(self.store.get_meta("funding_last_rebal", 0.0) or 0.0)
         dt_h = min(24.0, max(0.0, (now - last_ts) / 3600.0))     # hours since last tick (cap the first accrual)
         acct = self.store.load_account(self.mode) or {}
         cap = float(cfg.capital_usdt or 10000.0)
@@ -618,18 +620,36 @@ class Engine:
             new_realized += -(d["basis"] - float(st.get("basis", d["basis"]))) * notional    # long-spot/short-perp basis
         booked += new_realized
 
-        # select the richest STABLE positive-funding coins (consistency, not magnitude)
-        picks = []
+        # score every candidate: funding MAGNITUDE (mu) + CONSISTENCY (t-stat = mu/sd)
+        scored: dict[str, tuple[float, float]] = {}
         for s, d in info.items():
             h = d["hist"]
             if len(h) < fh.funding_window_days - 3:
                 continue
             mu = sum(h) / len(h)
             sd = (sum((x - mu) ** 2 for x in h) / len(h)) ** 0.5 or 1e-9
-            if mu > fh.min_funding_daily and (mu / sd) > fh.tstat_min:
-                picks.append((s, mu / sd))
-        picks.sort(key=lambda x: -x[1])
-        picks = [] if flatten else picks[: fh.max_coins]
+            scored[s] = (mu, mu / sd)
+        qualify = {s: v for s, v in scored.items() if v[0] > fh.min_funding_daily and v[1] > fh.tstat_min}
+
+        # ---- REBALANCE only every fh.rebalance_days (else HOLD) — funding accrues every tick regardless, so
+        # constant re-picking just pays fees. Rebalance early only if a held name's funding has gone negative. ----
+        held_paying_neg = any(float(info.get(s, {}).get("funding", 0.0)) < 0.0 for s in gstate)
+        do_rebal = flatten or (not gstate) or held_paying_neg or (now - last_rebal) >= fh.rebalance_days * 86400.0
+        if flatten:
+            picks = []
+        elif do_rebal:
+            # STICKY: keep held names that still qualify + sit in the wide keep-band + are past min-hold (or have
+            # stopped paying -> dropped by the qualify filter). Fill open slots with the richest-FUNDING fresh names.
+            keepset = set(sorted(scored, key=lambda s: -scored[s][1])[: fh.keep_top_n])
+            keep = [s for s in gstate
+                    if s in qualify and s in keepset
+                    and ((now - float(gstate[s].get("entry_ts", now))) >= fh.min_hold_days * 86400.0
+                         or qualify[s][0] > 0)]
+            keep = keep[: fh.max_coins]
+            pool = sorted([s for s in qualify if s not in keep], key=lambda s: -qualify[s][0])
+            picks = keep + pool[: max(0, fh.max_coins - len(keep))]
+        else:
+            picks = [s for s in gstate if s in info]      # HOLD the current book unchanged
 
         # opportunity-scaled gross: fewer qualifying coins (thin premium) -> deploy less -> preserve capital
         g = fh.target_gross * (min(1.0, len(picks) / fh.max_coins) if fh.max_coins else 0.0)
@@ -639,19 +659,29 @@ class Engine:
         positions_store: dict[str, dict] = {}
         report_positions: list[dict] = []
         turnover = 0.0
-        pickset = {s for s, _ in picks}
-        for s, _ in picks:
+        pickset = set(picks)
+        for s in picks:
             d = info[s]
-            turnover += abs(unit - float(gstate.get(s, {}).get("notional", 0.0)))
-            new_state[s] = {"notional": unit, "basis": d["basis"]}
+            cur = float(gstate.get(s, {}).get("notional", 0.0))
+            # no-trade band: on a rebalance, only resize an existing leg if the target drifts beyond the band;
+            # between rebalances (do_rebal False) leave every leg exactly as-is -> zero turnover while holding.
+            if not do_rebal:
+                target = cur
+            elif cur > 0 and abs(unit - cur) / cur < fh.no_trade_band:
+                target = cur
+            else:
+                target = unit
+            turnover += abs(target - cur)
+            entry_ts = float(gstate.get(s, {}).get("entry_ts", now)) if cur > 0 else now
+            new_state[s] = {"notional": target, "basis": d["basis"], "entry_ts": entry_ts}
             if self.registry.has(s):
                 spec = self.registry.get(s)
-                contracts = spec.notional_to_contracts(unit, d["mark"])
+                contracts = spec.notional_to_contracts(target, d["mark"])
                 if contracts > 0:
                     positions_store[s] = {"contracts": -contracts, "avg_price": d["mark"],
                                           "multiplier": spec.multiplier, "opened_ts": 0.0}
                     report_positions.append({"symbol": s, "side": "SHORT", "contracts": -contracts,
-                                             "notional": -unit, "score": round(d["funding"] * 24 * 365 * 100, 1)})
+                                             "notional": -target, "score": round(d["funding"] * 24 * 365 * 100, 1)})
         for s, st in gstate.items():
             if s not in pickset:
                 turnover += abs(float(st.get("notional", 0.0)))
@@ -667,13 +697,15 @@ class Engine:
 
         self.store.set_meta("funding_state", new_state)
         self.store.set_meta("funding_last_ts", now)
+        if do_rebal:
+            self.store.set_meta("funding_last_rebal", now)
         self.store.save_account(self.mode, starting_capital=cap, realized_pnl=realized_gross,
                                 fees_paid=fees_cum, funding_pnl=0.0, last_funding_ts=0.0)
         self.store.save_positions(self.mode, positions_store)
         self.store.record_equity(self.mode, equity, gross, 0.0, dd)   # net = 0 (delta-neutral by construction)
         self.store.save_scores(self.mode, {p["symbol"]: p["score"] for p in report_positions})
-        log.info("FUNDING | equity=$%.2f | %d coins | gross=$%.0f | dd=%.2f%% | tick %+.2f",
-                 equity, len(picks), gross, dd, new_realized - fee)
+        log.info("FUNDING | %s | equity=$%.2f | %d coins | gross=$%.0f | dd=%.2f%% | tick %+.2f (fee %.2f)",
+                 "REBAL" if do_rebal else "hold", equity, len(picks), gross, dd, new_realized - fee, fee)
         return RebalanceReport(mode=self.mode, equity=equity, gross=gross, net=0.0, drawdown_pct=dd,
                                paused=False, universe_size=len(universe), n_long=0, n_short=len(report_positions),
                                n_orders=int(turnover > 0), positions=report_positions, fills=[], top_scores=[])

@@ -33,6 +33,12 @@ funding:
   max_coins: 15                # book breadth — diversify across the richest-stable-funding names
   target_gross: 3.0            # delta-neutral -> ~0 DD, so it safely carries higher gross than a directional book
   cost_per_side: 0.0004        # maker + slippage per leg, charged on turnover
+  # --- TURNOVER CONTROL (the fix): funding accrues every tick, but only re-pick/re-size the basket this often.
+  # Hourly rebalancing bled ~0.08%/day of gross in fees (-26%/yr); this cuts turnover ~15x -> backtest +14%/yr 2025.
+  rebalance_days: 3.0          # re-pick / re-size the basket only every 3 days (still accrues funding hourly)
+  no_trade_band: 0.10          # only resize an existing leg when its target notional drifts > 10%
+  min_hold_days: 3.0           # don't drop a name held < 3 days (unless its funding goes negative)
+  keep_top_n: 25               # a held name stays as long as it's still within the top-25 by consistency
 
 execution:
   order_type: limit
