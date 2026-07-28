@@ -731,8 +731,10 @@ class Engine:
                 spec = self.registry.get(s)
                 contracts = spec.notional_to_contracts(target, d["mark"])
                 if contracts > 0:
+                    # surface the real age of the leg (entry_ts is what min_hold_days already tracks) — writing 0.0
+                    # here made the dashboard's OPENED column read "—" for every position
                     positions_store[s] = {"contracts": -contracts, "avg_price": d["mark"],
-                                          "multiplier": spec.multiplier, "opened_ts": 0.0}
+                                          "multiplier": spec.multiplier, "opened_ts": entry_ts}
                     report_positions.append({"symbol": s, "side": "SHORT", "contracts": -contracts,
                                              "notional": -target, "score": round(d["funding"] * 24 * 365 * 100, 1)})
         for s, st in gstate.items():

@@ -114,6 +114,17 @@ def test_funding_income_is_tracked_separately_from_basis(engine):
     assert float(acct["realized_pnl"]) == pytest.approx(0.0)  # basis bucket stays separate (flat mark==oracle here)
 
 
+def test_positions_carry_a_real_opened_timestamp(engine):
+    """The book wrote opened_ts=0.0, so the dashboard's OPENED column showed "—" for every leg. It must carry
+    the same entry_ts that min_hold_days already tracks, and keep it stable across hold ticks."""
+    engine.run_funding_once()
+    opened = {s: float(p["opened_ts"]) for s, p in engine.store.load_positions(engine.mode).items()}
+    assert opened and all(v > 0 for v in opened.values())
+    engine.run_funding_once()
+    after = {s: float(p["opened_ts"]) for s, p in engine.store.load_positions(engine.mode).items()}
+    assert after == opened                     # holding must not reset the age
+
+
 def test_hold_ticks_skip_the_full_universe_scan(engine, fx):
     """The freeze cause: ~80 API calls every tick. A hold tick must only price the legs it already owns."""
     engine.run_funding_once()                                 # build: scans all 12 + pulls history
