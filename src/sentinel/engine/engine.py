@@ -591,39 +591,63 @@ class Engine:
         dt_h = min(24.0, max(0.0, (now - last_ts) / 3600.0))     # hours since last tick (cap the first accrual)
         acct = self.store.load_account(self.mode) or {}
         cap = float(cfg.capital_usdt or 10000.0)
-        booked = float(acct.get("realized_pnl", 0.0)) - float(acct.get("fees_paid", 0.0))
+        # keep funding income and basis PnL in SEPARATE buckets so the dashboard can show real funding earned
+        # (they used to be merged into realized_pnl, which is why the funding card always read $0)
+        basis_cum = float(acct.get("realized_pnl", 0.0))
+        fund_cum = float(acct.get("funding_pnl", 0.0))
         fees_cum = float(acct.get("fees_paid", 0.0))
+        booked = basis_cum + fund_cum - fees_cum
         equity0 = self.store.last_equity(self.mode) or (cap + booked)
 
-        # pull mark / oracle / hourly funding + trailing funding for each candidate
-        info: dict[str, dict] = {}
-        for s in universe:
-            try:
-                idx = self.fx.index(s)
-                mark = float(idx.get("tagPrice") or 0.0)
-                oracle = float(idx.get("indexPrice") or mark)
-                if mark <= 0 or oracle <= 0:
+        # ---- decide the tick TYPE *before* fetching, so we only pull what this tick actually needs ----
+        # A hold tick just accrues on legs we already own: it needs a fresh mark/oracle/funding for those (~15 calls),
+        # NOT a full-universe trailing-funding scan (~80 calls). Scanning every tick was pure waste and the likely
+        # cause of the rate-limit stalls that froze the loop (alive but writing nothing) for ~30h.
+        held_syms = list(gstate)
+        do_rebal = bool(flatten or not gstate or (now - last_rebal) >= fh.rebalance_days * 86400.0)
+
+        def _fetch(syms: list[str], with_hist: bool) -> dict[str, dict]:
+            out: dict[str, dict] = {}
+            for s in syms:
+                try:
+                    idx = self.fx.index(s)
+                    mark = float(idx.get("tagPrice") or 0.0)
+                    oracle = float(idx.get("indexPrice") or mark)
+                    if mark <= 0 or oracle <= 0:
+                        continue
+                    d = {"mark": mark, "oracle": oracle, "funding": float(idx.get("currentFundRate") or 0.0),
+                         "basis": (mark - oracle) / oracle}
+                    if with_hist:
+                        d["hist"] = self.fx.funding_history(s, fh.funding_window_days)
+                    out[s] = d
+                except Exception:
                     continue
-                info[s] = {"mark": mark, "oracle": oracle, "funding": float(idx.get("currentFundRate") or 0.0),
-                           "basis": (mark - oracle) / oracle, "hist": self.fx.funding_history(s, fh.funding_window_days)}
-            except Exception:
-                continue
+            return out
+
+        info = _fetch(universe if do_rebal else held_syms, do_rebal)
+        # a held leg whose funding flipped negative now COSTS us to hold -> rebalance early (needs the full scan)
+        if not do_rebal and any(float(d.get("funding", 0.0)) < 0.0 for s, d in info.items() if s in gstate):
+            do_rebal = True
+            info = _fetch(universe, True)
 
         # book PnL on the CURRENTLY HELD book: funding accrued (short collects +funding) + basis move, per unit held
-        new_realized = 0.0
+        new_funding = new_basis = 0.0
         for s, st in gstate.items():
             d = info.get(s)
             if not d:
                 continue
             notional = float(st.get("notional", 0.0))
-            new_realized += notional * d["funding"] * dt_h                                   # funding accrual
-            new_realized += -(d["basis"] - float(st.get("basis", d["basis"]))) * notional    # long-spot/short-perp basis
-        booked += new_realized
+            new_funding += notional * d["funding"] * dt_h                                  # funding accrual
+            new_basis += -(d["basis"] - float(st.get("basis", d["basis"]))) * notional     # long-spot/short-perp basis
+        fund_cum += new_funding
+        basis_cum += new_basis
+        booked += new_funding + new_basis
 
-        # score every candidate: funding MAGNITUDE (mu) + CONSISTENCY (t-stat = mu/sd)
+        # score every candidate: funding MAGNITUDE (mu) + CONSISTENCY (t-stat = mu/sd). Only a rebalance tick
+        # fetches `hist`, so this is empty on hold ticks (nothing to re-pick anyway).
         scored: dict[str, tuple[float, float]] = {}
         for s, d in info.items():
-            h = d["hist"]
+            h = d.get("hist") or []
             if len(h) < fh.funding_window_days - 3:
                 continue
             mu = sum(h) / len(h)
@@ -631,10 +655,13 @@ class Engine:
             scored[s] = (mu, mu / sd)
         qualify = {s: v for s, v in scored.items() if v[0] > fh.min_funding_daily and v[1] > fh.tstat_min}
 
-        # ---- REBALANCE only every fh.rebalance_days (else HOLD) — funding accrues every tick regardless, so
-        # constant re-picking just pays fees. Rebalance early only if a held name's funding has gone negative. ----
-        held_paying_neg = any(float(info.get(s, {}).get("funding", 0.0)) < 0.0 for s in gstate)
-        do_rebal = flatten or (not gstate) or held_paying_neg or (now - last_rebal) >= fh.rebalance_days * 86400.0
+        # degraded-scan guard: never tear up a live book on partial data. If an API wobble priced only some of the
+        # universe, the "best" names are an artifact of what happened to respond — hold instead of churning on it.
+        if do_rebal and gstate and not flatten and len(scored) < max(fh.max_coins, int(0.5 * len(universe))):
+            log.warning("FUNDING | degraded scan (%d/%d coins scored) — holding this tick instead of rebalancing",
+                        len(scored), len(universe))
+            do_rebal = False
+
         if flatten:
             picks = []
         elif do_rebal:
@@ -649,7 +676,7 @@ class Engine:
             pool = sorted([s for s in qualify if s not in keep], key=lambda s: -qualify[s][0])
             picks = keep + pool[: max(0, fh.max_coins - len(keep))]
         else:
-            picks = [s for s in gstate if s in info]      # HOLD the current book unchanged
+            picks = held_syms            # HOLD every leg we own — a missing quote must NOT drop a position
 
         # opportunity-scaled gross: fewer qualifying coins (thin premium) -> deploy less -> preserve capital
         g = fh.target_gross * (min(1.0, len(picks) / fh.max_coins) if fh.max_coins else 0.0)
@@ -658,11 +685,22 @@ class Engine:
         new_state: dict[str, dict] = {}
         positions_store: dict[str, dict] = {}
         report_positions: list[dict] = []
+        prev_positions = self.store.load_positions(self.mode)
         turnover = 0.0
         pickset = set(picks)
         for s in picks:
-            d = info[s]
+            d = info.get(s)
             cur = float(gstate.get(s, {}).get("notional", 0.0))
+            if d is None:
+                # no fresh quote this tick (transient API failure) — carry the leg forward EXACTLY as-is.
+                # Without this, a momentary outage would silently liquidate the position and charge a fee for it.
+                new_state[s] = dict(gstate.get(s, {}))
+                p = prev_positions.get(s)
+                if p:
+                    positions_store[s] = p
+                    report_positions.append({"symbol": s, "side": "SHORT", "contracts": int(p["contracts"]),
+                                             "notional": -cur, "score": None})
+                continue
             # no-trade band: on a rebalance, only resize an existing leg if the target drifts beyond the band;
             # between rebalances (do_rebal False) leave every leg exactly as-is -> zero turnover while holding.
             if not do_rebal:
@@ -689,9 +727,8 @@ class Engine:
         fee = turnover * 2 * cost           # two legs (spot + perp) per unit of turnover
         fees_cum += fee
         booked -= fee
-        realized_gross = booked + fees_cum
         equity = cap + booked               # delta-neutral -> PnL booked each tick, no open MtM
-        gross = sum(abs(st["notional"]) for st in new_state.values())
+        gross = sum(abs(float(st.get("notional", 0.0))) for st in new_state.values())
         peak = self.store.update_peak_equity(self.mode, equity)
         dd = drawdown_pct(peak, equity)
 
@@ -699,13 +736,16 @@ class Engine:
         self.store.set_meta("funding_last_ts", now)
         if do_rebal:
             self.store.set_meta("funding_last_rebal", now)
-        self.store.save_account(self.mode, starting_capital=cap, realized_pnl=realized_gross,
-                                fees_paid=fees_cum, funding_pnl=0.0, last_funding_ts=0.0)
+        # realized_pnl = basis PnL, funding_pnl = funding earned (kept apart so the dashboard shows real funding)
+        self.store.save_account(self.mode, starting_capital=cap, realized_pnl=basis_cum,
+                                fees_paid=fees_cum, funding_pnl=fund_cum, last_funding_ts=now)
         self.store.save_positions(self.mode, positions_store)
         self.store.record_equity(self.mode, equity, gross, 0.0, dd)   # net = 0 (delta-neutral by construction)
-        self.store.save_scores(self.mode, {p["symbol"]: p["score"] for p in report_positions})
-        log.info("FUNDING | %s | equity=$%.2f | %d coins | gross=$%.0f | dd=%.2f%% | tick %+.2f (fee %.2f)",
-                 "REBAL" if do_rebal else "hold", equity, len(picks), gross, dd, new_realized - fee, fee)
+        self.store.save_scores(self.mode, {p["symbol"]: p["score"] for p in report_positions
+                                           if p["score"] is not None})
+        log.info("FUNDING | %s | equity=$%.2f | %d coins | gross=$%.0f | dd=%.2f%% | funding %+.2f fee %.2f "
+                 "| api %d calls", "REBAL" if do_rebal else "hold", equity, len(picks), gross, dd,
+                 new_funding, fee, len(info) * (2 if do_rebal else 1))
         return RebalanceReport(mode=self.mode, equity=equity, gross=gross, net=0.0, drawdown_pct=dd,
                                paused=False, universe_size=len(universe), n_long=0, n_short=len(report_positions),
                                n_orders=int(turnover > 0), positions=report_positions, fills=[], top_scores=[])
