@@ -32,12 +32,14 @@ class _FakeFx:
         self.n_index = 0
         self.n_hist = 0
         self.dead: set[str] = set()            # symbols whose quotes currently fail (simulated API wobble)
+        self.negative: dict[str, float] = {}   # symbol -> funding rate override (to simulate a flip)
 
     def index(self, s):                        # stable mark == oracle -> zero basis; small positive funding
         self.n_index += 1
         if s in self.dead:
             raise RuntimeError("simulated API failure")
-        return {"tagPrice": 100.0, "indexPrice": 100.0, "currentFundRate": 0.00002}
+        rate = self.negative.get(s, 0.00002)
+        return {"tagPrice": 100.0, "indexPrice": 100.0, "currentFundRate": rate}
 
     def funding_history(self, s, days):        # constant positive daily funding -> qualifies (mu>0, huge t-stat)
         self.n_hist += 1
@@ -132,6 +134,27 @@ def test_transient_api_failure_does_not_liquidate_a_leg(engine, fx):
     assert set(engine.store.load_positions(engine.mode)) == held   # every leg still there
     assert _fees(engine) == pytest.approx(fees_before)             # and no phantom exit fee
     assert rep.n_orders == 0
+
+
+def test_one_negative_funding_print_does_not_force_a_rebalance(engine, fx):
+    """Seen live: reacting to a single negative hourly rate re-picked the whole book every tick (2 REBALs in 13min).
+    Across ~15 legs one is negative almost every hour — that's noise, not a regime flip."""
+    engine.run_funding_once()
+    fx.reset()
+    fx.negative = {list(engine.store.load_positions(engine.mode))[0]: -0.00003}   # one leg prints negative
+    engine.run_funding_once()
+    assert fx.n_hist == 0                      # still a hold tick: no full re-scan was triggered
+
+
+def test_sustained_negative_funding_does_force_an_early_rebalance(engine, fx):
+    """...but a leg that keeps paying negative has genuinely flipped, and we should re-pick before the 3 days."""
+    engine.run_funding_once()
+    fx.negative = {list(engine.store.load_positions(engine.mode))[0]: -0.00003}
+    for _ in range(engine.cfg.funding.exit_neg_ticks - 1):
+        engine.run_funding_once()
+    fx.reset()
+    engine.run_funding_once()                  # the tick that crosses exit_neg_ticks
+    assert fx.n_hist > 0                       # full universe re-scan -> early rebalance fired
 
 
 def test_degraded_scan_does_not_rebalance(engine, fx, monkeypatch):

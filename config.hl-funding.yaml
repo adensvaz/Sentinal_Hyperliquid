@@ -39,6 +39,9 @@ funding:
   no_trade_band: 0.10          # only resize an existing leg when its target notional drifts > 10%
   min_hold_days: 3.0           # don't drop a name held < 3 days (unless its funding goes negative)
   keep_top_n: 25               # a held name stays as long as it's still within the top-25 by consistency
+  exit_neg_ticks: 8            # only re-pick early after a leg pays negative 8 ticks RUNNING (~8h). Single negative
+                               # hourly prints are noise — with 15 legs one is negative almost every hour, and
+                               # reacting to that forced a full re-pick every tick (seen live: 2 REBALs in 13 min).
 
 execution:
   order_type: limit

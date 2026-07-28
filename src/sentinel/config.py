@@ -234,6 +234,11 @@ class FundingCfg(BaseModel):
     no_trade_band: float = 0.10      # only resize an existing leg when its target notional drifts beyond this
     min_hold_days: float = 3.0       # don't drop a name held less than this (unless its funding has gone negative)
     keep_top_n: int = 25             # a held name stays as long as it's still within this wide consistency band
+    exit_neg_ticks: int = 8          # consecutive NEGATIVE funding ticks on a held leg before re-picking early.
+                                     # Individual coins print a negative hourly rate all the time — across ~15 legs
+                                     # at least one is negative almost every hour — so reacting to a single print
+                                     # forces a full re-pick every tick and undoes the turnover fix. Only a sustained
+                                     # run (default ~8h) means the premium has genuinely flipped.
 
 
 class ScheduleCfg(BaseModel):

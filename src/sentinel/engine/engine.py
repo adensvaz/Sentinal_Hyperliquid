@@ -625,8 +625,22 @@ class Engine:
             return out
 
         info = _fetch(universe if do_rebal else held_syms, do_rebal)
-        # a held leg whose funding flipped negative now COSTS us to hold -> rebalance early (needs the full scan)
-        if not do_rebal and any(float(d.get("funding", 0.0)) < 0.0 for s, d in info.items() if s in gstate):
+
+        # Per-leg run-length of NEGATIVE funding. A single negative hourly print is ordinary noise (across ~15 legs
+        # at least one is negative almost every hour), so reacting to one would force a full re-pick every tick and
+        # undo the whole turnover fix. Only a sustained run means the premium has really flipped and we should exit.
+        neg_run: dict[str, int] = {}
+        for s, st in gstate.items():
+            prev_run = int(st.get("neg", 0))
+            d = info.get(s)
+            if d is None:
+                neg_run[s] = prev_run                      # no quote -> carry the counter, don't reset it
+            else:
+                neg_run[s] = prev_run + 1 if float(d.get("funding", 0.0)) < 0.0 else 0
+        if not do_rebal and any(v >= fh.exit_neg_ticks for v in neg_run.values()):
+            flipped = [s for s, v in neg_run.items() if v >= fh.exit_neg_ticks]
+            log.info("FUNDING | %s paying negative for %d+ ticks — re-picking early", ",".join(flipped),
+                     fh.exit_neg_ticks)
             do_rebal = True
             info = _fetch(universe, True)
 
@@ -711,7 +725,8 @@ class Engine:
                 target = unit
             turnover += abs(target - cur)
             entry_ts = float(gstate.get(s, {}).get("entry_ts", now)) if cur > 0 else now
-            new_state[s] = {"notional": target, "basis": d["basis"], "entry_ts": entry_ts}
+            new_state[s] = {"notional": target, "basis": d["basis"], "entry_ts": entry_ts,
+                            "neg": neg_run.get(s, 0)}
             if self.registry.has(s):
                 spec = self.registry.get(s)
                 contracts = spec.notional_to_contracts(target, d["mark"])
