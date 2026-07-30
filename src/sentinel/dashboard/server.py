@@ -1421,16 +1421,21 @@ HTML = r"""<!doctype html>
     </div>
 
     <div class="pane on" id="pane-positions">
-      <div class="tblwrap"><table><colgroup><col style="width:88px"><col style="width:108px"><col style="width:86px"><col style="width:108px"><col style="width:108px"><col style="width:110px"><col style="width:102px"><col style="width:106px"><col style="width:152px"><col style="width:86px"><col style="width:34px"></colgroup>
+      <div class="tblwrap"><table><colgroup><col style="width:88px"><col style="width:108px"><col style="width:86px"><col style="width:108px"><col style="width:108px"><col style="width:110px"><col style="width:102px"><col style="width:72px"><col style="width:106px"><col style="width:152px"><col style="width:92px"><col style="width:34px"></colgroup>
       <thead><tr><th>Asset</th><th>Side</th><th class="r">Size</th><th class="r">Value</th>
-      <th class="r">Entry</th><th class="r">Mark</th><th class="r">uPnL</th><th class="r">Funding</th><th class="r">Opened</th><th class="r">Score</th><th></th></tr></thead>
+      <th class="r">Entry</th><th class="r">Mark</th><th class="r">uPnL</th>
+      <th class="r">% <span class="info" data-tip="Return on this position: uPnL as a % of what the position was worth at entry. Not a % of your account — a 10% move on a $2,000 position is $200, which is 2% of a $10,000 book.">i</span></th>
+      <th class="r">Funding</th><th class="r">Opened</th>
+      <th class="r">Score <span class="info" id="scoreTip" data-tip="">i</span></th><th></th></tr></thead>
       <tbody id="pos"></tbody></table></div>
     </div>
 
     <div class="pane" id="pane-trades">
       <div class="tstrip" id="tstrip"></div>
       <div class="tblwrap"><table><thead><tr><th>Asset</th><th>Side</th><th class="r">Entry</th><th class="r">Exit</th>
-      <th class="r">Net PnL</th><th class="r">Opened</th><th class="r">Closed</th><th class="r">Held</th></tr></thead>
+      <th class="r">Net PnL</th>
+      <th class="r">% <span class="info" data-tip="Price move on this trade, in the direction it was held: for a long, exit vs entry; for a short, the inverse. It is the move on the position itself, not a % of your account.">i</span></th>
+      <th class="r">Opened</th><th class="r">Closed</th><th class="r">Held</th></tr></thead>
       <tbody id="ctrd"></tbody></table></div>
 
       <div class="pager" id="pgTrades"></div>
@@ -1737,6 +1742,28 @@ function paintStrategy(strat){
   if(stratBuilt) buildStrat();
 }
 
+// SCORE means something different in each book — say which, in plain terms.
+const SCORE_TIP={
+  funding:'Annualised funding rate on this coin, in % per year. +11.00 means the crowded longs are paying about '
+    +'11%/yr to hold this perp, and we collect it by being short with a matching hedge. Higher = richer to harvest. '
+    +'A negative score means the flow has flipped and we would be paying instead.',
+  carry:'The signal that picked this position: a combined cross-sectional rank of 21-day momentum plus funding. '
+    +'Positive = ranked for the LONG sleeve (strong momentum, cheap funding); negative = ranked for the SHORT '
+    +'sleeve. The further from zero, the stronger the conviction. This is what decides exits — a name is closed '
+    +'when its score fades out of the top ranks, not at a fixed profit or loss.',
+  champion:'Conviction score from the momentum + funding + volume + smart-money blend, ranked across the universe. '
+    +'Positive = ranked long, negative = ranked short; bigger absolute value = higher conviction and a larger '
+    +'target weight. Positions are sized by score, so the ranking is the whole strategy.',
+  trend:'Cross-sectional trend score: how far price sits above (positive) or below (negative) its own moving '
+    +'average, ranked against every other coin. Positive scores go in the long sleeve, negative in the short '
+    +'sleeve. A position exits when its score no longer ranks, which is the exit rule for this book.',
+  neutral:'Conviction score from the market-neutral signal blend, ranked across the universe. Positive = long '
+    +'sleeve, negative = short sleeve; larger absolute value = stronger conviction and a bigger weight.'};
+function paintScoreTip(strat){
+  const el=document.getElementById('scoreTip'); if(!el) return;
+  el.setAttribute('data-tip', SCORE_TIP[strat]||SCORE_TIP.carry);
+}
+
 function card(k,v,cls,s,bar,tip){
   const info=tip?` <span class="info" data-tip="${tip}">i</span>`:'';
   return `<div class="card"><div class="k">${k}${info}</div><div class="v num ${cls||''}">${v}</div>${bar||''}${s?`<div class="s">${s}</div>`:''}</div>`}
@@ -1745,7 +1772,7 @@ function render(d){
   if(d.error){$('run').textContent='error: '+d.error;return;}
   DATA=d;
   $('mode').textContent=d.mode; $('mode').className='pill '+d.mode;
-  if(d.strategy){ paintStrategy(d.strategy); }
+  if(d.strategy){ paintStrategy(d.strategy); paintScoreTip(d.strategy); }
   $('dot').className='dot '+(d.running?'on':'off');
   $('run').textContent=d.running?'running':'stopped'; $('run').className=d.running?'grn':'mut';
   $('upd').textContent=new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit',hour12:false});
@@ -1801,6 +1828,8 @@ function render(d){
   $('np').textContent=b.length;
   $('pos').innerHTML=b.map((p,i)=>{
     const up=p.upnl, uc=up==null?'mut':(up>=0?'grn':'red');
+    // return on the POSITION (uPnL / its entry value) — not a % of the account
+    const pct=(up!=null&&p.entry_notional)?100*up/p.entry_notional:null;
     const scc=p.score>=0?'grn':'red';
     // funding: + = this position EARNS funding this interval, − = it PAYS
     let fcell='<span class="mut">—</span>';
@@ -1817,11 +1846,12 @@ function render(d){
       <td class="r num mut" style="font-size:11.5px">${sig6(p.entry)}</td>
       <td class="r num" style="font-size:11.5px">${sig6(p.mark)}</td>
       <td class="r num ${uc}" style="font-weight:700">${up!=null?sgn(up):'—'}</td>
+      <td class="r num ${uc}" style="font-weight:600">${pct!=null?(pct>=0?'+':'')+pct.toFixed(1)+'%':'—'}</td>
       <td class="r num" style="font-size:11.5px">${fcell}</td>
       <td class="r num mut" style="font-size:11px" title="${p.opened_ts?'held '+ago(p.opened_ts):''}">${dt(p.opened_ts)}</td>
       <td class="r"><span class="sc ${p.score!=null?scc:''}">${p.score!=null?(p.score>=0?'+':'')+(+p.score).toFixed(2):'—'}</span></td>
       <td class="r"><button class="share" title="Share" onclick="openCard(${i})">↗</button></td></tr>`;
-  }).join('')||'<tr><td colspan="11" class="empty">no open positions</td></tr>';
+  }).join('')||'<tr><td colspan="12" class="empty">no open positions</td></tr>';
 
   const w=d.whales||{}, cons=w.consensus||[];
   setWhaleTab(d.whales_enabled!==false);   // hide Smart Money on books that don't use whales (carry/champion)
@@ -1958,9 +1988,12 @@ function pageList(page,pages){
   out.push(pages); return out;
 }
 function tradeRow(t){const pc=t.pnl>=0?'grn':'red';
+  // price move in the direction held (shorts are inverted), so the % always matches the sign of the PnL
+  const mv=(t.entry>0&&t.exit>0)?100*((t.side==='SHORT'?t.entry/t.exit:t.exit/t.entry)-1):null;
   return `<tr><td class="asset">${short(t.symbol)}</td><td><span class="chip ${t.side}">${t.side}</span></td>
   <td class="r num mut">${sig6(t.entry)}</td><td class="r num">${sig6(t.exit)}</td>
   <td class="r num ${pc}">${sgn(t.pnl)}</td>
+  <td class="r num ${mv==null?'mut':(mv>=0?'grn':'red')}" style="font-weight:600">${mv!=null?(mv>=0?'+':'')+mv.toFixed(1)+'%':'—'}</td>
   <td class="r num mut" style="font-size:11px">${dt(t.opened_ts)}</td>
   <td class="r num mut" style="font-size:11px">${dt(t.ts)}</td>
   <td class="r num mut">${dur(t.duration_s)}</td></tr>`;}
@@ -1988,7 +2021,7 @@ function makePager(endpoint,tbodyId,pagerId,renderRow,gname,cols){
   return { go(p){const pages=Math.max(1,Math.ceil(total/size));offset=Math.max(0,Math.min(pages-1,p-1))*size;load();},
            ensure(){if(!loaded)load();}, tick(){if(offset===0)load();} };
 }
-window.pagerTrades=makePager('/api/trades','ctrd','pgTrades',tradeRow,'pagerTrades',7);
+window.pagerTrades=makePager('/api/trades','ctrd','pgTrades',tradeRow,'pagerTrades',9);
 window.pagerFills =makePager('/api/fills','fillrows','pgFills',fillRow,'pagerFills',6);
 
 document.querySelectorAll('#tabs .tab').forEach(t=>t.onclick=()=>{
