@@ -933,7 +933,9 @@ HTML = r"""<!doctype html>
   .info{display:inline-grid;place-items:center;width:14px;height:14px;border-radius:50%;border:1px solid var(--line);
     color:var(--dim);font-size:9px;font-weight:700;font-style:italic;cursor:help;vertical-align:middle;position:relative;text-transform:none;
     transition:color .15s,border-color .15s,box-shadow .15s,transform .15s}
-  .info:hover{color:#fff;border-color:var(--accent);box-shadow:0 0 0 3px rgba(255,138,92,.2);transform:scale(1.15)}
+  /* fill the dot on hover — a white glyph alone is invisible on this light background */
+  .info:hover{color:#fff;background:var(--accent);border-color:var(--accent);
+    box-shadow:0 0 0 3px rgba(240,101,42,.22);transform:scale(1.15)}
   /* caret */
   .info::before{content:"";position:absolute;left:50%;top:calc(100% + 5px);width:10px;height:10px;
     background:#2a1857;border-left:1px solid rgba(255,138,92,.55);border-top:1px solid rgba(255,138,92,.55);
@@ -941,13 +943,22 @@ HTML = r"""<!doctype html>
     transition:opacity .14s ease,transform .3s cubic-bezier(.34,1.7,.5,1);z-index:41}
   .info::after{content:attr(data-tip);position:absolute;left:50%;top:calc(100% + 10px);
     transform:translateX(-50%) translateY(8px) scale(.9);transform-origin:top center;
-    width:262px;background:linear-gradient(180deg,#2a1857,#190f3a);border:1px solid rgba(255,138,92,.4);border-radius:12px;
+    width:288px;background:linear-gradient(180deg,#2a1857,#190f3a);border:1px solid rgba(255,138,92,.4);border-radius:12px;
     padding:11px 13px;font-size:11.5px;font-weight:500;font-style:normal;letter-spacing:0;line-height:1.55;color:#c4cdde;
+    /* th/td set white-space:nowrap, which the tooltip inherits and which defeats the fixed width. pre-line both
+       restores wrapping AND honours the \n in the tip text, so threshold lists read as separate lines. */
+    white-space:pre-line;overflow-wrap:break-word;
     text-transform:none;text-align:left;backdrop-filter:blur(14px);
     box-shadow:0 20px 50px rgba(0,0,0,.7),0 0 30px rgba(255,138,92,.16),inset 0 1px 0 rgba(255,255,255,.05);
     opacity:0;pointer-events:none;transition:opacity .16s ease,transform .34s cubic-bezier(.34,1.56,.5,1);z-index:40}
   .info:hover::after{opacity:1;transform:translateX(-50%) translateY(0) scale(1)}
   .info:hover::before{opacity:1;transform:translateX(-50%) rotate(45deg) scale(1)}
+  /* .tipL: anchor the panel to the icon's RIGHT edge, for columns near the right of the table where a
+     centred 288px panel would run off screen (that's what clipped the Score tooltip) */
+  .info.tipL::after{left:auto;right:-7px;transform:translateX(0) translateY(8px) scale(.9);transform-origin:top right}
+  .info.tipL:hover::after{transform:translateX(0) translateY(0) scale(1)}
+  .info.tipL::before{left:auto;right:0}
+  .info.tipL:hover::before{transform:rotate(45deg) scale(1)}
   .lev{display:inline-block;font-size:9.5px;font-weight:700;color:var(--dim);background:rgba(60,45,30,.09);border:1px solid var(--line);
     border-radius:4px;padding:1px 4px;margin-left:5px;vertical-align:middle;font-variant-numeric:tabular-nums}
   .card .v{font-size:25px;font-weight:760;letter-spacing:-.3px}
@@ -1426,7 +1437,7 @@ HTML = r"""<!doctype html>
       <th class="r">Entry</th><th class="r">Mark</th><th class="r">uPnL</th>
       <th class="r">% <span class="info" data-tip="Return on this position: uPnL as a % of what the position was worth at entry. Not a % of your account — a 10% move on a $2,000 position is $200, which is 2% of a $10,000 book.">i</span></th>
       <th class="r">Funding</th><th class="r">Opened</th>
-      <th class="r">Score <span class="info" id="scoreTip" data-tip="">i</span></th><th></th></tr></thead>
+      <th class="r">Score <span class="info tipL" id="scoreTip" data-tip="">i</span></th><th></th></tr></thead>
       <tbody id="pos"></tbody></table></div>
     </div>
 
@@ -1742,26 +1753,27 @@ function paintStrategy(strat){
   if(stratBuilt) buildStrat();
 }
 
-// SCORE means something different in each book — say which, in plain terms.
+// SCORE is an annualised % in the funding book and a z-score in every other book. Say which, and say
+// what counts as a GOOD number — an unexplained figure on screen is worse than no figure.
 const SCORE_TIP={
-  funding:'Annualised funding rate on this coin, in % per year. +11.00 means the crowded longs are paying about '
-    +'11%/yr to hold this perp, and we collect it by being short with a matching hedge. Higher = richer to harvest. '
-    +'A negative score means the flow has flipped and we would be paying instead.',
-  carry:'The signal that picked this position: a combined cross-sectional rank of 21-day momentum plus funding. '
-    +'Positive = ranked for the LONG sleeve (strong momentum, cheap funding); negative = ranked for the SHORT '
-    +'sleeve. The further from zero, the stronger the conviction. This is what decides exits — a name is closed '
-    +'when its score fades out of the top ranks, not at a fixed profit or loss.',
-  champion:'Conviction score from the momentum + funding + volume + smart-money blend, ranked across the universe. '
-    +'Positive = ranked long, negative = ranked short; bigger absolute value = higher conviction and a larger '
-    +'target weight. Positions are sized by score, so the ranking is the whole strategy.',
-  trend:'Cross-sectional trend score: how far price sits above (positive) or below (negative) its own moving '
-    +'average, ranked against every other coin. Positive scores go in the long sleeve, negative in the short '
-    +'sleeve. A position exits when its score no longer ranks, which is the exit rule for this book.',
-  neutral:'Conviction score from the market-neutral signal blend, ranked across the universe. Positive = long '
-    +'sleeve, negative = short sleeve; larger absolute value = stronger conviction and a bigger weight.'};
+  funding:'FUNDING RATE — annualised %/yr. We hold the perp short against a hedge, so we collect this.\n'
+    +'\nabove +10   rich · the best of the book'
+    +'\n+3 to +10   normal · worth holding'
+    +'\n0 to +3     thin · barely clears fees'
+    +'\nbelow 0     we would be PAYING · dropped'
+    +'\n\nHigher is simply better. Nothing is forecast here — it is the rate being paid right now.',
+  other:'SIGNAL STRENGTH — standard deviations from the average coin. Re-scored every rebalance, so it is '
+    +'always relative to today’s field, never a price target.\n'
+    +'\n0        an average coin · no edge'
+    +'\n±1       clearly stronger than the field'
+    +'\n±2       top or bottom ~2% · high conviction'
+    +'\nrange    about −3 to +3'
+    +'\n\nSign follows the sleeve: LONGS come from the top of the ranking (positive), SHORTS from the bottom '
+    +'(negative). A LONG showing a negative score has weakened and is likely to rotate out. That rotation is '
+    +'the exit rule — positions are never closed at a fixed profit or loss.'};
 function paintScoreTip(strat){
   const el=document.getElementById('scoreTip'); if(!el) return;
-  el.setAttribute('data-tip', SCORE_TIP[strat]||SCORE_TIP.carry);
+  el.setAttribute('data-tip', strat==='funding'?SCORE_TIP.funding:SCORE_TIP.other);
 }
 
 function card(k,v,cls,s,bar,tip){
