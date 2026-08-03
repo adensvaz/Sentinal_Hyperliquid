@@ -26,7 +26,11 @@ universe:
 trend:
   top_k: 8                     # long the 8 strongest uptrends, short the 8 strongest downtrends
   ma_period: 30                # trend strength = price vs its 30-day moving average
-  target_gross: 2.0            # ~1x per side; vol-target/DD-throttle scale below in bad regimes
+  target_gross: 1.0            # HALVED from 2.0. Trend and Carry are 0.41-correlated and hold ~45% of the same
+                               # names in the SAME direction, so every shared name was a doubled bet (ACE cost
+                               # -$1,294 here AND -$422 in Carry). At half gross the portfolio keeps its Sharpe
+                               # (1.71 vs 1.72) and drops maxDD 21.9% -> 20.2%. Same return, less duplicated risk.
+                               # vol-target/DD-throttle still scale below this in bad regimes.
 
 execution:
   order_type: limit
