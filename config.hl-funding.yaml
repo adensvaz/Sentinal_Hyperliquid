@@ -29,7 +29,12 @@ universe:
 funding:
   funding_window_days: 14      # trailing window to measure each coin's funding mean + consistency
   tstat_min: 0.7               # only harvest persistently one-signed funding (mean/std > this)
-  min_funding_daily: 0.0001    # ...and meaningfully positive (>1bp/day) so it clears fees
+  min_funding_daily: 0.0003    # QUALITY BAR (raised from 1bp/day). At 1bp/day a leg earns 3.7%/yr and needs
+                               # 8 days just to repay its own 8bp round-trip cost — with 15 slots and a low bar
+                               # the book fills up with names too thin to be worth owning. At 3bp/day (10.9%/yr)
+                               # a leg repays itself in under 3 days. Backtest: +32% -> +44%/yr, and the average
+                               # funding actually captured rises 13.8% -> 17.8%/yr. Opportunity-scaling means a
+                               # thin market simply deploys less rather than reaching for junk.
   max_coins: 15                # book breadth — diversify across the richest-stable-funding names
   target_gross: 3.0            # delta-neutral -> ~0 DD, so it safely carries higher gross than a directional book
   cost_per_side: 0.0004        # maker + slippage per leg, charged on turnover
