@@ -1812,7 +1812,13 @@ function render(d){
   ].join('');
 
   // ---- Capital & Profit panel: booked vs open PnL, exposure, and the Vault ----
-  const booked=(d.realized||0)+(d.funding||0)-(d.fees||0);   // realized trades + funding − fees = locked in
+  // Booked = locked-in PnL. The paper broker already nets fees INSIDE realized_pnl (paper_broker:
+  // `realized_pnl -= fee`), so subtracting them again double-counted the fees and made every
+  // broker-based book look worse than it was — booked + open no longer added up to all-time PnL.
+  // The funding book is the exception: it stores basis in realized and fees separately, so it does subtract.
+  const booked=(d.strategy==='funding')
+    ? (d.realized||0)+(d.funding||0)-(d.fees||0)
+    : (d.realized||0)+(d.funding||0);
   const open=d.unrealized||0;                                 // still moving in open positions
   const grossN=d.gross||0, longN=d.long_notional||0, shortN=d.short_notional||0;
   const vault=d.vault||0, tradingEq=d.trading_equity||d.equity||0;
