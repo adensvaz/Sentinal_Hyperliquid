@@ -2006,8 +2006,11 @@ function pageList(page,pages){
   out.push(pages); return out;
 }
 function tradeRow(t){const pc=t.pnl>=0?'grn':'red';
-  // price move in the direction held (shorts are inverted), so the % always matches the sign of the PnL
-  const mv=(t.entry>0&&t.exit>0)?100*((t.side==='SHORT'?t.entry/t.exit:t.exit/t.entry)-1):null;
+  // Return on the position, always measured against the ENTRY (what was actually at risk).
+  // Shorts are the long return negated — dividing by the exit instead understated losing shorts:
+  // a short from 0.049015 to 0.064537 is -31.7%, but entry/exit-1 reported it as only -24.1%.
+  const raw=(t.entry>0&&t.exit>0)?(t.exit/t.entry-1):null;
+  const mv=raw==null?null:100*(t.side==='SHORT'?-raw:raw);
   return `<tr><td class="asset">${short(t.symbol)}</td><td><span class="chip ${t.side}">${t.side}</span></td>
   <td class="r num mut">${sig6(t.entry)}</td><td class="r num">${sig6(t.exit)}</td>
   <td class="r num ${pc}">${sgn(t.pnl)}</td>
