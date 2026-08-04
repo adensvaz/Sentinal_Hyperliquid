@@ -20,7 +20,13 @@ universe:
                                # short, sank Carry's long). Dropping it closes any open ACE at next rebalance.
 
 carry:
-  top_k: 5
+  top_k: 8                     # RAISED from 5. The book's problem was never the signal — it was breadth.
+                               # At K=5 it held 10 names and the result hinged on a handful of coins: dropping
+                               # a random 4 of 43 from the universe swung the backtest CAGR from -27% to +131%,
+                               # a 158-point range, and one CASHCAT short (-$533) exceeded the book's entire
+                               # net profit over 110 trades. At K=8 the same CAGR comes with maxDD 52.6% -> 33.0%
+                               # and the spread across universe draws falls from 44pp to 13pp — 3.4x steadier.
+                               # This is a robustness change, not a return forecast: it buys stability, not alpha.
   lookback: 21
   target_gross: 2.0
 
