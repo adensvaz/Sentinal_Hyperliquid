@@ -59,8 +59,38 @@ def build_universe(fx: KoinbayFutures, registry: ContractRegistry, ucfg) -> list
     ranked = [r for r in pmap(_quote_vol, candidates, workers=12)
               if r and r[1] >= ucfg.min_quote_volume_usdt]
     ranked.sort(key=lambda x: x[1], reverse=True)
-    universe = [n for n, _ in ranked[: ucfg.top_n]]
-    log.info("universe: %d candidates -> %d selected (top by quote volume)", len(candidates), len(universe))
+
+    min_days = int(getattr(ucfg, "min_listing_days", 0) or 0)
+    if min_days <= 0:
+        universe = [n for n, _ in ranked[: ucfg.top_n]]
+        log.info("universe: %d candidates -> %d selected (top by quote volume)", len(candidates), len(universe))
+        return universe
+
+    # AGE GATE. Volume ranks a coin; it does not tell you whether the market has had time to price it.
+    # A freshly listed perp has no price discovery and a thin float, so it gaps in a way that mature names
+    # do not — and a short in one of those is the single most dangerous position this system can hold.
+    # Check a buffer beyond top_n so young names are replaced by the next liquid mature ones, not just dropped.
+    def _age_ok(name: str):
+        try:
+            bars = fx.klines(name, "1day", min_days + 5)
+            return (name, len(bars) >= min_days)
+        except Exception:
+            return (name, False)          # cannot prove it is seasoned -> do not trade it
+
+    head = [n for n, _ in ranked[: ucfg.top_n * 2]]
+    age = dict(r for r in pmap(_age_ok, head, workers=12) if r)
+    universe, young = [], []
+    for name, _ in ranked:
+        if len(universe) >= ucfg.top_n:
+            break
+        if age.get(name, False):
+            universe.append(name)
+        elif name in age:
+            young.append(name)
+    if young:
+        log.info("universe: excluded %d name(s) under %dd old: %s", len(young), min_days, ", ".join(young[:8]))
+    log.info("universe: %d candidates -> %d selected (top by quote volume, min %dd listed)",
+             len(candidates), len(universe), min_days)
     return universe
 
 

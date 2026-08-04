@@ -14,6 +14,9 @@ exchange:
 universe:
   top_n: 24
   min_quote_volume_usdt: 200000                   # liquidity floor (HL volume scale)
+  min_listing_days: 90        # a coin must have traded 90d before we hold it. Volume alone is no
+                             # guard: CASHCAT was rank-8 by volume yet 24d old and swung 181% in a
+                             # day, costing Carry $533 on one short. Age blocks the next one early.
   denylist: [ACE]                                 # excluded — too violent (squeezed Trend, sank Carry)
 
 champion:

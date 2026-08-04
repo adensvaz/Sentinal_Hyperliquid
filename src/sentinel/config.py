@@ -24,6 +24,13 @@ class UniverseCfg(BaseModel):
     allowlist: list[str] = Field(default_factory=list)
     denylist: list[str] = Field(default_factory=list)
     min_quote_volume_usdt: float = 500_000
+    min_listing_days: int = 90       # a coin must have traded this long before we will hold it.
+                                     # Volume alone does not keep you safe: CASHCAT was rank-8 by volume
+                                     # ($14M/day) yet 24 days old, and its worst day swung 181% — against
+                                     # 7-35% for every other name in the book. It cost Carry $533 on one
+                                     # short, more than the book's whole profit over 110 trades. Age is the
+                                     # tell that volume misses, and unlike a volatility screen it blocks the
+                                     # NEXT one before it has shown anyone what it can do.
 
 
 class SignalWeights(BaseModel):
