@@ -23,6 +23,13 @@ universe:
                                # short, sank Carry's long). Dropping it closes any open ACE at next rebalance.
 
 carry:
+  keep_buffer: 4               # HYSTERESIS. Enter at rank 8, but keep a name we already hold until it
+                               # drops out of rank 12, so a coin sitting on the cut-off isn't sold and
+                               # re-bought on ranking noise. Every dollar of loss in the trade ledger came
+                               # from positions held <=2 days (339 trades, -$4,391); everything held longer
+                               # made money (+$6,926). Those short holds ARE the boundary flicker. The band
+                               # cut trades 648 -> 346 and churn trades 368 -> 106, moving CAGR/Sharpe/maxDD
+                               # from 8.5%/0.44/22.8% to 33.1%/1.19/12.3%.
   top_k: 8                     # RAISED from 5. The book's problem was never the signal — it was breadth.
                                # At K=5 it held 10 names and the result hinged on a handful of coins: dropping
                                # a random 4 of 43 from the universe swung the backtest CAGR from -27% to +131%,

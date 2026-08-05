@@ -118,3 +118,48 @@ def test_recent_funding_avg_trailing_mean():
     finally:
         s.close()
         os.path.exists(db) and os.remove(db)
+
+
+# ---------- hysteresis: don't churn a name that is merely hovering at the cut-off ----------
+# Trade-level evidence: every dollar of loss came from positions held <=2 days — names flickering
+# across the top_k boundary, paying a round trip each time. keep_buffer keeps a HELD name until it
+# falls out of top_k+buffer, while new entries still require top_k.
+
+def test_held_name_just_outside_topk_is_kept():
+    closes, funding, prices = _world()
+    reg = _registry(SYMS)
+    cfg = _cfg(top_k=2, keep_buffer=2)
+    # C3 ranks 3rd (outside top_k=2) — but we already hold it, so the band should keep it
+    held = {"E-C3-USDT": 100}
+    book = FundingCarryStrategy(cfg).build_book(closes, funding, prices, reg, 10_000, held=held)
+    longs = {s for s, p in book.positions.items() if p.target_contracts > 0}
+    assert "E-C3-USDT" in longs, "a held name inside the keep-band must not be churned out"
+    assert len(longs) == 2                       # sleeve size unchanged — it took a slot, not an extra one
+
+
+def test_unheld_name_outside_topk_is_not_bought():
+    """The band only KEEPS; entries still require a genuine top_k rank."""
+    closes, funding, prices = _world()
+    book = FundingCarryStrategy(_cfg(top_k=2, keep_buffer=2)).build_book(
+        closes, funding, prices, _registry(SYMS), 10_000, held={})
+    longs = {s for s, p in book.positions.items() if p.target_contracts > 0}
+    assert longs == {"E-C5-USDT", "E-C4-USDT"}   # unchanged from the no-buffer selection
+
+
+def test_name_outside_the_band_is_still_dropped():
+    """Hysteresis must widen the exit, not remove it — a name well outside the band still goes."""
+    closes, funding, prices = _world()
+    held = {"E-C0-USDT": 100}                    # ranks last of 6; outside top_k(2)+buffer(2)
+    book = FundingCarryStrategy(_cfg(top_k=2, keep_buffer=2)).build_book(
+        closes, funding, prices, _registry(SYMS), 10_000, held=held)
+    longs = {s for s, p in book.positions.items() if p.target_contracts > 0}
+    assert "E-C0-USDT" not in longs
+
+
+def test_keep_buffer_zero_restores_old_behaviour():
+    closes, funding, prices = _world()
+    held = {"E-C3-USDT": 100}
+    book = FundingCarryStrategy(_cfg(top_k=2, keep_buffer=0)).build_book(
+        closes, funding, prices, _registry(SYMS), 10_000, held=held)
+    longs = {s for s, p in book.positions.items() if p.target_contracts > 0}
+    assert longs == {"E-C5-USDT", "E-C4-USDT"}

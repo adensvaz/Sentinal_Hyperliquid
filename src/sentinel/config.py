@@ -183,6 +183,16 @@ class CarryCfg(BaseModel):
     funding_avg_cycles: int = 5    # rank on the trailing average of this many funding snapshots
                                    # (funding is persistent — the average is a cleaner signal than a
                                    #  single instantaneous rate; backtest Sharpe ~1.6 -> ~2.0 with it)
+    keep_buffer: int = 4           # HYSTERESIS. Enter at rank K, but keep an existing leg until it falls
+                                   # out of rank K+buffer, so a name hovering at the cut-off is not sold
+                                   # and re-bought on rank noise. Trade-level evidence: every dollar of
+                                   # loss came from positions held <=2 days (339 trades, -$4,391) while
+                                   # everything held longer made money (+$6,926). Those short holds are
+                                   # names flickering across the boundary, paying a round trip each time.
+                                   # A top-12 keep-band on a top-8 entry cut trades 648 -> 346, churn
+                                   # trades 368 -> 106, and moved CAGR/Sharpe/maxDD 8.5%/0.44/22.8%
+                                   # -> 33.1%/1.19/12.3%. Same fix that ended the funding book's bleed.
+                                   # 0 restores the old drop-on-exit behaviour.
 
 
 class TrendCfg(BaseModel):

@@ -311,8 +311,11 @@ class Engine:
                 # beta-hedge — the long/short legs are already balanced.
                 favg = self.store.recent_funding_avg(self.mode, cfg.carry.funding_avg_cycles)
                 fsig = {s: favg.get(s, funding.get(s)) for s in funding}   # trailing avg, fallback to current
+                # pass what we already hold so the keep_buffer band can keep a name that is merely
+                # hovering at the cut-off rather than selling and re-buying it on ranking noise
                 book = self.carry.build_book({s: d.closes for s, d in data.items()}, fsig, prices,
-                                             self.registry, equity, gross_scale=gscale)
+                                             self.registry, equity, gross_scale=gscale,
+                                             held=self.broker.positions())
             elif cfg.strategy == "trend":
                 # TREND (CTA): dollar-neutral cross-sectional trend — long the strongest uptrends, short
                 # the strongest downtrends. Dollar-neutral by construction (equal-weight sleeves); the

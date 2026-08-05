@@ -41,7 +41,11 @@ class FundingCarryStrategy:
         self.c = cfg.carry            # CarryCfg
 
     def build_book(self, closes_by_symbol: dict, funding_by_symbol: dict, prices: dict,
-                   registry: ContractRegistry, equity: float, gross_scale: float = 1.0) -> TargetBook:
+                   registry: ContractRegistry, equity: float, gross_scale: float = 1.0,
+                   held: dict | None = None) -> TargetBook:
+        """`held` maps symbol -> signed contracts currently open, and is what makes the keep_buffer
+        hysteresis possible: without knowing what we already own there is no 'keep' to speak of."""
+        held = held or {}
         c = self.c
         # 1. eligible names: tradable, priced, with a momentum reading AND a known funding rate
         cand = []
@@ -57,9 +61,24 @@ class FundingCarryStrategy:
             cand.append((s, m, float(f)))
         if len(cand) < 2 * c.top_k:             # need enough names for a balanced long & short sleeve
             return TargetBook({}, equity, 0.0)
-        # 2. rank and split into the long / short sleeves
+        # 2. rank and split into the long / short sleeves.
+        # HYSTERESIS: a name is only bought at rank top_k, but once held it is kept until it drops out of
+        # top_k+keep_buffer. Without the band, a coin sitting on the cut-off is sold and re-bought as the
+        # ranking jitters — and that churn is where the losses live (positions held <=2 days lost money in
+        # aggregate; everything held longer made money). Held names take their slots first, so the sleeve
+        # size is unchanged; only which names occupy it becomes stickier.
         ranked = carry_rank(cand)
-        longs, shorts = ranked[: c.top_k], ranked[-c.top_k:]
+        buf = max(0, int(getattr(c, "keep_buffer", 0) or 0))
+        if buf and held:
+            wide = c.top_k + buf
+            keep_l = [s for s in ranked[:wide] if held.get(s, 0) > 0]
+            keep_s = [s for s in ranked[-wide:] if held.get(s, 0) < 0]
+            add_l = [s for s in ranked[: c.top_k] if s not in keep_l]
+            add_s = [s for s in reversed(ranked[-c.top_k:]) if s not in keep_s]
+            longs = (keep_l + add_l)[: c.top_k]
+            shorts = (keep_s + add_s)[: c.top_k]
+        else:
+            longs, shorts = ranked[: c.top_k], ranked[-c.top_k:]
         score = {s: m for s, m, _ in cand}
         # 3. dollar-neutral, equal-weight each sleeve to the same notional (net ~ 0)
         gross = c.target_gross * equity * gross_scale
