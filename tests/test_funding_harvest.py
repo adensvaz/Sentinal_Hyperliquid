@@ -178,3 +178,53 @@ def test_degraded_scan_does_not_rebalance(engine, fx, monkeypatch):
     engine.run_funding_once()
     assert set(engine.store.load_positions(engine.mode)) == held   # book untouched
     assert _fees(engine) == pytest.approx(fees_before)             # no turnover charged on bad data
+
+
+# ── risk enforcement ───────────────────────────────────────────────────────────
+# This book previously enforced nothing: risk_check skipped it and max_drawdown_pct was configured
+# but never acted on. Delta-neutrality hid that in paper, where the spot hedge is simulated as
+# perfect. Live it is the whole exposure, so the brake and the hedge check are pinned here.
+
+def test_drawdown_brake_unwinds_and_pauses(engine, monkeypatch):
+    """Past max_drawdown_pct the book must flatten and pause, not keep harvesting."""
+    engine.run_funding_once()
+    assert engine.store.load_positions(engine.mode)                    # book is on
+    cap = float(engine.cfg.capital_usdt)
+    engine.store.update_peak_equity(engine.mode, cap * 2)              # force a deep drawdown vs peak
+    engine.run_funding_once()
+    assert engine.store.load_positions(engine.mode) == {}              # unwound
+    assert engine.store.paused_until(engine.mode) > 0                  # and cooling off
+
+
+def test_paused_book_stays_flat(engine):
+    """While paused it must not re-open, even though funding still looks attractive."""
+    import time as _t
+    engine.run_funding_once()
+    engine.store.set_paused_until(engine.mode, _t.time() + 3600)
+    engine.run_funding_once()
+    assert engine.store.load_positions(engine.mode) == {}
+
+
+def test_leg_with_a_blown_basis_is_dropped(engine, fx):
+    """perp ~ spot is the whole thesis. A leg that tears away from its oracle is no longer hedged."""
+    engine.run_funding_once()
+    held = sorted(engine.store.load_positions(engine.mode))
+    bad = held[0]
+    real = fx.index
+    monkeypatch_target = lambda s: ({"tagPrice": 100.0, "indexPrice": 100.0, "currentFundRate": 0.00002}
+                                    if s != bad else
+                                    {"tagPrice": 110.0, "indexPrice": 100.0, "currentFundRate": 0.00002})
+    fx.index = monkeypatch_target                                       # 10% basis on that one leg
+    engine.run_funding_once()
+    fx.index = real
+    assert bad not in engine.store.load_positions(engine.mode)
+    assert set(engine.store.load_positions(engine.mode)) <= set(held) - {bad}
+
+
+def test_risk_check_reports_state_instead_of_none(engine):
+    """It used to return a bare None, so a paused funding book looked identical to a healthy one."""
+    import time as _t
+    engine.run_funding_once()
+    assert engine.risk_check()["action"] == "none"
+    engine.store.set_paused_until(engine.mode, _t.time() + 3600)
+    assert engine.risk_check()["action"] == "paused"

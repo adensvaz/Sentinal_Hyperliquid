@@ -241,6 +241,10 @@ class FundingCfg(BaseModel):
     no_trade_band: float = 0.10      # only resize an existing leg when its target notional drifts beyond this
     min_hold_days: float = 3.0       # don't drop a name held less than this (unless its funding has gone negative)
     keep_top_n: int = 25             # a held name stays as long as it's still within this wide consistency band
+    max_basis: float = 0.02          # drop a leg whose |mark - oracle| / oracle exceeds this (2%). The book only
+                                     # works because perp ~ spot; a leg that has torn away from its oracle is one
+                                     # where that has stopped being true, so its funding is no longer being
+                                     # harvested against a hedge. Normal basis is well under 0.5%.
     exit_neg_ticks: int = 8          # consecutive NEGATIVE funding ticks on a held leg before re-picking early.
                                      # Individual coins print a negative hourly rate all the time — across ~15 legs
                                      # at least one is negative almost every hour — so reacting to a single print

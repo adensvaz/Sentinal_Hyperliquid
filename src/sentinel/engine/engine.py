@@ -657,6 +657,32 @@ class Engine:
         basis_cum += new_basis
         booked += new_funding + new_basis
 
+        # ---- CATASTROPHE BRAKE ----------------------------------------------------------------
+        # This book used to enforce nothing: risk_check skipped it entirely and max_drawdown_pct was
+        # configured but never acted on — a limit that reads as protection while doing none. It is
+        # delta-neutral, so in paper (where the spot hedge is simulated as perfect) that never showed.
+        # Live it matters: if the hedge breaks, the perp legs are naked and nothing was watching.
+        equity_now = cap + booked
+        peak_now = max(float(self.store.peak_equity(self.mode, equity_now) or equity_now), equity_now)
+        dd_now = drawdown_pct(peak_now, equity_now)
+        if not flatten and cfg.risk.max_drawdown_pct and dd_now >= cfg.risk.max_drawdown_pct:
+            log.warning("FUNDING | drawdown %.2f%% exceeds limit %.2f%% -> unwinding and pausing %.0fh",
+                        dd_now, cfg.risk.max_drawdown_pct, cfg.risk.pause_hours)
+            self.store.set_paused_until(self.mode, now + cfg.risk.pause_hours * 3600)
+            flatten = True
+        elif not flatten and self.is_paused():
+            flatten = True                                  # still in the cooldown -> stay flat
+
+        # ---- HEDGE-BREAKDOWN GUARD -------------------------------------------------------------
+        # The whole book rests on perp ~ spot. A leg whose mark has torn away from the oracle is a leg
+        # where that assumption has stopped holding, so harvesting its funding is no longer neutral.
+        # Drop those names rather than keep collecting a premium against an un-hedged position.
+        blown = {s for s, d in info.items()
+                 if s in gstate and abs(float(d.get("basis", 0.0))) > fh.max_basis}
+        if blown:
+            log.warning("FUNDING | basis blown out on %s (>%.2f%%) -> dropping",
+                        ",".join(sorted(blown)), fh.max_basis * 100)
+
         # score every candidate: funding MAGNITUDE (mu) + CONSISTENCY (t-stat = mu/sd). Only a rebalance tick
         # fetches `hist`, so this is empty on hold ticks (nothing to re-pick anyway).
         scored: dict[str, tuple[float, float]] = {}
@@ -667,7 +693,8 @@ class Engine:
             mu = sum(h) / len(h)
             sd = (sum((x - mu) ** 2 for x in h) / len(h)) ** 0.5 or 1e-9
             scored[s] = (mu, mu / sd)
-        qualify = {s: v for s, v in scored.items() if v[0] > fh.min_funding_daily and v[1] > fh.tstat_min}
+        qualify = {s: v for s, v in scored.items()
+                   if v[0] > fh.min_funding_daily and v[1] > fh.tstat_min and s not in blown}
 
         # degraded-scan guard: never tear up a live book on partial data. If an API wobble priced only some of the
         # universe, the "best" names are an artifact of what happened to respond — hold instead of churning on it.
@@ -690,7 +717,9 @@ class Engine:
             pool = sorted([s for s in qualify if s not in keep], key=lambda s: -qualify[s][0])
             picks = keep + pool[: max(0, fh.max_coins - len(keep))]
         else:
-            picks = held_syms            # HOLD every leg we own — a missing quote must NOT drop a position
+            # HOLD every leg we own — a missing quote must NOT drop a position — except one whose hedge
+            # has broken, which we shed immediately rather than waiting for the next rebalance.
+            picks = [s for s in held_syms if s not in blown]
 
         # opportunity-scaled gross: fewer qualifying coins (thin premium) -> deploy less -> preserve capital
         g = fh.target_gross * (min(1.0, len(picks) / fh.max_coins) if fh.max_coins else 0.0)
@@ -908,7 +937,17 @@ class Engine:
         if self.cfg.strategy == "grid":
             return self._grid_risk_check()
         if self.cfg.strategy == "funding":
-            return {"action": None}                 # funding book books its own PnL each tick; no between-tick poll
+            # The funding book books its PnL and enforces its own drawdown brake on every tick, so there is
+            # no between-tick price poll here (that scan is what used to stall the loop). Report the state
+            # honestly instead of a bare None, so a paused book is visible rather than silently idle.
+            eq = self.store.last_equity(self.mode)
+            peak = self.store.peak_equity(self.mode, eq or 0.0) if eq is not None else None
+            dd = drawdown_pct(peak, eq) if eq is not None and peak else 0.0
+            if self.is_paused():
+                return {"action": "paused", "until": self.store.paused_until(self.mode),
+                        "drawdown_pct": round(dd, 2)}
+            return {"action": "none", "equity": round(eq, 2) if eq is not None else None,
+                    "drawdown_pct": round(dd, 2)}
         self._ensure_market()
         cur = self.broker.positions()
         marks, funding = self._index_data(cur) if cur else ({}, {})
