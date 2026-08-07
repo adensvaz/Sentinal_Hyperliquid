@@ -1,29 +1,33 @@
-"""Universe age gate — keep freshly listed perps out of the book.
+"""Listing-age gate — keep freshly listed perps out of the book, without spending API calls to do it.
 
 CASHCAT was rank-8 by volume ($14M/day) and sailed through the liquidity filter, but it was 24 days
 old and its worst day swung 181% (every other name in the book: 7-35%). One short in it cost Carry
 $533 — more than the book earned across 110 trades. Volume says a coin is tradable; only age says the
-market has had time to price it. These tests pin that a young name is excluded no matter how liquid,
-and that a mature one is replaced in rank order rather than the book simply shrinking.
+market has had time to price it.
+
+The first version of this gate probed each candidate with its own klines call. That burst of ~60 extra
+requests exhausted the rate budget right before load_symbol_data needed its own ~60 — and because pmap
+swallows a failed fetch, the data behind a 30-name universe silently collapsed under 2*top_k, build_book
+returned an empty TargetBook and the reconciler sold the whole book. Carry sat at 0 positions.
+
+So the gate now counts the bars we ALREADY fetch. Same protection, zero extra calls. These tests pin
+both halves: the filter works, and building the universe costs no klines calls at all.
 """
 import pytest
 
-import sentinel.engine.marketdata as md
 from sentinel.config import UniverseCfg
-from sentinel.engine.marketdata import build_universe
+from sentinel.engine.marketdata import build_universe, filter_by_age
 from sentinel.exchange.contracts import ContractRegistry
-
-
-@pytest.fixture(autouse=True)
-def _clear_age_cache():
-    """The pass-cache is module-level and deliberately lives for the process, so isolate it per test."""
-    md._AGE_CACHE.clear()
-    yield
-    md._AGE_CACHE.clear()
 
 # NEWCOIN is the most liquid name here and the youngest — exactly the CASHCAT shape.
 VOLUME = {"BTC": 900e6, "NEWCOIN": 500e6, "ETH": 400e6, "SOL": 200e6, "LINK": 80e6, "TINY": 10e3}
 AGE_DAYS = {"BTC": 800, "ETH": 800, "SOL": 800, "LINK": 400, "NEWCOIN": 24, "TINY": 800}
+
+
+class _Data:
+    """Stands in for SymbolData — the filter only reads `closes`."""
+    def __init__(self, n):
+        self.closes = [1.0] * n
 
 
 def _registry(symbols):
@@ -51,59 +55,47 @@ def fx():
     return _Fx()
 
 
-def _cfg(**kw):
-    base = dict(top_n=3, min_quote_volume_usdt=1e6, min_listing_days=90)
-    base.update(kw)
-    return UniverseCfg(**base)
+# ── the gate itself ────────────────────────────────────────────────────────────
+
+def test_young_coin_is_dropped_however_liquid():
+    data = {s: _Data(AGE_DAYS[s]) for s in VOLUME}
+    kept = filter_by_age(data, 90)
+    assert "NEWCOIN" not in kept                 # 24 days old — out, despite being 2nd by volume
+    assert set(kept) == {"BTC", "ETH", "SOL", "LINK", "TINY"}
 
 
-def test_young_coin_excluded_however_liquid(fx):
-    """NEWCOIN is the 2nd-biggest by volume but 24 days old — it must not make the book."""
-    u = build_universe(fx, _registry(list(VOLUME)), _cfg())
-    assert "NEWCOIN" not in u
-    assert u == ["BTC", "ETH", "SOL"]          # backfilled in rank order, still a full book
+def test_gate_off_is_a_no_op():
+    data = {s: _Data(AGE_DAYS[s]) for s in VOLUME}
+    assert filter_by_age(data, 0) == data
 
 
-def test_book_is_not_left_short_by_the_gate(fx):
-    """Dropping a young name must promote the next mature one, not shrink the universe."""
-    u = build_universe(fx, _registry(list(VOLUME)), _cfg(top_n=4))
-    assert len(u) == 4 and "NEWCOIN" not in u
-    assert "LINK" in u                          # promoted into the slot NEWCOIN would have taken
+def test_boundary_is_inclusive():
+    """Exactly min_listing_days of history counts as seasoned enough."""
+    assert set(filter_by_age({"A": _Data(90), "B": _Data(89)}, 90)) == {"A"}
 
 
-def test_gate_off_restores_previous_behaviour(fx):
-    """min_listing_days=0 keeps the old volume-only universe (and skips the age lookups entirely)."""
-    u = build_universe(fx, _registry(list(VOLUME)), _cfg(min_listing_days=0))
-    assert u == ["BTC", "NEWCOIN", "ETH"]
-    assert fx.kline_calls == []
+def test_missing_history_is_treated_as_young():
+    """A symbol whose bars never arrived cannot prove its age, so it sits this cycle out. Safe here
+    only because the caller holds its existing book when the fetch is broadly degraded."""
+    assert filter_by_age({"A": _Data(0)}, 90) == {}
 
 
-def test_one_unreadable_name_is_skipped_not_guessed(fx, monkeypatch):
-    """A single name we can't verify is left out — but the book keeps filling from the rest."""
-    def boom(name, interval, bars):
-        if name == "ETH":
-            raise RuntimeError("history unavailable")
-        return [{"idx": i, "close": 1.0} for i in range(min(bars, AGE_DAYS[name]))]
-    monkeypatch.setattr(fx, "klines", boom)
-    u = build_universe(fx, _registry(list(VOLUME)), _cfg())
-    assert "ETH" not in u and len(u) == 3            # backfilled, not shrunk
+# ── the reason it moved: building the universe must cost no klines calls ───────
+
+def test_build_universe_makes_no_kline_calls(fx):
+    """THE REGRESSION. A per-candidate age probe blew the rate budget and emptied the book. Ranking
+    the universe must stay pure volume — the age check happens later, on bars already fetched."""
+    u = build_universe(fx, _registry(list(VOLUME)), UniverseCfg(top_n=3, min_quote_volume_usdt=1e6,
+                                                               min_listing_days=90))
+    assert fx.kline_calls == [], "the age gate must not cost an API call per candidate"
+    assert u == ["BTC", "NEWCOIN", "ETH"]        # volume order; NEWCOIN is filtered downstream
 
 
-def test_api_outage_skips_the_gate_instead_of_emptying_the_book(fx, monkeypatch):
-    """THE REGRESSION: the gate costs a klines call per candidate, so a rate-limit made every check fail,
-    every coin looked 'young', the universe collapsed and Carry went flat with 0 positions. A systemic
-    failure must fall back to the volume-only universe, never to an empty one."""
-    monkeypatch.setattr(fx, "klines", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("429 rate limited")))
-    u = build_universe(fx, _registry(list(VOLUME)), _cfg())
-    assert len(u) == 3, "an API outage must not empty the universe"
-    assert u == ["BTC", "NEWCOIN", "ETH"]            # volume-only fallback for this cycle
-
-
-def test_a_passed_name_is_not_rechecked(fx):
-    """Age only increases, so a name that has passed never needs another lookup — that call volume is
-    what made the gate fragile."""
-    build_universe(fx, _registry(list(VOLUME)), _cfg())
-    n_first = len(fx.kline_calls)
-    fx.kline_calls.clear()
-    build_universe(fx, _registry(list(VOLUME)), _cfg())
-    assert len(fx.kline_calls) < n_first
+def test_universe_is_not_shrunk_by_the_gate(fx):
+    """The universe stays full — dropping a young name later must not leave the book short, because
+    the extra names are already in the list."""
+    u = build_universe(fx, _registry(list(VOLUME)), UniverseCfg(top_n=5, min_quote_volume_usdt=1e6,
+                                                               min_listing_days=90))
+    assert len(u) == 5
+    data = {s: _Data(AGE_DAYS[s]) for s in u}
+    assert len(filter_by_age(data, 90)) == 4     # NEWCOIN out, four mature names remain

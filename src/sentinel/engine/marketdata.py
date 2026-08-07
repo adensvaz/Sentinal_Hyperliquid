@@ -66,58 +66,40 @@ def build_universe(fx: KoinbayFutures, registry: ContractRegistry, ucfg) -> list
               if r and r[1] >= ucfg.min_quote_volume_usdt]
     ranked.sort(key=lambda x: x[1], reverse=True)
 
-    min_days = int(getattr(ucfg, "min_listing_days", 0) or 0)
-    if min_days <= 0:
-        universe = [n for n, _ in ranked[: ucfg.top_n]]
-        log.info("universe: %d candidates -> %d selected (top by quote volume)", len(candidates), len(universe))
-        return universe
-
-    # AGE GATE. Volume ranks a coin; it does not tell you whether the market has had time to price it.
-    # A freshly listed perp has no price discovery and a thin float, so it gaps in a way that mature names
-    # do not — and a short in one of those is the single most dangerous position this system can hold.
-    # Check a buffer beyond top_n so young names are replaced by the next liquid mature ones, not just dropped.
-    def _age_ok(name: str):
-        if name in _AGE_CACHE:            # a listing only ever gets older — never re-ask once it passes
-            return (name, True)
-        try:
-            bars = fx.klines(name, "1day", min_days + 5)
-        except Exception:
-            return (name, None)           # UNKNOWN, not "young" — see the degraded-check guard below
-        ok = len(bars) >= min_days
-        if ok:
-            _AGE_CACHE.add(name)
-        return (name, ok)
-
-    head = [n for n, _ in ranked[: ucfg.top_n * 2]]
-    age = dict(r for r in pmap(_age_ok, head, workers=12) if r)
-    # DEGRADED-CHECK GUARD. Failing closed per name is right; failing closed on ALL of them is not.
-    # The gate costs one klines call per candidate, so a rate-limit or outage can make every check
-    # fail at once — and then a fail-closed gate empties the universe and flattens the whole book on
-    # nothing but an API wobble. If most checks came back unknown, skip the gate this cycle instead.
-    unknown = sum(1 for v in age.values() if v is None)
-    if head and unknown > 0.3 * len(head):
-        log.warning("universe: age check unavailable for %d/%d names (API degraded) — skipping the age "
-                    "gate this cycle rather than emptying the book", unknown, len(head))
-        universe = [n for n, _ in ranked[: ucfg.top_n]]
-        log.info("universe: %d candidates -> %d selected (age gate skipped)", len(candidates), len(universe))
-        return universe
-
-    universe, young = [], []
-    for name, _ in ranked:
-        if len(universe) >= ucfg.top_n:
-            break
-        v = age.get(name)
-        if v is None and name in age:
-            continue                      # this one name is unknown -> skip it, keep filling from the rest
-        if v:
-            universe.append(name)
-        elif name in age:
-            young.append(name)
-    if young:
-        log.info("universe: excluded %d name(s) under %dd old: %s", len(young), min_days, ", ".join(young[:8]))
-    log.info("universe: %d candidates -> %d selected (top by quote volume, min %dd listed)",
-             len(candidates), len(universe), min_days)
+    # NOTE: the listing-age gate is NOT applied here. It used to be, with one klines call per candidate,
+    # and that burst of ~60 extra requests exhausted the rate budget immediately before load_symbol_data
+    # needed its own ~60 — whose failures pmap swallows silently. The universe read 30 while the data
+    # behind it collapsed under 2*top_k, so build_book returned an empty book and the reconciler flattened
+    # everything. Age is now enforced in filter_by_age() from the klines we already fetch: same call count,
+    # same protection. See engine._ensure_market, which pads history_bars to cover min_listing_days.
+    universe = [n for n, _ in ranked[: ucfg.top_n]]
+    log.info("universe: %d candidates -> %d selected (top by quote volume)", len(candidates), len(universe))
     return universe
+
+
+def filter_by_age(data: dict, min_listing_days: int) -> dict:
+    """Drop symbols with less than `min_listing_days` of daily history, using bars already fetched.
+
+    Volume says a coin is tradable; only age says the market has had time to price it. CASHCAT was
+    rank-8 by volume ($14M/day) at 24 days old and swung 181% in a day — one short in it cost Carry
+    $533. Freshly listed perps have no price discovery and a thin float.
+
+    Costs nothing: it counts the closes already loaded. If a symbol's history is short because the
+    FETCH was truncated rather than the listing being young, that symbol simply sits out a cycle —
+    it can never empty the book, because the caller keeps its previous positions on degraded data.
+    """
+    if min_listing_days <= 0:
+        return data
+    keep, young = {}, []
+    for s, d in data.items():
+        if len(getattr(d, "closes", []) or []) >= min_listing_days:
+            keep[s] = d
+        else:
+            young.append(s)
+    if young:
+        log.info("age gate: excluded %d name(s) with under %dd of history: %s",
+                 len(young), min_listing_days, ", ".join(sorted(young)[:8]))
+    return keep
 
 
 def load_symbol_data(fx: KoinbayFutures, registry: ContractRegistry, symbols: list[str],

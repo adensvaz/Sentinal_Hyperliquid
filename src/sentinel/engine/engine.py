@@ -39,7 +39,7 @@ from ..strategy.sentiment_edge import SentimentEdgeStrategy
 from ..strategy.sizing import adv_caps, net_scales
 from ..util.concurrency import pmap
 from ..util.mathx import parse_duration_to_hours, realized_vol
-from .marketdata import build_universe, load_symbol_data, mark_price, pick_base_interval
+from .marketdata import build_universe, filter_by_age, load_symbol_data, mark_price, pick_base_interval
 
 log = logging.getLogger("sentinel")
 
@@ -169,6 +169,10 @@ class Engine:
                 self.history_bars = min(300, self.cfg.carry.lookback + 30)
             else:
                 self.history_bars = min(300, self.cfg.trend.ma_period + 35)
+            # ...and enough to PROVE the listing age from these same bars. Asking for a longer window
+            # costs no extra requests (one call per symbol either way) — which is the whole point, since
+            # a separate per-symbol age probe is what blew the rate budget and emptied the book.
+            self.history_bars = min(300, max(self.history_bars, self.cfg.universe.min_listing_days + 5))
         elif self.cfg.strategy == "grid":
             # grid trades intraday mean-reversion — force HOURLY bars with enough history for the
             # ranging/trend MA filter (the grid re-evaluates every rebalance_minutes, e.g. every 15m).
@@ -213,6 +217,18 @@ class Engine:
                                                  self.base_interval, self.history_bars)
         allowed = set(filter_by_funding(funding, cfg.risk.funding_abs_max))
         data = {s: d for s, d in data.items() if s in allowed}
+        data = filter_by_age(data, cfg.universe.min_listing_days)
+        # DEGRADED-FETCH GUARD. pmap swallows a failed symbol fetch and load_symbol_data drops it, so a
+        # rate-limited cycle silently returns a fraction of the universe. Sizing a book off that shrunken
+        # set produced an empty TargetBook, and the reconciler dutifully sold everything — the book went
+        # to 0 positions on nothing but throttling. If most of the universe failed to load, keep what we
+        # hold and wait for the next cycle instead.
+        if universe and len(data) < 0.5 * len(universe):
+            log.warning("only %d/%d symbols loaded (API degraded) — holding the current book this cycle",
+                        len(data), len(universe))
+            return RebalanceReport(mode=self.mode, equity=self.broker.equity(), gross=0.0, net=0.0,
+                                   drawdown_pct=0.0, paused=False, universe_size=len(universe),
+                                   n_long=0, n_short=0, positions=[], fills=[], top_scores=[])
         prices = {s: p for s, p in prices.items() if s in allowed}
 
         whale_bias: dict[str, float] = {}
