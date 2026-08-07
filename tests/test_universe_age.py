@@ -8,9 +8,18 @@ and that a mature one is replaced in rank order rather than the book simply shri
 """
 import pytest
 
+import sentinel.engine.marketdata as md
 from sentinel.config import UniverseCfg
 from sentinel.engine.marketdata import build_universe
 from sentinel.exchange.contracts import ContractRegistry
+
+
+@pytest.fixture(autouse=True)
+def _clear_age_cache():
+    """The pass-cache is module-level and deliberately lives for the process, so isolate it per test."""
+    md._AGE_CACHE.clear()
+    yield
+    md._AGE_CACHE.clear()
 
 # NEWCOIN is the most liquid name here and the youngest — exactly the CASHCAT shape.
 VOLUME = {"BTC": 900e6, "NEWCOIN": 500e6, "ETH": 400e6, "SOL": 200e6, "LINK": 80e6, "TINY": 10e3}
@@ -69,12 +78,32 @@ def test_gate_off_restores_previous_behaviour(fx):
     assert fx.kline_calls == []
 
 
-def test_unreadable_history_is_treated_as_young(fx, monkeypatch):
-    """If we can't prove a coin is seasoned, we don't trade it — failing open would defeat the gate."""
+def test_one_unreadable_name_is_skipped_not_guessed(fx, monkeypatch):
+    """A single name we can't verify is left out — but the book keeps filling from the rest."""
     def boom(name, interval, bars):
         if name == "ETH":
             raise RuntimeError("history unavailable")
         return [{"idx": i, "close": 1.0} for i in range(min(bars, AGE_DAYS[name]))]
     monkeypatch.setattr(fx, "klines", boom)
     u = build_universe(fx, _registry(list(VOLUME)), _cfg())
-    assert "ETH" not in u
+    assert "ETH" not in u and len(u) == 3            # backfilled, not shrunk
+
+
+def test_api_outage_skips_the_gate_instead_of_emptying_the_book(fx, monkeypatch):
+    """THE REGRESSION: the gate costs a klines call per candidate, so a rate-limit made every check fail,
+    every coin looked 'young', the universe collapsed and Carry went flat with 0 positions. A systemic
+    failure must fall back to the volume-only universe, never to an empty one."""
+    monkeypatch.setattr(fx, "klines", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("429 rate limited")))
+    u = build_universe(fx, _registry(list(VOLUME)), _cfg())
+    assert len(u) == 3, "an API outage must not empty the universe"
+    assert u == ["BTC", "NEWCOIN", "ETH"]            # volume-only fallback for this cycle
+
+
+def test_a_passed_name_is_not_rechecked(fx):
+    """Age only increases, so a name that has passed never needs another lookup — that call volume is
+    what made the gate fragile."""
+    build_universe(fx, _registry(list(VOLUME)), _cfg())
+    n_first = len(fx.kline_calls)
+    fx.kline_calls.clear()
+    build_universe(fx, _registry(list(VOLUME)), _cfg())
+    assert len(fx.kline_calls) < n_first

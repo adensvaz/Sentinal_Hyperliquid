@@ -41,6 +41,12 @@ def _parse_klines(rows: list[dict]):
     return [idx[i] for i in order], [closes[i] for i in order], [vols[i] for i in order]
 
 
+# Symbols already proven old enough. A listing only gets older, so once a name passes the age gate it
+# never needs re-checking — this keeps the gate from adding a klines call per candidate every rebalance,
+# which is what made it fragile under rate limiting in the first place.
+_AGE_CACHE: set[str] = set()
+
+
 def build_universe(fx: KoinbayFutures, registry: ContractRegistry, ucfg) -> list[str]:
     """Active USDT-margined perps ranked by 24h quote-notional volume, filtered + capped."""
     if ucfg.allowlist:
@@ -71,19 +77,39 @@ def build_universe(fx: KoinbayFutures, registry: ContractRegistry, ucfg) -> list
     # do not — and a short in one of those is the single most dangerous position this system can hold.
     # Check a buffer beyond top_n so young names are replaced by the next liquid mature ones, not just dropped.
     def _age_ok(name: str):
+        if name in _AGE_CACHE:            # a listing only ever gets older — never re-ask once it passes
+            return (name, True)
         try:
             bars = fx.klines(name, "1day", min_days + 5)
-            return (name, len(bars) >= min_days)
         except Exception:
-            return (name, False)          # cannot prove it is seasoned -> do not trade it
+            return (name, None)           # UNKNOWN, not "young" — see the degraded-check guard below
+        ok = len(bars) >= min_days
+        if ok:
+            _AGE_CACHE.add(name)
+        return (name, ok)
 
     head = [n for n, _ in ranked[: ucfg.top_n * 2]]
     age = dict(r for r in pmap(_age_ok, head, workers=12) if r)
+    # DEGRADED-CHECK GUARD. Failing closed per name is right; failing closed on ALL of them is not.
+    # The gate costs one klines call per candidate, so a rate-limit or outage can make every check
+    # fail at once — and then a fail-closed gate empties the universe and flattens the whole book on
+    # nothing but an API wobble. If most checks came back unknown, skip the gate this cycle instead.
+    unknown = sum(1 for v in age.values() if v is None)
+    if head and unknown > 0.3 * len(head):
+        log.warning("universe: age check unavailable for %d/%d names (API degraded) — skipping the age "
+                    "gate this cycle rather than emptying the book", unknown, len(head))
+        universe = [n for n, _ in ranked[: ucfg.top_n]]
+        log.info("universe: %d candidates -> %d selected (age gate skipped)", len(candidates), len(universe))
+        return universe
+
     universe, young = [], []
     for name, _ in ranked:
         if len(universe) >= ucfg.top_n:
             break
-        if age.get(name, False):
+        v = age.get(name)
+        if v is None and name in age:
+            continue                      # this one name is unknown -> skip it, keep filling from the rest
+        if v:
             universe.append(name)
         elif name in age:
             young.append(name)
