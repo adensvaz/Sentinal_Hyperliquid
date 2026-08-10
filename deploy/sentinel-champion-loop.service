@@ -1,12 +1,12 @@
 [Unit]
-Description=Sentinel Grid Loop (Hyperliquid, paper)
+Description=Sentinel Champion Loop (Hyperliquid, paper)
 After=network.target
 
 [Service]
 Type=simple
 User=a_vaz
 WorkingDirectory=/home/a_vaz/sentinel
-ExecStart=/home/a_vaz/sentinel/.venv/bin/python run.py loop --config config.hl-grid.yaml
+ExecStart=/home/a_vaz/sentinel/.venv/bin/python run.py loop --config config.champion.yaml
 Restart=always
 RestartSec=10
 
