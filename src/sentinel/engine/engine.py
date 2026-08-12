@@ -346,6 +346,13 @@ class Engine:
                 # vol-target / drawdown-throttle overlay (gross_scale) tames the raw drawdown.
                 book = self.trend.build_book({s: d.closes for s, d in data.items()}, prices,
                                              self.registry, equity, gross_scale=gscale)
+                # trend is dollar-neutral long/short exactly like carry, so it carries the same hidden
+                # exposure: the sleeves balance in DOLLARS while their betas do not. Same hedge, same
+                # clamp after it. Missed when carry was fixed — the engine harness caught it.
+                self._beta_neutralize(book, betas_cs, equity)
+                if book and book.positions:
+                    self._apply_scales(book, net_scales({s: p.target_notional for s, p in book.positions.items()},
+                                                        equity, cfg.risk.max_net_exposure))
             else:
                 ta_scores = ({s: ta_consensus(d.closes) for s, d in data.items()}
                              if cfg.signal.ta_veto > 0 else None)

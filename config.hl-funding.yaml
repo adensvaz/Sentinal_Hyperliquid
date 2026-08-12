@@ -11,7 +11,21 @@
 # when the premium is thin -> capital-preserving). Sharpe is realistically ~2-3 once basis/tail are modeled.
 #
 # Replaces the retired GRID book (proven fake — fill illusion; -28% every backtest, ~0% live).
-# Phase 1 = PAPER (simulated spot hedge). Live is Phase 2 (real spot legs, agent wallet, testnet-first).
+#
+# PAPER ONLY — and that is a settled decision, not a pending task. The hedge needs SPOT, and the
+# alternatives were measured, not guessed:
+#   * Hyperliquid spot        — only 8 pairs trade over $1M/day; cannot hedge a 15-name basket.
+#   * long BTC perp as hedge  — collects 16.0%/yr on the short alts, pays 15.0%/yr on the hedge:
+#                               a 0.9%/yr net spread. Funding is paid BETWEEN longs and shorts of the
+#                               same instrument, so hedging a perp with a perp means paying funding to
+#                               collect funding. This trade is spot-vs-perp by definition and cannot
+#                               be synthesised from perps alone.
+#   * unhedged                — not this strategy; that is a naked alt short book.
+#   * spot on a second venue  — the only real route, and the wrong trade-off at this size: a second
+#                               credential set, cross-venue margin, transfer latency, two failure
+#                               domains, for a $10k book.
+# So it runs in paper as the uncorrelated benchmark. Revisit only if the book is sized large enough
+# to justify a second venue's operational surface.
 # ============================================================================
 mode: paper
 strategy: funding
