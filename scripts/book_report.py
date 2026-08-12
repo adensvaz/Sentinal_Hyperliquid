@@ -50,7 +50,10 @@ def report(db, name, strategy, marks_on):
     eqs = [r[1] for r in ec]; peak = max(peakdb or 0, max(eqs))
     maxdd = max([r[4] for r in ec] + [0.0])
     net = eq_now - start
-    booked = (real or 0) + (fund or 0) - (fees or 0)
+    # The paper broker nets fees INSIDE realized_pnl (paper_broker: `realized_pnl -= fee`), so
+    # subtracting them again double-counts and understates every broker-based book. The funding
+    # book is the exception: it stores basis in realized and fees separately.
+    booked = ((real or 0) + (fund or 0) - (fees or 0)) if strategy == "funding" else ((real or 0) + (fund or 0))
     print(f"   EQUITY  start ${start:,.0f} -> now ${eq_now:,.2f}   net {net:+,.2f} ({net/start*100:+.2f}%)"
           f"   peak ${peak:,.0f}  maxDD {maxdd:.2f}%")
     print(f"   BOOKED  realized {real:+,.2f}  funding {fund:+,.2f}  fees {-abs(fees or 0):,.2f}  = {booked:+,.2f}"
@@ -67,6 +70,16 @@ def report(db, name, strategy, marks_on):
         print(f"   TRADES  n={len(trades)}  win {100*len(w)/len(trades):.0f}%  "
               f"avgW ${sum(w)/len(w) if w else 0:,.1f}  avgL ${sum(l)/len(l) if l else 0:,.1f}  "
               f"PF {pf:.2f}  best ${max(pnls):,.1f}  worst ${min(pnls):,.1f}  total ${sum(pnls):,.1f}  avgHold {avgh:.0f}h")
+        # WHERE is the P&L coming from lately? A book that looked fine overall can be bleeding now.
+        now_ts = time.time()
+        print(f"   {'window':<10}{'trades':>8}{'win%':>7}{'P&L':>11}{'per trade':>11}")
+        for lbl, days_back in (("last 7d", 7), ("last 14d", 14), ("last 30d", 30), ("all", 10_000)):
+            w_ = [t for t in trades if (now_ts - t[0]) <= days_back * 86400]
+            if not w_:
+                continue
+            p_ = [t[6] for t in w_]
+            print(f"   {lbl:<10}{len(w_):>8}{100*sum(1 for x in p_ if x>0)/len(p_):>6.0f}%"
+                  f"{sum(p_):>+11,.0f}{sum(p_)/len(p_):>+11,.1f}")
         bysym = {}
         for t in trades: bysym.setdefault(t[1], []).append(t[6])
         rank = sorted(bysym.items(), key=lambda kv: sum(kv[1]))
