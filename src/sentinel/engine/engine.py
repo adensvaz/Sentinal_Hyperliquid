@@ -332,6 +332,14 @@ class Engine:
                 book = self.carry.build_book({s: d.closes for s, d in data.items()}, fsig, prices,
                                              self.registry, equity, gross_scale=gscale,
                                              held=self.broker.positions())
+                # carry is dollar-neutral by construction but NOT beta-neutral: it shorts crowded
+                # (high-funding) names, which run hotter than what it goes long. Hedge that out, then
+                # clamp back inside the dollar rail — the hedge shrinks one sleeve, so it necessarily
+                # opens a dollar imbalance and must be followed by the same clamp the neutral book uses.
+                self._beta_neutralize(book, betas_cs, equity)
+                if book and book.positions:
+                    self._apply_scales(book, net_scales({s: p.target_notional for s, p in book.positions.items()},
+                                                        equity, cfg.risk.max_net_exposure))
             elif cfg.strategy == "trend":
                 # TREND (CTA): dollar-neutral cross-sectional trend — long the strongest uptrends, short
                 # the strongest downtrends. Dollar-neutral by construction (equal-weight sleeves); the
@@ -350,17 +358,7 @@ class Engine:
                 # ---- portfolio robustness, in order: beta-hedge -> ADV caps -> dollar-neutral clamp ----
                 closes_by = {s: d.closes for s, d in data.items()}
                 betas = betas_cs if book.positions else {}   # computed once above (also used for whale-demean)
-                if cfg.portfolio.beta_neutralize and betas:
-                    sn = {s: p.target_notional for s, p in book.positions.items()}
-                    b0 = book_beta(sn, betas, equity)
-                    # bound the sleeve shrink by max_net_exposure so the hedge never breaches the rail
-                    heavier = max(sum(n for n in sn.values() if n > 0), sum(-n for n in sn.values() if n < 0))
-                    net_cap = (cfg.risk.max_net_exposure * equity / heavier) if heavier > 0 else 0.0
-                    self._apply_scales(book, beta_scales(sn, betas, min(cfg.portfolio.beta_max_imbalance, net_cap)))
-                    b1 = book_beta({s: p.target_notional for s, p in book.positions.items()}, betas, equity)
-                    self.store.set_meta("book_beta", round(b1, 4))
-                    if abs(b0) >= 0.05:
-                        log.info("beta-neutralize: book BTC-beta %+.2f -> %+.2f", b0, b1)
+                self._beta_neutralize(book, betas, equity)
                 if cfg.portfolio.adv_cap_frac > 0 and book.positions:
                     acaps = adv_caps({s: p.target_notional for s, p in book.positions.items()},
                                      adv_quote, cfg.portfolio.adv_cap_frac)
@@ -827,6 +825,33 @@ class Engine:
         self.store.save_positions(self.mode, {
             s: {"contracts": p.contracts, "avg_price": p.avg_price, "multiplier": p.multiplier,
                 "opened_ts": p.opened_ts} for s, p in b._positions.items()})
+
+    def _beta_neutralize(self, book, betas: dict, equity: float) -> None:
+        """Shrink the heavier-beta sleeve until the book's net BTC-beta is ~0.
+
+        Dollar-neutral is not market-neutral. Carry SHORTS high-funding coins, and high funding means
+        crowded longs — which are the hot, high-beta names. So its short sleeve carries systematically
+        more beta than its long sleeve, and the book ends up quietly net-SHORT the market. Measured live:
+        longs averaged beta 1.14 against shorts at 1.38, a $348 dollar-net book sitting on -$1,169 of
+        beta — about 12% of equity short, which is why a market rally showed up as losses on a book
+        that is supposed to be indifferent to direction.
+
+        beta_neutralize was already True in every config; it simply was never applied outside the
+        sentiment book. The shrink is bounded by beta_max_imbalance and by max_net_exposure so the
+        hedge cannot itself breach the dollar-neutral rail.
+        """
+        cfg = self.cfg
+        if not (cfg.portfolio.beta_neutralize and betas and book and book.positions):
+            return
+        sn = {s: p.target_notional for s, p in book.positions.items()}
+        b0 = book_beta(sn, betas, equity)
+        heavier = max(sum(n for n in sn.values() if n > 0), sum(-n for n in sn.values() if n < 0))
+        net_cap = (cfg.risk.max_net_exposure * equity / heavier) if heavier > 0 else 0.0
+        self._apply_scales(book, beta_scales(sn, betas, min(cfg.portfolio.beta_max_imbalance, net_cap)))
+        b1 = book_beta({s: p.target_notional for s, p in book.positions.items()}, betas, equity)
+        self.store.set_meta("book_beta", round(b1, 4))
+        if abs(b0) >= 0.05:
+            log.info("beta-neutralize: book BTC-beta %+.2f -> %+.2f", b0, b1)
 
     def _apply_scales(self, book, scales: dict) -> None:
         """Apply per-symbol scale factors (<=1) to a target book in place, re-rounding to contracts.

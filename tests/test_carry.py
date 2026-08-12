@@ -2,6 +2,8 @@
 import os
 import tempfile
 
+import pytest
+
 from sentinel.config import Config, CarryCfg
 from sentinel.exchange.contracts import ContractRegistry
 from sentinel.state.store import Store
@@ -163,3 +165,57 @@ def test_keep_buffer_zero_restores_old_behaviour():
         closes, funding, prices, _registry(SYMS), 10_000, held=held)
     longs = {s for s, p in book.positions.items() if p.target_contracts > 0}
     assert longs == {"E-C5-USDT", "E-C4-USDT"}
+
+
+# ---------- dollar-neutral is not market-neutral ----------
+# Carry shorts HIGH-FUNDING coins, and high funding means crowded longs — the hot, high-beta names.
+# So its short sleeve carries systematically more beta than its long sleeve and the book sits quietly
+# net-SHORT the market. Measured on the live book: longs averaged beta 1.14 vs shorts 1.38, a $348
+# dollar-net book carrying -$1,169 of beta (~12% of equity short). A market rally then shows up as
+# losses on a book that is supposed to be indifferent to direction.
+
+from sentinel.strategy.portfolio import beta_scales, book_beta
+from sentinel.strategy.sizing import net_scales
+
+LIVE_BOOK = {"ZEC": -897, "BNB": 897, "ETH": 897, "ADA": 896, "UNI": 895, "NEAR": -889,
+             "ENA": 880, "INJ": -863, "XPL": 861, "CRV": 856, "MON": -828, "LIT": 828,
+             "LINK": -826, "SUI": -801, "FARTCOIN": -785, "TAO": -773}
+LIVE_BETA = {"ZEC": 1.91, "BNB": 0.89, "ETH": 1.30, "ADA": 1.53, "UNI": 1.09, "NEAR": 0.96,
+             "ENA": 0.69, "INJ": 1.12, "XPL": 1.47, "CRV": 1.16, "MON": 1.24, "LIT": 1.02,
+             "LINK": 1.21, "SUI": 1.26, "FARTCOIN": 1.85, "TAO": 1.50}
+EQ, RAIL = 9923.41, 0.10
+
+
+def _hedged(book, betas, equity, rail):
+    """The engine's order: beta-hedge, then clamp back inside the dollar rail."""
+    heavier = max(sum(n for n in book.values() if n > 0), sum(-n for n in book.values() if n < 0))
+    sc = beta_scales(book, betas, min(0.15, rail * equity / heavier))
+    mid = {s: n * sc.get(s, 1.0) for s in book for n in [book[s]]}
+    cl = net_scales(mid, equity, rail)
+    return {s: n * cl.get(s, 1.0) for s, n in mid.items()}
+
+
+def test_live_book_was_net_short_despite_looking_dollar_neutral():
+    """The bug this fixes: +$348 dollar-net reads as neutral while carrying -12% of equity in beta."""
+    assert abs(sum(LIVE_BOOK.values())) <= RAIL * EQ          # dollar-neutral by the book's own rail
+    assert book_beta(LIVE_BOOK, LIVE_BETA, EQ) < -0.10        # ...yet meaningfully short the market
+
+
+def test_hedge_removes_most_of_the_market_exposure():
+    before = book_beta(LIVE_BOOK, LIVE_BETA, EQ)
+    after = book_beta(_hedged(LIVE_BOOK, LIVE_BETA, EQ, RAIL), LIVE_BETA, EQ)
+    assert abs(after) < abs(before) * 0.3, "the hedge must remove most of the net beta"
+
+
+def test_hedge_never_breaches_the_dollar_rail():
+    """The hedge shrinks one sleeve, so it OPENS a dollar imbalance — it must be followed by the
+    clamp. Without it the book would sit ~12% net long, past its own max_net_exposure."""
+    fin = _hedged(LIVE_BOOK, LIVE_BETA, EQ, RAIL)
+    assert abs(sum(fin.values())) <= RAIL * EQ + 1e-6
+
+
+def test_hedge_is_a_no_op_on_an_already_neutral_book():
+    book = {"A": 1000, "B": -1000}
+    betas = {"A": 1.0, "B": 1.0}
+    fin = _hedged(book, betas, EQ, RAIL)
+    assert fin == pytest.approx(book, rel=1e-9)
