@@ -15,13 +15,19 @@ from typing import Callable, Optional
 log = logging.getLogger("sentinel")
 
 
-def next_daily_utc(hour: int, now: Optional[float] = None) -> float:
-    """Epoch seconds of the next occurrence of `hour`:00:00 UTC (today if still ahead, else tomorrow)."""
+def next_daily_utc(hour: int, now: Optional[float] = None, every_days: int = 1) -> float:
+    """Epoch seconds of the next `hour`:00:00 UTC, stepping `every_days` at a time.
+
+    A fixed hour used to imply DAILY, silently overriding rebalance_minutes. Trend asks for 2880
+    minutes (2 days) — its own config notes the backtest at Sharpe 0.96 vs 0.79 for daily — and got
+    daily anyway, re-ranking a 2-day trend signal twice as often as intended.
+    """
     now = time.time() if now is None else now
+    step = 86400 * max(1, int(every_days))
     g = time.gmtime(now)
     target = calendar.timegm((g.tm_year, g.tm_mon, g.tm_mday, int(hour) % 24, 0, 0, 0, 0, 0))
     while target <= now:
-        target += 86400
+        target += step
     return float(target)
 
 
@@ -30,10 +36,13 @@ def run_loop(engine, minutes: int, on_report: Callable, monitor_seconds: int = 6
     monitor_s = max(10, monitor_seconds)
     fixed = hour_utc is not None
     rebalance_s = max(60, minutes * 60)
+    # A fixed hour pins WHEN in the day; rebalance_minutes still decides HOW OFTEN. Anything >= 2 days
+    # becomes a day stride, so 2880 means every second day at that hour rather than every day.
+    stride = max(1, int(round(minutes / 1440.0))) if fixed else 1
 
     if fixed:
-        log.info("loop started: rebalance DAILY at %02d:00 UTC, safety check every %ds (%s mode). Ctrl-C to stop.",
-                 int(hour_utc) % 24, monitor_s, engine.mode)
+        log.info("loop started: rebalance every %d day(s) at %02d:00 UTC, safety check every %ds (%s mode). "
+                 "Ctrl-C to stop.", stride, int(hour_utc) % 24, monitor_s, engine.mode)
     else:
         log.info("loop started: rebalance every %d min, safety check every %ds (%s mode). Ctrl-C to stop.",
                  minutes, monitor_s, engine.mode)
@@ -52,7 +61,7 @@ def run_loop(engine, minutes: int, on_report: Callable, monitor_seconds: int = 6
                 on_report(engine.run_once())
             except Exception as e:
                 log.exception("initial rebalance failed: %s", e)
-        next_rebalance = next_daily_utc(hour_utc)
+        next_rebalance = next_daily_utc(hour_utc, every_days=stride)
     else:
         try:
             on_report(engine.run_once())
@@ -80,7 +89,7 @@ def run_loop(engine, minutes: int, on_report: Callable, monitor_seconds: int = 6
                     on_report(engine.run_once())
                 except Exception as e:
                     log.exception("rebalance cycle failed: %s", e)
-                next_rebalance = next_daily_utc(hour_utc) if fixed else time.time() + rebalance_s
+                next_rebalance = next_daily_utc(hour_utc, every_days=stride) if fixed else time.time() + rebalance_s
                 try:
                     engine.store.set_meta("next_rebalance", int(next_rebalance))
                 except Exception:

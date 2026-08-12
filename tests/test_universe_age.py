@@ -99,3 +99,38 @@ def test_universe_is_not_shrunk_by_the_gate(fx):
     assert len(u) == 5
     data = {s: _Data(AGE_DAYS[s]) for s in u}
     assert len(filter_by_age(data, 90)) == 4     # NEWCOIN out, four mature names remain
+
+
+# ── rebalance cadence: a fixed hour must not silently override rebalance_minutes ──
+# Trend asked for 2880 minutes (2 days) — its config even notes the backtest at Sharpe 0.96 vs 0.79
+# for daily — but setting rebalance_hour_utc made `fixed` true and the loop rebalanced DAILY, ignoring
+# the interval. A 2-day trend signal was being re-ranked twice as often as designed.
+
+import calendar as _cal
+import time as _time
+
+from sentinel.engine.loop import next_daily_utc
+
+_NOW = _cal.timegm((2026, 8, 12, 15, 0, 0, 0, 0, 0))      # just past 14:00 UTC
+
+
+def _utc(ts):
+    return _time.strftime("%Y-%m-%d %H:%M", _time.gmtime(ts))
+
+
+def test_daily_stride_is_the_next_day():
+    assert _utc(next_daily_utc(14, _NOW, every_days=1)) == "2026-08-13 14:00"
+
+
+def test_two_day_stride_skips_a_day():
+    assert _utc(next_daily_utc(14, _NOW, every_days=2)) == "2026-08-14 14:00"
+
+
+def test_stride_defaults_to_daily():
+    assert next_daily_utc(14, _NOW) == next_daily_utc(14, _NOW, every_days=1)
+
+
+def test_hour_is_still_honoured_before_the_cutoff():
+    """Before the hour passes today, the next slot is today — stride only governs skipped days."""
+    early = _cal.timegm((2026, 8, 12, 9, 0, 0, 0, 0, 0))
+    assert _utc(next_daily_utc(14, early, every_days=2)) == "2026-08-12 14:00"
