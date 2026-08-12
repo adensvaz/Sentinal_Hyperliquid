@@ -5,11 +5,15 @@ once via the edit_* endpoints, and places marketable-LIMIT orders. Order/cancel 
 """
 from __future__ import annotations
 
+import logging
+
 from typing import Optional
 
 from ..exchange.contracts import ContractRegistry
 from ..exchange.futures import KoinbayFutures
 from .broker import Broker, Fill, Order, marketable_price
+
+log = logging.getLogger("sentinel")
 
 
 class LiveBroker(Broker):
@@ -105,20 +109,39 @@ class LiveBroker(Broker):
                 fills.append(Fill(o.symbol, o.side, o.open, o.volume, price or o.ref_price, 0.0,
                                   order_id=oid, status="SUBMITTED"))
                 if self.stop_loss_pct > 0 and o.open == "OPEN":
-                    self._rest_stop(o, spec, exec_cfg)
+                    if not self._rest_stop(o, spec, exec_cfg):
+                        # the position is open; its exchange-side brake is not. The 60s risk monitor
+                        # still enforces position_stop_pct in software, so this is not fatal — but it
+                        # means the position is unprotected whenever this process is not running, and
+                        # that must never be silent.
+                        fills[-1].status = "SUBMITTED:NO_STOP"
             except Exception as e:  # surface but don't abort the whole batch
                 fills.append(Fill(o.symbol, o.side, o.open, o.volume, price or o.ref_price, 0.0,
                                   order_id="", status=f"ERROR:{e}"))
         return fills
 
-    def _rest_stop(self, o: Order, spec, exec_cfg) -> None:
-        """Attach a resting catastrophe stop to a freshly opened position (best-effort)."""
+    def _rest_stop(self, o: Order, spec, exec_cfg, retries: int = 1) -> bool:
+        """Attach a resting catastrophe stop to a freshly opened position. Returns True if it rested.
+
+        This used to swallow every failure with a bare `pass`, so a live position could exist with no
+        exchange-side brake and nothing anywhere would say so. The software monitor still enforces
+        position_stop_pct every 60s, which is why a failure here is not fatal — but it IS the
+        protection that survives this process dying, so it gets a retry and an error, never silence.
+        """
         frac = self.stop_loss_pct / 100.0
         if o.side == "BUY":   # long -> stop below, close with SELL
             trigger = spec.round_price(o.ref_price * (1 - frac)); close_side = "SELL"
         else:                 # short -> stop above, close with BUY
             trigger = spec.round_price(o.ref_price * (1 + frac)); close_side = "BUY"
-        try:
-            self.fx.create_stop_loss(o.symbol, close_side, o.volume, trigger, exec_cfg.margin_model_code)
-        except Exception:
-            pass
+        last = None
+        for attempt in range(retries + 1):
+            try:
+                self.fx.create_stop_loss(o.symbol, close_side, o.volume, trigger,
+                                         exec_cfg.margin_model_code)
+                return True
+            except Exception as exc:
+                last = exc
+        log.error("STOP NOT RESTED on %s %s %s @ trigger %s — position is open WITHOUT an "
+                  "exchange-side stop; software monitor is the only brake until this is fixed: %s",
+                  o.symbol, close_side, o.volume, trigger, last)
+        return False
