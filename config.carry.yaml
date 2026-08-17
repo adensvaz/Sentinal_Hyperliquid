@@ -38,7 +38,21 @@ carry:
                                # and the spread across universe draws falls from 44pp to 13pp — 3.4x steadier.
                                # This is a robustness change, not a return forecast: it buys stability, not alpha.
   lookback: 21
-  target_gross: 2.0
+  target_gross: 1.0            # HALVED from 2.0 on the LIVE trade ledger, not a backtest.
+                               # 203 closed trades over 38.8 days: profit factor 0.975, expectancy
+                               # -$0.56/trade, gross trading P&L -$114.51 — i.e. the signal traded
+                               # roughly FLAT. What actually took the book from +18% (peak $11,812)
+                               # to -3.05% was cost: $139.71 of fees in 38.8 days = 13.2%/yr of
+                               # capital, against a gross edge the honest walk-forward puts far
+                               # below that. The book was paying 13%/yr to find out whether it had
+                               # an edge.
+                               # Gross is the only dial that moves cost and drawdown together while
+                               # leaving Sharpe untouched (return and vol both scale linearly with
+                               # it). Halving takes fees to ~6.6%/yr and turns the live -17.9%
+                               # peak-to-trough into ~-9%, at no cost to the risk-adjusted return.
+                               # This does NOT assume the edge is real — it stops overpaying to test
+                               # it. Revisit only when live expectancy is significantly positive;
+                               # 38.8 days has a t-stat of ~0.08 and proves nothing either way.
 
 execution:
   order_type: limit
