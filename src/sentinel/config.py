@@ -204,6 +204,11 @@ class TrendCfg(BaseModel):
     top_k: int = 8                 # names per sleeve (long K strongest up / short K strongest down)
     ma_period: int = 30            # trend strength = price vs this-day moving average
     target_gross: float = 2.0      # total gross (~1x per side); vol-target/DD-throttle may scale below
+    score_mode: str = "ma"         # "ma" = price vs moving average | "breakout" = Donchian range
+                                   # position. Default stays "ma" so existing configs are untouched.
+    donchian_period: int = 45      # lookback for score_mode="breakout". 20/30/45 all clear zero at
+                                   # every universe width on the survivorship-stripped backtest;
+                                   # 45 is chosen for lowest turnover and best cost tolerance.
 
 
 class GridCfg(BaseModel):

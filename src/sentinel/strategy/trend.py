@@ -26,6 +26,47 @@ def _trend(closes: list, ma: int) -> float:
     return a[-1] / avg - 1.0 if avg > 0 else -1e9
 
 
+def _breakout(closes: list, window: int) -> float:
+    """Where price sits inside its own `window`-day range: +0.5 at the high, -0.5 at the low.
+
+    Same question as _trend — is this coin trending, and how hard — asked against the range rather
+    than the mean. Two things differ, and the second is the one that matters here:
+
+      * it is bounded, so a single vertical candle cannot dominate the cross-sectional ranking the
+        way a price/MA ratio can;
+      * it is far more stable day to day, which cuts turnover, and turnover is the measured enemy.
+        Live Carry paid $139.71 of fees in 38.8 days (13.2%/yr) against a gross trading P&L of
+        -$114.51. Cost is what actually decides this book.
+
+    Measured on 900 days, established-coin universe (survivorship removed — the biased universe
+    flatters every trend variant and is not evidence):
+
+        window   CAGR     Sharpe   turnover        cost stress: 5bps / 10bps / 20bps
+        MA-30    +1.4%     0.20      0.98              +1.4% /  -6.1% / -11.9%   <- live logic
+        brk-20  +21.0%     0.71      1.21
+        brk-30  +14.9%     0.57      1.02             +14.9% /  +0.0% / -13.0%
+        brk-45  +28.3%     0.87      0.90             +28.3% /  +9.5% /  -9.2%
+        brk-60   -0.8%     0.13      0.78
+
+    20/30/45 all clear zero at EVERY universe width (20/25/30/35/40); MA-30 does not (min -0.09),
+    and 10/14/60 fail. That plateau is why this is a signal rather than a tuned constant — the
+    differences between 20, 30 and 45 are not distinguishable, so 45 is chosen for the lowest
+    turnover and the best cost tolerance, not for its CAGR.
+
+    HONEST LIMIT: this does NOT fix Trend's regime dependence. Breakout-45 is positive in 5 of 9
+    quarters, exactly like the MA baseline, and still loses badly in a bad quarter (-57% in Q7).
+    It is a cheaper, steadier expression of the same one-regime bet, not a different bet.
+    """
+    a = [x for x in closes if x and x > 0]
+    if len(a) < window:
+        return -1e9
+    w = a[-window:]
+    hi, lo = max(w), min(w)
+    if hi <= lo:
+        return 0.0                      # flat/illiquid: no information, rank it in the middle
+    return (a[-1] - lo) / (hi - lo) - 0.5
+
+
 class TrendStrategy:
     """Dollar-neutral cross-sectional trend book: long the strongest uptrends, short the strongest
     downtrends. Equal-weight each sleeve to the same notional so net exposure starts at ~0."""
@@ -40,8 +81,11 @@ class TrendStrategy:
         for s, closes in closes_by_symbol.items():
             if s not in prices or prices[s] <= 0 or not registry.has(s):
                 continue
-            t = _trend(closes, c.ma_period)
-            if t <= -1e8:                        # insufficient history for the MA
+            if getattr(c, "score_mode", "ma") == "breakout":
+                t = _breakout(closes, getattr(c, "donchian_period", 45))
+            else:
+                t = _trend(closes, c.ma_period)
+            if t <= -1e8:                        # insufficient history for the score
                 continue
             cand.append((s, t))
         if len(cand) < 2 * c.top_k:              # need enough names for a balanced long & short sleeve

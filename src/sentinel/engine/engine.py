@@ -168,7 +168,16 @@ class Engine:
             if self.cfg.strategy == "carry":
                 self.history_bars = min(300, self.cfg.carry.lookback + 30)
             else:
-                self.history_bars = min(300, self.cfg.trend.ma_period + 35)
+                # Size the window to whichever score is actually in use. Reading only ma_period
+                # here would silently starve score_mode="breakout" with a longer donchian_period:
+                # _breakout returns -1e9, every name is dropped as "insufficient history", and the
+                # book comes back empty with nothing in the logs to say why. Same failure shape as
+                # the funding drawdown limit that was declared and never compared against.
+                tr = self.cfg.trend
+                need = tr.ma_period
+                if getattr(tr, "score_mode", "ma") == "breakout":
+                    need = max(need, getattr(tr, "donchian_period", 45))
+                self.history_bars = min(300, need + 35)
             # ...and enough to PROVE the listing age from these same bars. Asking for a longer window
             # costs no extra requests (one call per symbol either way) — which is the whole point, since
             # a separate per-symbol age probe is what blew the rate budget and emptied the book.

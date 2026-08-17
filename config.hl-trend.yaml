@@ -28,7 +28,34 @@ universe:
 
 trend:
   top_k: 8                     # long the 8 strongest uptrends, short the 8 strongest downtrends
-  ma_period: 30                # trend strength = price vs its 30-day moving average
+  ma_period: 30                # retained for reference; unused while score_mode is "breakout"
+  score_mode: breakout         # SWITCHED from price-vs-MA. Measured on 900 days with survivorship
+  donchian_period: 45          # removed (coins listed inside the window excluded), because the
+                               # biased universe flatters every trend variant and is not evidence:
+                               #
+                               #                CAGR   Sharpe   turn    5bps / 10bps / 20bps
+                               #   MA-30 (old)  +1.4%    0.20   0.98   +1.4% /  -6.1% / -11.9%
+                               #   breakout-45 +28.3%    0.87   0.90  +28.3% /  +9.5% /  -9.2%
+                               #
+                               # The cost column is the argument. The live ledger says fees decide
+                               # this system — Carry paid $139.71 in 38.8 days (13.2%/yr) against a
+                               # gross trading P&L of -$114.51 — and the MA scorer stops working at
+                               # 10bps while breakout still earns. It also turns over less (0.90 vs
+                               # 0.98) and drops maxDD 36.8% -> 31.1%.
+                               #
+                               # 45 is not tuned. Windows 20/30/45 ALL clear zero at every universe
+                               # width (20/25/30/35/40) where MA-30 does not (min -0.09); 10/14/60
+                               # fail. Within that plateau the three are statistically
+                               # indistinguishable, so 45 was chosen for the lowest turnover and the
+                               # best cost tolerance rather than the best backtest CAGR.
+                               #
+                               # WHAT THIS DOES NOT FIX: regime dependence. Breakout-45 is positive
+                               # in 5 of 9 quarters — exactly like the MA baseline — and still loses
+                               # 57% in a bad one. Ten mechanically different ideas were tested and
+                               # every single one was negative in year 1 and strongly positive in
+                               # year 2. This is a cheaper, steadier expression of the same
+                               # one-regime bet, not a different bet. Sizing, not scoring, is the
+                               # lever for that.
   target_gross: 1.0            # HALVED from 2.0. Trend and Carry are 0.41-correlated and hold ~45% of the same
                                # names in the SAME direction, so every shared name was a doubled bet (ACE cost
                                # -$1,294 here AND -$422 in Carry). At half gross the portfolio keeps its Sharpe
