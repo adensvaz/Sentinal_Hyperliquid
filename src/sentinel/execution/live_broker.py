@@ -20,11 +20,20 @@ class LiveBroker(Broker):
     mode = "live"
 
     def __init__(self, futures: KoinbayFutures, capital_override: Optional[float] = None,
-                 stop_loss_pct: float = 0.0):
+                 stop_loss_pct: float = 0.0, exec_policy=None, store=None,
+                 policy_live: bool = False):
         self.fx = futures
         self.capital_override = capital_override
         self.stop_loss_pct = stop_loss_pct
         self._prepared: set[str] = set()
+        # The learned execution policy. SHADOW BY DEFAULT: it observes every order, records what it
+        # would have done, and changes nothing. Handing a fresh policy authority over live orders
+        # before it has weeks of evidence is how a "self-improving" system improves itself into a
+        # hole — the drawdown arrives long before the statistics do. Flip policy_live only after
+        # store.exec_stats() shows it beating the fixed default on realised cost.
+        self.exec_policy = exec_policy
+        self.store = store
+        self.policy_live = policy_live and exec_policy is not None
 
     # -- account -------------------------------------------------------------
     def _usdt_account(self) -> Optional[dict]:
@@ -92,7 +101,11 @@ class LiveBroker(Broker):
         fills: list[Fill] = []
         for o in orders:
             spec = registry.get(o.symbol)
-            if getattr(exec_cfg, "maker", False):
+            ctx, shadow_arm, log_id = self._policy_observe(o, exec_cfg)
+            maker = getattr(exec_cfg, "maker", False)
+            if self.policy_live and shadow_arm:          # only once it has earned authority
+                maker = shadow_arm == "POST"
+            if maker:
                 price = spec.round_price(o.ref_price)   # rest at the touch; POST_ONLY (do not cross)
                 tif, otype = "POST_ONLY", "LIMIT"
             elif exec_cfg.order_type == "limit":
@@ -119,6 +132,32 @@ class LiveBroker(Broker):
                 fills.append(Fill(o.symbol, o.side, o.open, o.volume, price or o.ref_price, 0.0,
                                   order_id="", status=f"ERROR:{e}"))
         return fills
+
+    def _policy_observe(self, o: Order, exec_cfg):
+        """Ask the learned policy what it would do, and log the decision with its arrival mid.
+
+        Returns (context, arm, log_row_id) and never raises: an execution learner must not be able
+        to stop an order going out. If anything here fails the book still trades, it just does not
+        learn from that order.
+        """
+        if self.exec_policy is None:
+            return None, None, None
+        try:
+            spread_bps = float(getattr(exec_cfg, "slippage_bps", 5.0))
+            ctx = self.exec_policy.context(spread_bps=spread_bps, daily_vol=0.04,
+                                           urgent=(o.open == "CLOSE"))
+            arm = self.exec_policy.choose(ctx)
+            row_id = None
+            if self.store is not None:
+                actual = "POST" if getattr(exec_cfg, "maker", False) else "CROSS"
+                row_id = self.store.record_exec(
+                    self.mode, symbol=o.symbol, side=o.side, context=ctx,
+                    arm=(arm if self.policy_live else actual), shadow=arm,
+                    arrival_mid=float(o.ref_price), notional=float(o.notional))
+            return ctx, arm, row_id
+        except Exception as e:                            # noqa: BLE001
+            log.warning("exec policy skipped for %s: %s", o.symbol, e)
+            return None, None, None
 
     def _rest_stop(self, o: Order, spec, exec_cfg, retries: int = 1) -> bool:
         """Attach a resting catastrophe stop to a freshly opened position. Returns True if it rested.

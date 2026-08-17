@@ -56,6 +56,16 @@ CREATE INDEX IF NOT EXISTS ix_fh_ts ON funding_history(mode, ts);
 CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY, value TEXT);
 CREATE TABLE IF NOT EXISTS treasury(
   mode TEXT PRIMARY KEY, vault REAL, hwm REAL, last_sweep_ts REAL, total_swept REAL, updated_ts INTEGER);
+-- Execution decisions, the training set for exec_policy. `arm` is what we actually did, `shadow`
+-- is what the learned policy WOULD have done while it runs alongside without authority. Comparing
+-- the two over weeks is what earns it the right to take over. arrival_mid is captured BEFORE the
+-- order goes out, because it is the only non-circular benchmark for slippage.
+CREATE TABLE IF NOT EXISTS exec_log(
+  id INTEGER PRIMARY KEY AUTOINCREMENT, ts INTEGER, mode TEXT, symbol TEXT, side TEXT,
+  context TEXT, arm TEXT, shadow TEXT, arrival_mid REAL, fill_price REAL, notional REAL,
+  cost_bps REAL, filled INTEGER, order_id TEXT);
+CREATE INDEX IF NOT EXISTS ix_exec_ts ON exec_log(mode, ts);
+CREATE INDEX IF NOT EXISTS ix_exec_ctx ON exec_log(context, arm);
 """
 
 
@@ -241,6 +251,57 @@ class Store:
         rows = self.conn.execute("SELECT * FROM fills WHERE mode=? ORDER BY id DESC LIMIT ?",
                                  (mode, limit)).fetchall()
         return [dict(r) for r in rows]
+
+    # -- execution learning ---------------------------------------------------
+    def record_exec(self, mode: str, *, symbol: str, side: str, context: str, arm: str,
+                    shadow: str, arrival_mid: float, notional: float, order_id: str = "",
+                    ts: Optional[int] = None) -> int:
+        """Log the decision at send time. cost_bps stays NULL until the outcome is known —
+        an order whose result was never observed must never be fed to the learner as a zero."""
+        ts = ts or int(time.time())
+        cur = self.conn.execute(
+            "INSERT INTO exec_log(ts,mode,symbol,side,context,arm,shadow,arrival_mid,fill_price,"
+            "notional,cost_bps,filled,order_id) VALUES(?,?,?,?,?,?,?,?,NULL,?,NULL,0,?)",
+            (ts, mode, symbol, side, context, arm, shadow, arrival_mid, notional, order_id))
+        self.conn.commit()
+        return int(cur.lastrowid)
+
+    def resolve_exec(self, row_id: int, *, fill_price: float, cost_bps: float,
+                     filled: bool = True) -> None:
+        self.conn.execute(
+            "UPDATE exec_log SET fill_price=?, cost_bps=?, filled=? WHERE id=?",
+            (fill_price, cost_bps, 1 if filled else 0, row_id))
+        self.conn.commit()
+
+    def unresolved_exec(self, mode: str, older_than_s: float = 0.0) -> list[dict]:
+        """Decisions still awaiting an outcome. The reconciler settles these next cycle."""
+        cutoff = int(time.time() - older_than_s)
+        rows = self.conn.execute(
+            "SELECT * FROM exec_log WHERE mode=? AND cost_bps IS NULL AND ts<=? ORDER BY id",
+            (mode, cutoff)).fetchall()
+        return [dict(r) for r in rows]
+
+    def exec_stats(self, mode: str, days: float = 30.0) -> dict:
+        """Realised cost by arm, plus the shadow policy's scorecard. This is the report that
+        decides whether the learned policy has earned the right to take over from the default."""
+        since = int(time.time() - days * 86_400)
+        rows = [dict(r) for r in self.conn.execute(
+            "SELECT arm, shadow, cost_bps, notional FROM exec_log "
+            "WHERE mode=? AND ts>=? AND cost_bps IS NOT NULL", (mode, since)).fetchall()]
+        out: dict = {"n": len(rows), "by_arm": {}, "agreement": 0.0, "weighted_bps": 0.0}
+        if not rows:
+            return out
+        for r in rows:
+            a = out["by_arm"].setdefault(r["arm"], {"n": 0, "sum": 0.0})
+            a["n"] += 1; a["sum"] += r["cost_bps"]
+        for a in out["by_arm"].values():
+            a["mean_bps"] = round(a["sum"] / a["n"], 2)
+        notional = sum(abs(r["notional"] or 0) for r in rows) or 1.0
+        out["weighted_bps"] = round(
+            sum((r["cost_bps"] or 0) * abs(r["notional"] or 0) for r in rows) / notional, 3)
+        out["agreement"] = round(
+            sum(1 for r in rows if r["arm"] == r["shadow"]) / len(rows) * 100, 1)
+        return out
 
     # -- closed trades --------------------------------------------------------
     def record_closed_trades(self, mode: str, trades) -> None:
