@@ -409,25 +409,29 @@ def _build_llms_txt(cfg: Config) -> str:
 - **/signals** — semantic HTML signal page (no JavaScript required)
 - **/api/state** — raw JSON snapshot with full position detail
 {live_line}{regime_line}
-## The four live strategies
-1. **Funding Harvest** (port 8787) — delta-neutral cash-and-carry.
-   Shorts the perps paying stable positive funding and holds matching spot, so price cancels and only the
-   funding premium remains — market beta ≈ 0, earns in bull/bear/chop. Selection by funding consistency,
-   opportunity-scaled. Survivorship-honest backtest: ~+15–20%/yr, positive every year 2024–26, ~2% DD — paper on HL.
-
-2. **Momentum + Regime / Champion** (port 8788) — directional, long-only top-5 momentum.
+## The three live strategies
+1. **Momentum + Regime / Champion** (port 8788) — directional, long-only top-5 momentum.
    Gated by a BTC 100-day MA regime brake: fully invested when BTC is in an uptrend,
-   100% cash in bear markets. Backtest 5.5yr: Sharpe ~1.3, CAGR ~39-74%.
+   100% cash in bear markets.
 
-3. **Funding Carry** (port 8789) — market-neutral, harvests perpetual funding premium.
+2. **Funding Carry** (port 8789) — market-neutral, harvests perpetual funding premium.
    Shorts the highest-funding coins (collects what crowded longs pay), longs the cheapest,
-   momentum-tilted to avoid shorting a ripping coin. Backtest 6.5yr: Sharpe ~2.0, every year positive.
-   Uncorrelated to price momentum and to BTC (corr ≈ 0). True diversifier.
+   momentum-tilted to avoid shorting a ripping coin.
+   Live to date: 203 closed trades, profit factor 0.975 — the signal has traded roughly flat, and
+   fees rather than selection are what put it behind. Gross was halved to 1.0x in response.
 
-4. **Trend** (port 8790) — dollar-neutral cross-sectional trend-following (CTA).
-   Longs the coins in the strongest uptrends, shorts the strongest downtrends (price vs 30-day MA),
-   dollar-neutral. The most durable systematic edge; the vol-target/DD-throttle overlay tames the drawdown.
-   5yr Binance backtest Sharpe ~1.35, +75%/yr, positive every year (survivorship-caveated) — paper on HL.
+3. **Trend** (port 8790) — dollar-neutral cross-sectional trend-following (CTA).
+   Longs the coins highest in their own 45-day price range, shorts those lowest in theirs.
+   Range position replaced price-vs-moving-average because it survives realistic fees: the old
+   scorer stopped earning at 10bps, this one still made +9.5% there on a survivorship-stripped
+   backtest, and it turns over less.
+   Honest caveat: still one-regime. Positive in 5 of 9 backtested quarters, and capable of losing
+   heavily in a bad one.
+
+**Retired — Funding Harvest** (was port 8787). Delta-neutral cash-and-carry needs a spot leg, and
+Hyperliquid spot has only ~8 pairs trading over $1M/day, so a 15-name basket cannot be hedged.
+Hedging a perp with a perp means paying funding to collect it: measured at 16.0%/yr collected
+against 15.0%/yr paid, a 0.9%/yr spread. Shut down rather than left running as a paper curiosity.
 
 ## What "signal" means here
 - A signal is a ranked coin with a target side (LONG/SHORT) and score.
@@ -1194,10 +1198,10 @@ HTML = r"""<!doctype html>
   .tchip.cy{background:linear-gradient(135deg,#4be0b0,#4be0b0)}
   .vsgrid{display:grid;grid-template-columns:1fr 1fr;gap:18px}
   .vsgrid.vs3{grid-template-columns:1fr 1fr 1fr}
-  .vsgrid.vs4{grid-template-columns:repeat(4,1fr);gap:14px}
-  @media(max-width:1200px){.vsgrid.vs4{grid-template-columns:1fr 1fr}}
+  .vsgrid.vs3{grid-template-columns:repeat(3,1fr);gap:14px}
+  @media(max-width:1200px){.vsgrid.vs3{grid-template-columns:1fr 1fr}}
   @media(max-width:980px){.vsgrid.vs3{grid-template-columns:1fr} .vscard.cur,.vscard.cur:hover{transform:none}}
-  @media(max-width:640px){.vsgrid.vs4{grid-template-columns:1fr}}
+  @media(max-width:640px){.vsgrid.vs3{grid-template-columns:1fr}}
   @media(max-width:720px){.vsgrid{grid-template-columns:1fr}}
   /* strategy cards */
   .vscard{position:relative;display:flex;flex-direction:column;background:linear-gradient(180deg,rgba(255,253,249,.93),rgba(255,255,253,.95));
@@ -1491,17 +1495,8 @@ HTML = r"""<!doctype html>
   <section class="sblock reveal">
     <div class="seye">THE SYSTEM</div>
     <h2 class="sh2">Four strategies, one engine</h2>
-    <p class="sp-note">Same data, same execution, same risk rails — four uncorrelated ways to trade. You're viewing <b id="curStrat">—</b>.</p>
-    <div class="vsgrid vs4">
-      <div class="vscard" id="vs-funding">
-        <div class="vshead"><span class="vsicon n">🌾</span> Funding Harvest <span class="vsbadge cb">NEW</span></div>
-        <span class="vs-here">You are here</span>
-        <div class="vstag">Delta-neutral · all-weather</div>
-        <p>Shorts the perps paying stable positive funding and holds matching spot, so <b>price cancels</b> and only the funding premium remains. Market-neutral — earns in bull, bear and chop.</p>
-        <ul class="vsstats"><li><b>~2.5</b> Sharpe <span class="vsq">realistic</span></li><li><b>+15–20%</b>/yr · β≈0</li><li><b>~2%</b> max drawdown</li></ul>
-        <div class="vsbest">Best for — steady all-weather income, near-zero market risk</div>
-        <a class="vslink" id="link-funding">Switch to this →</a>
-      </div>
+    <p class="sp-note">Same data, same execution, same risk rails — three uncorrelated ways to trade. You're viewing <b id="curStrat">—</b>.</p>
+    <div class="vsgrid vs3">
       <div class="vscard" id="vs-champion">
         <div class="vshead"><span class="vsicon c">⚡</span> Momentum <span class="vsbadge">Champion</span></div>
         <span class="vs-here">You are here</span>
@@ -1524,9 +1519,9 @@ HTML = r"""<!doctype html>
         <div class="vshead"><span class="vsicon f">📈</span> Trend <span class="vsbadge cb">Live</span></div>
         <span class="vs-here">You are here</span>
         <div class="vstag">Trend-following · CTA</div>
-        <p>Dollar-neutral trend book: <b>longs the strongest uptrends, shorts the strongest downtrends</b>. Managed-futures style — it profits when trends persist and bleeds when they whipsaw.</p>
-        <ul class="vsstats"><li><b>−7.5%</b> live — one ACE short-squeeze</li><li>real edge is <b>modest &amp; lumpy</b></li><li>tail now capped (per-name stop)</li></ul>
-        <div class="vsbest">Best for — the durable trend edge, once it earns back the ACE hit</div>
+        <p>Dollar-neutral trend book: <b>longs the coins highest in their own 45-day range, shorts those lowest</b>. Range position replaced price-vs-moving-average because it survives realistic fees — the old scorer stopped earning at 10bps.</p>
+        <ul class="vsstats"><li><b>0.87</b> Sharpe <span class="vsq">survivorship-stripped</span></li><li>positive in <b>5 of 9</b> quarters</li><li>one-regime — can lose heavily</li></ul>
+        <div class="vsbest">Best for — the trend edge at a cost it can actually pay</div>
         <a class="vslink" id="link-trend">Switch to this →</a>
       </div>
     </div>
@@ -1710,13 +1705,21 @@ const STRAT_ICON={funding:'🌾',champion:'⚡',carry:'💰',trend:'📈'};
 const STRAT_LABEL={funding:'🌾 Funding Harvest',champion:'⚡ Momentum (Champion)',carry:'💰 Funding Carry',trend:'📈 Trend'};
 const STRAT_SHORT={funding:'Funding Harvest',champion:'Champion',carry:'Carry',trend:'Trend'};
 const STRAT_DOT={funding:'#ff8a5c',champion:'#ffd166',carry:'#4be0b0',trend:'#3f80ba'};
+// The books actually running. Funding Harvest is RETIRED: it needs a spot leg to be
+// delta-neutral, HL spot has only ~8 pairs over $1M/day so a 15-name basket cannot be hedged,
+// and hedging a perp with a perp means paying funding to collect funding (measured: 16.0%/yr
+// collected against 15.0%/yr paid, a 0.9%/yr spread). Its definitions are kept above so
+// re-enabling is one entry here, but it must not appear in the nav while it is not trading.
+const STRAT_LIVE=['champion','carry','trend'];
 function stratUrl(k){const h=location.hostname||'localhost';return 'http://'+h+':'+STRAT_PORT[k];}
 function switchTo(k){if(k!==CUR_STRAT) location.href=stratUrl(k);}
 function toggleSwitcher(e){e.stopPropagation();$('navSwitcher').classList.toggle('open');}
 document.addEventListener('click',()=>{ const s=$('navSwitcher'); if(s) s.classList.remove('open'); });
 function buildSwitcher(strat){
   const menu=$('swMenu'); if(!menu) return;
-  menu.innerHTML=['funding','champion','carry','trend'].map(k=>`<button class="sw-item${k===strat?' sw-cur':''}" onclick="${k!==strat?`switchTo('${k}')`:''}">`+
+  // include the current book even if retired, so a stale tab still shows where it is
+  const items=STRAT_LIVE.includes(strat)?STRAT_LIVE:STRAT_LIVE.concat([strat]);
+  menu.innerHTML=items.map(k=>`<button class="sw-item${k===strat?' sw-cur':''}" onclick="${k!==strat?`switchTo('${k}')`:''}">`+
     `<span class="sw-dot" style="background:${STRAT_DOT[k]}"></span>${STRAT_SHORT[k]}`+
     (k===strat?'<span class="sw-cur-tag">here</span>':'')+`</button>`).join('');
   const btn=$('swCurIcon'); if(btn) btn.textContent=STRAT_ICON[strat];
@@ -1741,8 +1744,11 @@ function paintStrategy(strat){
   $('numDisclaim').innerHTML=S.disclaim;
   // comparison block: label + highlight the one you're viewing
   $('curStrat').textContent=STRAT_LABEL[strat];
-  ['funding','champion','carry','trend'].forEach(k=>{
-    document.getElementById('vs-'+k).classList.toggle('cur',strat===k);
+  // Drive this off STRAT_LIVE and null-guard the lookup. Retiring a book removes its card, and an
+  // unguarded getElementById would return null here and throw, taking the whole page render with it.
+  STRAT_LIVE.forEach(k=>{
+    const card=document.getElementById('vs-'+k);
+    if(card) card.classList.toggle('cur',strat===k);
     const ln=$('link-'+k);
     if(ln){
       if(k===strat){ ln.textContent='Currently active ✓'; ln.className='vslink-cur'; ln.onclick=null; ln.removeAttribute('href'); }
