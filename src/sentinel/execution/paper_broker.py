@@ -30,6 +30,10 @@ class PaperBroker(Broker):
     _positions: dict[str, PaperPosition] = field(default_factory=dict)
     _marks: dict[str, float] = field(default_factory=dict)
     closed_trades: list = field(default_factory=list)   # round-trips drained to the store each cycle
+    # -- execution learning (optional; paper trains on the REAL book, never on its own fills) --
+    exec_policy: object = None
+    store: object = None
+    fx: object = None          # exchange handle, used only to read l2Book depth
 
     # -- broker interface ----------------------------------------------------
     def positions(self) -> dict[str, int]:
@@ -97,7 +101,44 @@ class PaperBroker(Broker):
             self.fees_paid += fee
             fills.append(Fill(o.symbol, o.side, o.open, o.volume, fill_price, fee,
                               order_id=f"paper-{len(fills)}"))
+            self._learn_from_book(o, exec_cfg)
         return fills
+
+    def _learn_from_book(self, o: Order, exec_cfg) -> None:
+        """Train the execution policy on the REAL order book, not on our simulated fill.
+
+        The fill above is synthetic — it is `maker_fill_ratio` blended between touch and taker, a
+        config constant. Learning from it would teach the policy our own assumption back. The book
+        read here is the same l2Book a live trader sees, so the spread, the depth and the true cost
+        of crossing OUR size are all real. That is what gets recorded.
+
+        Never raises: paper trading must not be able to fail because a book read did.
+        """
+        if self.exec_policy is None or self.fx is None:
+            return
+        try:
+            from .book_probe import probe
+            bs = probe(self.fx, o.symbol, o.side, o.notional)
+            if bs is None:
+                return
+            ctx = self.exec_policy.context(spread_bps=bs.spread_bps, daily_vol=0.04,
+                                           urgent=(o.open == "CLOSE"))
+            arm = self.exec_policy.choose(ctx)
+            # CROSS is fully observable right now: walking the real book IS its cost.
+            # POST is not — whether a resting order fills depends on subsequent price action — so
+            # it is logged unresolved and settled next cycle rather than guessed at here.
+            if arm == "CROSS":
+                self.exec_policy.record(ctx, arm, bs.cross_bps)
+            if self.store is not None:
+                rid = self.store.record_exec(
+                    self.mode, symbol=o.symbol, side=o.side, context=ctx, arm=arm, shadow=arm,
+                    arrival_mid=bs.mid, notional=float(o.notional))
+                if arm == "CROSS":
+                    self.store.resolve_exec(rid, fill_price=bs.mid * (1 + bs.cross_bps / 1e4),
+                                            cost_bps=bs.cross_bps, filled=True)
+        except Exception as e:                                # noqa: BLE001
+            import logging
+            logging.getLogger("sentinel").debug("paper exec learning skipped: %s", e)
 
     # -- position bookkeeping -------------------------------------------------
     def _apply(self, o: Order, price: float, fee: float, multiplier: float) -> None:
