@@ -185,7 +185,10 @@ class Engine:
                 hi = max(float(b["high"]) for b in after)
                 bs = probe(self.fx, r["symbol"], r["side"], abs(float(r.get("notional") or 0)))
                 completion = bs.cross_bps if bs else float(self.cfg.execution.slippage_bps)
-                cost, filled = post_outcome_bps(r["side"], touch, mid0, lo, hi, completion)
+                # bs.mid is the market NOW, after the resting order's fate was decided. Passing it
+                # charges the fill for adverse selection instead of crediting it the full spread.
+                cost, filled = post_outcome_bps(r["side"], touch, mid0, lo, hi, completion,
+                                                post_mid=(bs.mid if bs else 0.0))
                 self.exec_policy.record(r["context"], r.get("shadow") or r["arm"], cost)
                 self.store.resolve_exec(r["id"], cost_bps=cost, filled=filled,
                                         fill_price=touch if filled else (bs.mid if bs else mid0))

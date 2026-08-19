@@ -55,7 +55,14 @@ ARMS = (POST, CROSS, PEG)
 # Physics priors, in basis points of cost (negative = we were paid). These are not guesses about
 # the market; they are the mechanical fee structure. Hyperliquid maker ~1.5bps, taker ~4.5bps.
 # The policy starts here and moves only as far as evidence justifies.
-PRIOR_COST_BPS = {POST: 1.0, CROSS: 5.5, PEG: 3.0}
+#
+# POST was 1.0 — the 1.5bps maker fee less an assumed 0.5bps of captured spread. That assumption is
+# wrong. A live experiment on the Binance BTC perpetual (arXiv:2502.18625) found maker fill
+# likelihood NEGATIVELY correlated with post-fill returns: a resting order fills precisely when the
+# market is coming through its level, so on average it does not capture the spread it appears to.
+# Set to the bare maker fee, which is the only part of POST that is genuinely mechanical. The
+# policy can still learn a better number — but it should have to earn it rather than start there.
+PRIOR_COST_BPS = {POST: 1.5, CROSS: 5.5, PEG: 3.0}
 PRIOR_STRENGTH = 8.0        # prior counts as this many observations; keeps early behaviour sane
 PRIOR_SD_BPS = 6.0          # expected spread of per-order costs around the mean
 

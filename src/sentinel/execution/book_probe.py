@@ -104,22 +104,44 @@ def probe(fx, symbol: str, side: str, notional: float, depth_levels: int = 5) ->
 
 
 def post_outcome_bps(side: str, touch_price: float, arrival_mid: float,
-                     low: float, high: float, completion_bps: float) -> tuple[float, bool]:
+                     low: float, high: float, completion_bps: float,
+                     post_mid: float = 0.0, adverse_cap_bps: float = 30.0) -> tuple[float, bool]:
     """Score a resting order from REAL subsequent price action.
 
-    A passive BUY at `touch_price` fills only if the market actually traded down to it. If it did,
-    we bought at the bid and the cost versus arrival mid is negative — we earned the spread. If it
-    did not, we still need the position, so the cost is `completion_bps`: what it then took to
-    cross, measured on the book at that later moment.
+    A passive BUY at `touch_price` fills only if the market actually traded down to it. If it did
+    not, we still need the position, so the cost is `completion_bps`: what it then took to cross,
+    measured on the book at that later moment. Returning the completion cost rather than zero is
+    the entire point — an unfilled passive order is not free, it is deferred and usually more
+    expensive, and a learner told otherwise concludes that posting is costless and stops crossing.
 
-    Returning the completion cost rather than zero is the entire point. An unfilled passive order
-    is not free, it is deferred and usually more expensive, and a learner told otherwise concludes
-    that posting is costless and stops crossing forever.
+    ADVERSE SELECTION
+    -----------------
+    A resting order does not fill at random. It fills precisely when the market comes to it, and a
+    live trading experiment on the Binance BTC perpetual (arXiv:2502.18625) measured fill
+    likelihood to be NEGATIVELY correlated with post-fill returns: the same order-book conditions
+    that get you filled are the ones that predict the price continuing through your level.
+
+    So crediting a filled passive order with the full half-spread — which is what this function
+    used to do — systematically overstates it. By the time the fill happened, fair value had
+    already moved to our price; we did not buy below the market, we bought AT a market that was on
+    its way down.
+
+    `post_mid` supplies a later mid so that drift can be charged. The drift is applied SIGNED and
+    symmetric, not clipped to the adverse side: the bandit needs an unbiased estimate of
+    E[cost | filled], and charging only the bad half would bias it pessimistic and push the policy
+    to cross when it should not. `adverse_cap_bps` bounds the magnitude so a single violent bar
+    cannot dominate a cell's posterior. Passing post_mid=0 keeps the old optimistic behaviour.
     """
     if arrival_mid <= 0 or touch_price <= 0:
         return 0.0, False
-    filled = (low <= touch_price) if side.upper() == "BUY" else (high >= touch_price)
+    buy = side.upper() == "BUY"
+    filled = (low <= touch_price) if buy else (high >= touch_price)
     if not filled:
         return float(completion_bps), False
     raw = (touch_price / arrival_mid - 1.0) * 10_000.0
-    return (raw if side.upper() == "BUY" else -raw), True
+    cost = raw if buy else -raw
+    if post_mid > 0:
+        drift = (post_mid / arrival_mid - 1.0) * 10_000.0
+        adverse = -drift if buy else drift        # >0 = the market kept moving against the fill
+        cost += max(-adverse_cap_bps, min(adverse_cap_bps, adverse))
+    return cost, True

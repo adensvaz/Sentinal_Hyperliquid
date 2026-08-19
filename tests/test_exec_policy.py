@@ -214,3 +214,46 @@ def test_cell_decay_is_monotonic():
     c = Cell(n=100.0, mean=5.0, m2=50.0, last_ts=time.time() - 90 * DAY)
     c.decay(time.time(), half_life_days=30.0)
     assert c.n < 15.0, "three half-lives should leave under 1/8 of the weight"
+
+
+def test_post_outcome_charges_adverse_selection():
+    """A passive fill is not worth the half-spread. arXiv:2502.18625 measured fill likelihood to be
+    negatively correlated with post-fill returns on a live Binance BTC perp experiment: the order
+    fills exactly when the market is coming through your level."""
+    from sentinel.execution.book_probe import post_outcome_bps
+
+    # BUY resting 5bps below a mid of 100, market trades down to it -> fills.
+    touch, mid = 99.95, 100.0
+
+    naive, filled = post_outcome_bps("BUY", touch, mid, low=99.90, high=100.1,
+                                     completion_bps=5.0)
+    assert filled and naive < 0, "without a post-fill mark it still books a spread capture"
+
+    # Same fill, but the market kept falling to 99.50 (50bps of adverse drift).
+    adverse, filled = post_outcome_bps("BUY", touch, mid, low=99.40, high=100.1,
+                                       completion_bps=5.0, post_mid=99.50)
+    assert filled
+    assert adverse > naive, "adverse drift must make the fill more expensive, not less"
+    assert adverse > 0, "a fill followed by a 50bps adverse move is a COST, not a saving"
+
+    # Symmetric: if the market rebounded, the fill really was good and must be credited.
+    good, _ = post_outcome_bps("BUY", touch, mid, low=99.90, high=100.6,
+                               completion_bps=5.0, post_mid=100.40)
+    assert good < naive, "favourable drift must be credited too — the estimator is unbiased"
+
+    # The cap bounds a single violent bar.
+    wild, _ = post_outcome_bps("BUY", touch, mid, low=90.0, high=100.1,
+                               completion_bps=5.0, post_mid=90.0, adverse_cap_bps=30.0)
+    assert wild <= 30.0 + 1e-6
+
+    # SELL side mirrors it.
+    s_adv, _ = post_outcome_bps("SELL", 100.05, mid, low=99.9, high=100.6,
+                                completion_bps=5.0, post_mid=100.50)
+    s_naive, _ = post_outcome_bps("SELL", 100.05, mid, low=99.9, high=100.6,
+                                  completion_bps=5.0)
+    assert s_adv > s_naive
+
+    # An unfilled order is still charged the completion cost, unchanged.
+    miss, filled = post_outcome_bps("BUY", touch, mid, low=99.98, high=100.1,
+                                    completion_bps=7.5, post_mid=99.5)
+    assert not filled and miss == 7.5
