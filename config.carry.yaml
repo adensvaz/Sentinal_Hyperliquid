@@ -37,7 +37,34 @@ carry:
                                # net profit over 110 trades. At K=8 the same CAGR comes with maxDD 52.6% -> 33.0%
                                # and the spread across universe draws falls from 44pp to 13pp — 3.4x steadier.
                                # This is a robustness change, not a return forecast: it buys stability, not alpha.
-  lookback: 21
+  lookback: 14                 # SHORTENED from 21. The ranking asks "which coins have been running";
+                               # three weeks answers who WAS running, two weeks who IS.
+                               #
+                               # Measured on 108 HL perps x 901 days, funding coverage 99.6%, at the
+                               # LIVE gross and with the live stops, keep_buffer and risk overlays:
+                               #        21d  Sharpe  0.02   CAGR  -1.2%   maxDD 24.1%
+                               #        14d  Sharpe  0.88   CAGR +17.0%   maxDD 19.1%
+                               # 14d and 17d (0.73) form a plateau; 7/10/21/28/35d all sit at or
+                               # below zero, so this is a shape, not a spike.
+                               #
+                               # Three things make it credible rather than another fitted number:
+                               #  1. WALK-FORWARD. Re-choosing the lookback every 90 days from past
+                               #     data only picked 14d at all five refits and beat the live config
+                               #     by +0.52 Sharpe. It would have been chosen in real time.
+                               #  2. THE LIVE LEDGER AGREES. 203 closed trades: profit factor 0.975,
+                               #     expectancy -$0.56/trade — the 21d signal traded flat in reality,
+                               #     which is exactly what the panel says (Sharpe 0.02). Independent
+                               #     out-of-sample confirmation of the thing being fixed.
+                               #  3. Paired block-bootstrap on the daily difference: +4.78bps/day,
+                               #     95% CI [+0.47, +9.24] — excludes zero. 6 of 6 robustness cuts.
+                               #
+                               # HONEST LIMITS: corrected for searching 7 lookbacks (Sidak) p=0.094,
+                               # so it does NOT clear 5% — though Sidak assumes independent tests and
+                               # these overlap heavily, which over-corrects. A narrower 60-coin panel
+                               # DISAGREED (there 21d looked fine); that panel was top-60 by today's
+                               # volume, and 21d only worked on the survivors. Fully delisted coins
+                               # are still missing from both. Both lookbacks lose at 4x fees.
+                               # Turnover rises 0.377 -> 0.415. One line, instantly reversible.
   target_gross: 1.0            # HALVED from 2.0 on the LIVE trade ledger, not a backtest.
                                # 203 closed trades over 38.8 days: profit factor 0.975, expectancy
                                # -$0.56/trade, gross trading P&L -$114.51 — i.e. the signal traded
