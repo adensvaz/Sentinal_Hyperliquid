@@ -243,8 +243,8 @@ def test_post_outcome_charges_adverse_selection():
 
     # The cap bounds a single violent bar.
     wild, _ = post_outcome_bps("BUY", touch, mid, low=90.0, high=100.1,
-                               completion_bps=5.0, post_mid=90.0, adverse_cap_bps=30.0)
-    assert wild <= 30.0 + 1e-6
+                               completion_bps=5.0, post_mid=90.0, adverse_cap_bps=60.0)
+    assert wild <= 60.0 + 1e-6
 
     # SELL side mirrors it.
     s_adv, _ = post_outcome_bps("SELL", 100.05, mid, low=99.9, high=100.6,
