@@ -63,7 +63,7 @@ CREATE TABLE IF NOT EXISTS treasury(
 CREATE TABLE IF NOT EXISTS exec_log(
   id INTEGER PRIMARY KEY AUTOINCREMENT, ts INTEGER, mode TEXT, symbol TEXT, side TEXT,
   context TEXT, arm TEXT, shadow TEXT, arrival_mid REAL, fill_price REAL, notional REAL,
-  cost_bps REAL, filled INTEGER, order_id TEXT);
+  cost_bps REAL, filled INTEGER, order_id TEXT, ref_price REAL);
 CREATE INDEX IF NOT EXISTS ix_exec_ts ON exec_log(mode, ts);
 CREATE INDEX IF NOT EXISTS ix_exec_ctx ON exec_log(context, arm);
 """
@@ -78,9 +78,20 @@ class Store:
         self.conn.execute("PRAGMA journal_mode=WAL")
         self.conn.execute("PRAGMA synchronous=NORMAL")
         self.conn.executescript(_SCHEMA)
+        self._add_column("exec_log", "ref_price", "REAL")
         self.conn.execute("INSERT OR IGNORE INTO meta(key, value) VALUES('schema_version', ?)",
                           (str(SCHEMA_VERSION),))
         self.conn.commit()
+
+    def _add_column(self, table: str, col: str, decl: str) -> None:
+        """CREATE TABLE IF NOT EXISTS is a no-op on a database that already has the table, so a
+        column added to the schema never reaches an existing deployment. This closes that gap."""
+        try:
+            have = {r["name"] for r in self.conn.execute(f"PRAGMA table_info({table})")}
+            if have and col not in have:
+                self.conn.execute(f"ALTER TABLE {table} ADD COLUMN {col} {decl}")
+        except sqlite3.Error:
+            pass
 
     # -- meta -----------------------------------------------------------------
     def set_meta(self, key: str, value: Any) -> None:
@@ -255,14 +266,20 @@ class Store:
     # -- execution learning ---------------------------------------------------
     def record_exec(self, mode: str, *, symbol: str, side: str, context: str, arm: str,
                     shadow: str, arrival_mid: float, notional: float, order_id: str = "",
-                    ts: Optional[int] = None) -> int:
+                    ts: Optional[int] = None, ref_price: float = 0.0) -> int:
         """Log the decision at send time. cost_bps stays NULL until the outcome is known —
-        an order whose result was never observed must never be fed to the learner as a zero."""
+        an order whose result was never observed must never be fed to the learner as a zero.
+
+        `ref_price` is the price a PASSIVE order would have rested at (the touch). Without it a
+        POST decision cannot be scored later: knowing the mid at arrival says nothing about whether
+        the market subsequently traded through our resting level."""
         ts = ts or int(time.time())
         cur = self.conn.execute(
             "INSERT INTO exec_log(ts,mode,symbol,side,context,arm,shadow,arrival_mid,fill_price,"
-            "notional,cost_bps,filled,order_id) VALUES(?,?,?,?,?,?,?,?,NULL,?,NULL,0,?)",
-            (ts, mode, symbol, side, context, arm, shadow, arrival_mid, notional, order_id))
+            "notional,cost_bps,filled,order_id,ref_price) "
+            "VALUES(?,?,?,?,?,?,?,?,NULL,?,NULL,0,?,?)",
+            (ts, mode, symbol, side, context, arm, shadow, arrival_mid, notional, order_id,
+             ref_price))
         self.conn.commit()
         return int(cur.lastrowid)
 

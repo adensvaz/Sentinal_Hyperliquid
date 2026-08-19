@@ -19,6 +19,8 @@ from ..exchange.client import KoinbayClient
 from ..exchange.contracts import ContractRegistry
 from ..exchange.futures import KoinbayFutures
 from ..exchange.factory import make_futures
+from ..execution.book_probe import post_outcome_bps, probe
+from ..execution.exec_policy import ExecutionPolicy
 from ..execution.live_broker import LiveBroker
 from ..execution.paper_broker import PaperBroker, PaperPosition
 from ..execution.reconciler import reconcile
@@ -82,6 +84,7 @@ class Engine:
         self.history_bars = 120
         self.coin_to_symbol: dict[str, str] = {}
         self.whales = self._build_whale_tracker()
+        self.exec_policy: Optional[ExecutionPolicy] = None   # set by _build_broker
         self.broker = self._build_broker()
 
     # -- construction helpers -------------------------------------------------
@@ -129,12 +132,83 @@ class Engine:
         except Exception as e:
             log.warning("whale refresh failed: %s", e)
 
+    def _load_exec_policy(self):
+        """Restore the execution policy's learned cells, or start from the physics prior.
+
+        It is loaded here rather than constructed fresh because its whole value is accumulated
+        evidence: a policy that forgets on every restart never leaves its prior and is worse than
+        useless — it pays the cost of exploring and never banks the result."""
+        try:
+            return ExecutionPolicy.from_json(self.store.get_meta("exec_policy", "") or "")
+        except Exception as e:                                # noqa: BLE001
+            log.warning("exec policy load failed, starting from prior: %s", e)
+            return ExecutionPolicy()
+
+    def _save_exec_policy(self) -> None:
+        if self.exec_policy is None:
+            return
+        try:
+            self.store.set_meta("exec_policy", self.exec_policy.to_json())
+        except Exception as e:                                # noqa: BLE001
+            log.warning("exec policy save failed: %s", e)
+
+    def _settle_exec(self, max_rows: int = 60) -> None:
+        """Score POST decisions now that the market has had time to answer them.
+
+        A resting order's outcome is not knowable when it is sent, so record_exec leaves cost_bps
+        NULL and this settles it from real subsequent price action: did the market trade through
+        our touch? If it did we earned the spread; if it did not, the cost is what crossing NOW
+        actually costs — never zero. Rows that cannot be scored are LEFT unresolved rather than
+        closed at zero, because a fabricated zero is exactly what would teach the policy that
+        posting is free.
+
+        Never raises: an execution learner must not be able to stop the book trading.
+        """
+        if self.exec_policy is None:
+            return
+        try:
+            rows = self.store.unresolved_exec(self.mode, older_than_s=900)
+        except Exception as e:                                # noqa: BLE001
+            log.warning("exec settle skipped: %s", e)
+            return
+        settled = 0
+        for r in rows[:max_rows]:
+            try:
+                mid0, touch = float(r.get("arrival_mid") or 0), float(r.get("ref_price") or 0)
+                if mid0 <= 0 or touch <= 0:
+                    continue                                  # pre-migration row: cannot be scored
+                bars = self.fx.klines(r["symbol"], "1h", 8) or []
+                after = [b for b in bars if int(b["idx"]) / 1000.0 >= float(r["ts"])]
+                if not after:
+                    continue                                  # not enough price action yet
+                lo = min(float(b["low"]) for b in after)
+                hi = max(float(b["high"]) for b in after)
+                bs = probe(self.fx, r["symbol"], r["side"], abs(float(r.get("notional") or 0)))
+                completion = bs.cross_bps if bs else float(self.cfg.execution.slippage_bps)
+                cost, filled = post_outcome_bps(r["side"], touch, mid0, lo, hi, completion)
+                self.exec_policy.record(r["context"], r.get("shadow") or r["arm"], cost)
+                self.store.resolve_exec(r["id"], cost_bps=cost, filled=filled,
+                                        fill_price=touch if filled else (bs.mid if bs else mid0))
+                settled += 1
+            except Exception:                                 # noqa: BLE001
+                continue
+        if settled:
+            log.info("execution policy: settled %d pending decisions", settled)
+            self._save_exec_policy()
+
     def _build_broker(self):
+        self.exec_policy = self._load_exec_policy()
         if self.live:
+            # SHADOW: the policy observes and records every order and changes nothing. It takes
+            # over only when store.exec_stats() shows it beating the fixed default on realised
+            # cost — see live_broker.policy_live.
             return LiveBroker(self.fx, capital_override=self.cfg.capital_usdt,
-                              stop_loss_pct=self.cfg.risk.stop_loss_pct)
+                              stop_loss_pct=self.cfg.risk.stop_loss_pct,
+                              exec_policy=self.exec_policy, store=self.store)
         capital = self.cfg.capital_usdt or 10_000.0
-        broker = PaperBroker(starting_capital=capital)
+        # Paper trains on the REAL book (fx), never on its own synthetic fill.
+        broker = PaperBroker(starting_capital=capital, exec_policy=self.exec_policy,
+                             store=self.store, fx=self.fx)
         acct = self.store.load_account(self.mode)
         if acct:
             broker.starting_capital = acct.get("starting_capital") or capital
@@ -220,6 +294,7 @@ class Engine:
         self._ensure_market()
         assert self.registry is not None and self.signal is not None
         self._maybe_refresh_whales()
+        self._settle_exec()          # score last cycle's resting orders before placing new ones
 
         universe = build_universe(self.fx, self.registry, cfg.universe)
         data, prices, funding = load_symbol_data(self.fx, self.registry, universe,
@@ -411,6 +486,8 @@ class Engine:
             self.broker.prepare(sorted({o.symbol for o in orders}), self.registry,
                                 cfg.portfolio, cfg.execution)
         fills = self.broker.execute(orders, self.registry, cfg.execution)
+        if orders:
+            self._save_exec_policy()     # bank what this cycle's orders taught it
 
         if not self.live:
             self.broker.set_marks(prices)

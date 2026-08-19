@@ -130,9 +130,11 @@ class PaperBroker(Broker):
             if arm == "CROSS":
                 self.exec_policy.record(ctx, arm, bs.cross_bps)
             if self.store is not None:
+                half = bs.half_spread_bps / 1e4
+                touch = bs.mid * (1 - half) if o.side.upper() == "BUY" else bs.mid * (1 + half)
                 rid = self.store.record_exec(
                     self.mode, symbol=o.symbol, side=o.side, context=ctx, arm=arm, shadow=arm,
-                    arrival_mid=bs.mid, notional=float(o.notional))
+                    arrival_mid=bs.mid, notional=float(o.notional), ref_price=touch)
                 if arm == "CROSS":
                     self.store.resolve_exec(rid, fill_price=bs.mid * (1 + bs.cross_bps / 1e4),
                                             cost_bps=bs.cross_bps, filled=True)

@@ -150,10 +150,14 @@ class LiveBroker(Broker):
             row_id = None
             if self.store is not None:
                 actual = "POST" if getattr(exec_cfg, "maker", False) else "CROSS"
+                half = spread_bps / 2.0 / 1e4
+                touch = (float(o.ref_price) * (1 - half) if o.side.upper() == "BUY"
+                         else float(o.ref_price) * (1 + half))
                 row_id = self.store.record_exec(
                     self.mode, symbol=o.symbol, side=o.side, context=ctx,
                     arm=(arm if self.policy_live else actual), shadow=arm,
-                    arrival_mid=float(o.ref_price), notional=float(o.notional))
+                    arrival_mid=float(o.ref_price), notional=float(o.notional),
+                    ref_price=touch)
             return ctx, arm, row_id
         except Exception as e:                            # noqa: BLE001
             log.warning("exec policy skipped for %s: %s", o.symbol, e)
