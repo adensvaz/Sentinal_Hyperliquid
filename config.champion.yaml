@@ -36,6 +36,16 @@ champion:
   #     just 12% of universes) and Calmar. A risk-reducer, not an edge — not worth the return drag.
   mom_weighted: true         # size by momentum strength (lean into the leaders), not equal slices
   max_name_weight: 0.40      # ...but never more than 40% in one coin (copy-trade-safe)
+  intraday_regime_check: true  # The regime brake is a STATE, not a schedule. Sampling it once a
+                               # day means the book can sit flat through a crossing: on 2026-08-19
+                               # the 14:00 cycle saw BTC 0.6% UNDER its 100d MA, stayed flat
+                               # correctly, and the market crossed 58 minutes later — the next look
+                               # was 23h after that, with BTC up from 65,892 to 71,781. This re-reads
+                               # the gate every 10 minutes and rebalances when it moves.
+                               # NOT backtested, and cannot be: HL serves 5,000 hourly bars (208d),
+                               # champion burns 100d warming up its MA, and the rest holds THREE
+                               # regime flips. Three events cannot separate signal from luck. This
+                               # ships because the gate should match its own specification.
   breadth_scale: false       # OFF — failed the heavy backtest (see above)
 
 execution:

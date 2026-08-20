@@ -84,7 +84,15 @@ def run_loop(engine, minutes: int, on_report: Callable, monitor_seconds: int = 6
                     log.warning("safety rail fired: %s", r)
             except Exception as e:
                 log.warning("safety check failed: %s", e)
-            if time.time() >= next_rebalance:
+            # The regime brake is a state, not a schedule: if it moves between cycles the book
+            # should follow it rather than wait out the rest of the day. See
+            # Engine.regime_gate_changed for why, and for what evidence does and does not support it.
+            early = False
+            try:
+                early = engine.regime_gate_changed()
+            except Exception as e:
+                log.warning("regime gate check failed: %s", e)
+            if time.time() >= next_rebalance or early:
                 try:
                     on_report(engine.run_once())
                 except Exception as e:

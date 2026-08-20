@@ -35,7 +35,7 @@ from ..strategy import grid_book
 from ..strategy.funding_carry import FundingCarryStrategy
 from ..strategy.trend import TrendStrategy
 from ..portfolio.treasury import Treasury
-from ..strategy.momentum_regime import MomentumRegimeStrategy
+from ..strategy.momentum_regime import MomentumRegimeStrategy, regime_on
 from ..strategy.portfolio import beta_scales, book_beta, compute_betas, demean_by_beta, dispersion
 from ..strategy.sentiment_edge import SentimentEdgeStrategy
 from ..strategy.sizing import adv_caps, net_scales
@@ -44,6 +44,10 @@ from ..util.mathx import parse_duration_to_hours, realized_vol
 from .marketdata import build_universe, filter_by_age, load_symbol_data, mark_price, pick_base_interval
 
 log = logging.getLogger("sentinel")
+
+# How often the intraday regime brake may be re-read. The monitor tick is every 60s, but the gate
+# moves on daily closes, so polling it that hard is wasted API calls for no extra resolution.
+REGIME_POLL_SECONDS = 600
 
 # How long a resting order is given to fill, and the horizon of the post-fill mark used to charge
 # it for adverse selection. Measured, not chosen: across 100,551 real Hyperliquid fills sampled
@@ -988,6 +992,55 @@ class Engine:
         return out
 
     # -- safety rails (run frequently by the loop between rebalances) ---------
+    def regime_gate_changed(self) -> bool:
+        """True when champion's BTC regime brake has flipped since it was last observed.
+
+        The brake is a binary function of an observable — is BTC above its 100-day average — but it
+        was only ever SAMPLED at the daily rebalance. On 2026-08-19 that cost the book a ~9% move:
+        at the 14:00 cycle BTC sat 0.6% UNDER its 100-day MA, so the brake was correctly off and the
+        book stayed flat; the market crossed 58 minutes later and the next observation was 23 hours
+        after that, by which point BTC had run from 65,892 to 71,781.
+
+        Nothing malfunctioned — but "invest when BTC is above its 100-day average", which is what
+        the config says, and "invest if BTC was above its average at 14:00 yesterday", which is what
+        a daily cron delivers, are different specifications. This closes that gap by re-reading the
+        gate on the existing monitor tick and asking for a rebalance when it moves.
+
+        HONESTY ABOUT EVIDENCE: this is NOT backed by a backtest. Hyperliquid serves at most 5,000
+        hourly bars (208 days), champion needs 100 of those days just to warm up its MA, and the
+        remaining window contains THREE regime flips. A test on three events cannot distinguish this
+        from luck, and the one it would lean on is the incident that prompted it. The justification
+        is that the gate should do what it is specified to do, not that a backtest liked it.
+
+        Never raises, and self-throttles — the poll is cheap but the tick is every 60s.
+        """
+        c = self.cfg
+        if c.strategy != "champion" or not getattr(c.champion, "intraday_regime_check", False):
+            return False
+        now = time.time()
+        try:
+            last = float(self.store.get_meta("regime_poll_ts", 0) or 0)
+            if now - last < REGIME_POLL_SECONDS:
+                return False
+            self.store.set_meta("regime_poll_ts", int(now))
+            rows = self.fx.klines(self.btc_sym, "1day", c.champion.regime_ma + 5) or []
+            closes = [float(r["close"]) for r in rows if r.get("close")]
+            if len(closes) < c.champion.regime_ma + 1:
+                return False
+            on = regime_on(closes, c.champion.regime_ma)
+            prev = self.store.get_meta("regime_state", None)
+            self.store.set_meta("regime_state", bool(on))
+            if prev is None:
+                return False                      # first observation sets the baseline only
+            if bool(on) == bool(prev):
+                return False
+            log.info("regime brake flipped %s -> %s intraday; requesting an early rebalance",
+                     "ON" if prev else "OFF", "ON" if on else "OFF")
+            return True
+        except Exception as e:                    # noqa: BLE001
+            log.warning("intraday regime check failed: %s", e)
+            return False
+
     def is_paused(self) -> bool:
         return time.time() < self.store.paused_until(self.mode)
 

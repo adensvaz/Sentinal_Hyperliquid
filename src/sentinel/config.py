@@ -172,6 +172,9 @@ class ChampionCfg(BaseModel):
     breadth_hi: float = 0.80       # gross scales to full at/above this fraction (linear in between)
     mom_weighted: bool = False     # size by momentum strength instead of equal-weight (lean into leaders)
     max_name_weight: float = 0.40  # cap any single name at this fraction of gross (copy-trade-safe)
+    intraday_regime_check: bool = False   # re-read the BTC regime brake on the monitor tick and
+                                          # rebalance when it flips, instead of sampling it once a
+                                          # day. See Engine.regime_gate_changed.
 
 
 class CarryCfg(BaseModel):

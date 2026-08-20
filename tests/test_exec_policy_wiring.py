@@ -124,3 +124,56 @@ def test_exec_stats_scores_shadow_against_reality():
 
 def test_exec_stats_empty_is_safe():
     assert _store().exec_stats("live")["n"] == 0
+
+
+def test_regime_gate_changed_only_fires_on_a_flip():
+    """The intraday regime brake must trigger a rebalance when BTC crosses its MA, stay silent
+    otherwise, set a baseline on first observation, and never raise. Guards the 2026-08-19 failure
+    where a daily-sampled gate missed a crossing by 58 minutes."""
+    import types
+    import sentinel.engine.engine as E
+
+    class Store:
+        def __init__(self):
+            self.m = {}
+
+        def get_meta(self, k, d=None):
+            return self.m.get(k, d)
+
+        def set_meta(self, k, v):
+            self.m[k] = v
+
+    def mk(closes):
+        eng = object.__new__(E.Engine)
+        eng.cfg = types.SimpleNamespace(
+            strategy="champion",
+            champion=types.SimpleNamespace(regime_ma=3, intraday_regime_check=True))
+        eng.store = Store()
+        eng.btc_sym = "BTC"
+        eng.fx = types.SimpleNamespace(
+            klines=lambda s, i, n: [{"close": c} for c in closes])
+        return eng
+
+    eng = mk([10, 10, 10, 9])                       # below the 3-bar MA -> OFF
+    assert eng.regime_gate_changed() is False       # first look only sets the baseline
+    assert eng.store.get_meta("regime_state") is False
+
+    eng.store.set_meta("regime_poll_ts", 0)         # allow an immediate re-poll
+    eng.fx.klines = lambda s, i, n: [{"close": c} for c in [10, 10, 10, 20]]   # now ABOVE -> flip
+    assert eng.regime_gate_changed() is True
+
+    eng.store.set_meta("regime_poll_ts", 0)
+    assert eng.regime_gate_changed() is False       # same state twice -> silent
+
+    # throttle: a second call inside REGIME_POLL_SECONDS must not re-read
+    eng.fx.klines = lambda s, i, n: [{"close": c} for c in [10, 10, 10, 1]]
+    assert eng.regime_gate_changed() is False
+
+    # disabled for the other books
+    eng2 = mk([10, 10, 10, 9]); eng2.cfg.strategy = "carry"
+    assert eng2.regime_gate_changed() is False
+
+    # a broken exchange must not stop the loop
+    eng3 = mk([10, 10, 10, 9])
+    eng3.fx.klines = lambda *a, **k: (_ for _ in ()).throw(RuntimeError("api down"))
+    assert eng3.regime_gate_changed() is False
