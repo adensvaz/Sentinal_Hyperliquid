@@ -65,7 +65,37 @@ carry:
                                # volume, and 21d only worked on the survivors. Fully delisted coins
                                # are still missing from both. Both lookbacks lose at 4x fees.
                                # Turnover rises 0.377 -> 0.415. One line, instantly reversible.
-  target_gross: 1.0            # HALVED from 2.0 on the LIVE trade ledger, not a backtest.
+  target_gross: 1.5            # RAISED from 1.0, but only after the signal underneath it changed.
+                               # The 1.0 below was set on the LIVE ledger of the 21-day signal, and
+                               # that signal is gone — lookback is now 14, which the wide panel puts
+                               # at Sharpe 0.88 against 21d's 0.02. Sizing set for a flat signal
+                               # should not survive the signal being replaced.
+                               #
+                               # Growth-rate curve, 108-coin panel, live costs, mean log(1+L*r):
+                               #     0.5x   CAGR  +8.7%   maxDD 10.0%   growth  8.4%/yr
+                               #     1.0x        +17.0%         19.1%          15.7%
+                               #     1.5x        +24.6%         27.4%          22.0%   <- here
+                               #     2.2x  half-Kelly
+                               #     4.4x  growth-optimal (full Kelly), maxDD 58.6%
+                               # So 1.5x is still well under half-Kelly. It is deliberately NOT the
+                               # growth-optimal number, for one reason: Kelly assumes you know your
+                               # edge, and this one's Deflated Sharpe is 0.564 — barely better than
+                               # a coin flip that the edge exists at all, with SR0 (the Sharpe you
+                               # would expect from searching 7 lookbacks on pure noise) at 0.77
+                               # against a measured 0.88. Full Kelly on a possibly-zero edge is a
+                               # possibly-total loss. Sizing below Kelly IS the correction for not
+                               # knowing.
+                               #
+                               # WHAT THIS COSTS: fees scale linearly with gross, so the ~6.6%/yr
+                               # fee bill becomes ~9.9%/yr, and maxDD 19.1% -> 27.4%. Both are the
+                               # price of the position size, not a defect.
+                               # NOT APPLIED TO TREND, which was the original request: trend's
+                               # Sharpe on the same panel is -0.20 and its growth-optimal gross is
+                               # 0.05x. Leverage multiplies the sign that is already there.
+                               #
+                               # --- the reasoning for the 1.0 this replaces, kept because the cost
+                               #     arithmetic in it is still what governs ---
+                               # HALVED from 2.0 on the LIVE trade ledger, not a backtest.
                                # 203 closed trades over 38.8 days: profit factor 0.975, expectancy
                                # -$0.56/trade, gross trading P&L -$114.51 — i.e. the signal traded
                                # roughly FLAT. What actually took the book from +18% (peak $11,812)
