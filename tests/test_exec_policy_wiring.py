@@ -177,3 +177,51 @@ def test_regime_gate_changed_only_fires_on_a_flip():
     eng3 = mk([10, 10, 10, 9])
     eng3.fx.klines = lambda *a, **k: (_ for _ in ()).throw(RuntimeError("api down"))
     assert eng3.regime_gate_changed() is False
+
+
+def test_trend_stays_invested_when_every_coin_is_in_an_uptrend():
+    """A cross-sectional book must short the WEAKEST name even when nothing is falling.
+
+    Guards the 2026-08-21 incident: all 30 universe coins sat in the upper half of their 45-day
+    range, the old `if t < 0` filter emptied the short sleeve, and the live book closed all 10
+    positions and held nothing for four days through a rally.
+    """
+    from sentinel.config import load_config
+    from sentinel.strategy.trend import TrendStrategy
+
+    cfg = load_config("config.hl-trend.yaml")
+    st = TrendStrategy(cfg)
+    K = cfg.trend.top_k
+    don = getattr(cfg.trend, "donchian_period", 45)
+
+    class Spec:
+        def notional_to_contracts(self, n, p): return max(int(n / p), 1)
+        def contracts_to_notional(self, c, p): return c * p
+
+    class Reg:
+        def has(self, s): return True
+        def get(self, s): return Spec()
+
+    # Every coin rallies, then retraces by a DIFFERENT amount. So every breakout score is
+    # positive (nothing is in an absolute downtrend) but they still differ, which is exactly the
+    # market state that emptied the live book. A purely monotonic rise would put every coin at its
+    # range high and score them all +0.5 — no spread, nothing to rank.
+    n = 2 * K + 4
+    closes, prices = {}, {}
+    for i in range(n):
+        rise = [100.0 * 1.01 ** k for k in range(don + 5)]
+        top = rise[-1]
+        retrace = 0.02 * i                       # 0% .. ~40% back off the high
+        series = rise + [top * (1.0 - retrace)]
+        closes[f"C{i}"] = series
+        prices[f"C{i}"] = series[-1]
+
+    book = st.build_book(closes, prices, Reg(), equity=10_000.0)
+    longs = [p for p in book.positions.values() if p.target_contracts > 0]
+    shorts = [p for p in book.positions.values() if p.target_contracts < 0]
+
+    assert longs, "long sleeve must be populated"
+    assert shorts, "short sleeve must be populated even with nothing in an absolute downtrend"
+    assert len(longs) == K and len(shorts) == K, "book must be a balanced top-K / bottom-K"
+    # and it must short the WEAKEST names, not the strongest
+    assert min(p.score for p in longs) > max(p.score for p in shorts)

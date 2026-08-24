@@ -48,9 +48,25 @@ def test_too_few_candidates_returns_empty():
     assert len(book.positions) == 0
 
 
-def test_all_uptrend_returns_empty():
-    # every coin trending up -> no downtrends to short -> empty (needs BOTH sleeves)
+def test_all_uptrend_stays_invested():
+    """Every coin trending up must STILL produce a balanced book.
+
+    This test previously asserted the opposite — that an all-uptrend market returns an empty book,
+    because the sleeves were filtered on the absolute sign of the score (`if t > 0` / `if t < 0`).
+    That turned a cross-sectional ranking into a time-series signal, and on 2026-08-21 it emptied
+    the live book: all 30 universe coins sat in the upper half of their 45-day range, so the short
+    sleeve was empty and the strategy closed all 10 positions and held nothing for four days.
+
+    A relative ranking does not stop being informative because everything is rising — the weakest
+    name is still the right short for a dollar-neutral book. The expectation is inverted
+    deliberately; see the comment in trend.build_book.
+    """
     closes = {n: _up(0.002) for n in NAMES}
     prices = {n: closes[n][-1] for n in NAMES}
     book = _strat(top_k=5).build_book(closes, prices, _reg(), 10000.0, 1.0)
-    assert len(book.positions) == 0
+    longs = [p for p in book.positions.values() if p.side == "LONG"]
+    shorts = [p for p in book.positions.values() if p.side == "SHORT"]
+    assert len(longs) == 5 and len(shorts) == 5
+    ln = sum(p.target_notional for p in longs)
+    sn = sum(p.target_notional for p in shorts)
+    assert abs(ln + sn) < 0.03 * abs(ln)          # still dollar-neutral

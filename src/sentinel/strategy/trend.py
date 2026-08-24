@@ -92,8 +92,30 @@ class TrendStrategy:
             return TargetBook({}, equity, 0.0)
 
         cand.sort(key=lambda x: x[1])            # ascending by trend strength
-        longs = [(s, t) for s, t in cand[-c.top_k:] if t > 0]    # strongest UPtrends (only if actually up)
-        shorts = [(s, t) for s, t in cand[:c.top_k] if t < 0]    # strongest DOWNtrends (only if actually down)
+        # CROSS-SECTIONAL: long the top_k, short the bottom_k, on RANK alone.
+        #
+        # These lines used to read `if t > 0` and `if t < 0`, requiring each name to be in an
+        # absolute up/down trend as well as being the strongest/weakest. That silently converted a
+        # cross-sectional signal into a time-series one, and the two disagree exactly when the whole
+        # market moves together. On 2026-08-21 it emptied the book: every one of the 30 universe
+        # coins sat in the upper half of its 45-day range (weakest was ONDO at +0.075), so the short
+        # sleeve was empty, `not shorts` fired, and the live book closed all 10 positions and held
+        # nothing for four days through a rally.
+        #
+        # A relative ranking does not stop being informative because everything is rising. ONDO at
+        # +0.075 is still the weakest name in the cross-section and is still the right short for a
+        # dollar-neutral book. Carry never had this filter — carry_rank takes top_k/bottom_k
+        # unconditionally — so the two books had contradictory readings of their own rankings.
+        #
+        # Measured over 599 tradeable days on 106 coins: the filter emptied the book on 8.5% of
+        # them, and removing it improves Sharpe at EVERY donchian setting (14d +0.70, 20d +0.42,
+        # 30d +0.43, 45d +0.23, 60d +0.23) and wins 5 of 6 robustness cuts. Honest limits: it loses
+        # the second-half cut (-0.76), the paired bootstrap CI spans zero, and the Deflated Sharpe
+        # only moves 0.351 -> 0.522, so this makes an unevidenced book slightly less unevidenced
+        # rather than giving it an edge. It ships because a flat book during a broad rally is not
+        # what a cross-sectional strategy is supposed to do.
+        longs = cand[-c.top_k:]
+        shorts = cand[:c.top_k]
         if not longs or not shorts:
             return TargetBook({}, equity, 0.0)
 
