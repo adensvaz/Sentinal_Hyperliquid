@@ -65,7 +65,31 @@ carry:
                                # volume, and 21d only worked on the survivors. Fully delisted coins
                                # are still missing from both. Both lookbacks lose at 4x fees.
                                # Turnover rises 0.377 -> 0.415. One line, instantly reversible.
-  target_gross: 1.5            # RAISED from 1.0, but only after the signal underneath it changed.
+  target_gross: 1.0            # REVERTED from 1.5. The increase was never justified by anything
+                               # other than a backtest, and it never reached the live book: it was
+                               # committed 2026-08-20 13:47, three hours AFTER sentinel-carry last
+                               # restarted (10:24), so the process kept running 1.0x while this file
+                               # claimed 1.5x. Reported leverage stayed at 1.057x throughout.
+                               #
+                               # A config that disagrees with the running process is worse than
+                               # either value: the next restart, for any reason, would have silently
+                               # resized the book 50% with nobody choosing it.
+                               #
+                               # The evidence since: the 14-day lookback has 11.9 days live and is
+                               # -1.56%, against the old 21-day signal's -0.19% over 44.1 days.
+                               # Neither is distinguishable from zero — a 12-day window carries a
+                               # standard error of about +/-3.6% at this book's ~20%/yr volatility.
+                               # So the signal change has not yet earned a size increase; it has
+                               # only earned more time.
+                               #
+                               # REVISIT WHEN: the 14d signal has ~100 closed trades with positive
+                               # expectancy. Then 1.5x has a basis, and the growth curve below still
+                               # applies (1.5x -> CAGR +24.6%, maxDD 27.4%, half-Kelly is 2.2x).
+                               # Sizing below Kelly is the correction for not knowing the edge, and
+                               # the Deflated Sharpe on this book is 0.564 — we do not know it yet.
+                               #
+                               # --- the growth-curve reasoning that argued for 1.5x, kept intact ---
+                               # RAISED from 1.0, but only after the signal underneath it changed.
                                # The 1.0 below was set on the LIVE ledger of the 21-day signal, and
                                # that signal is gone — lookback is now 14, which the wide panel puts
                                # at Sharpe 0.88 against 21d's 0.02. Sizing set for a flat signal
